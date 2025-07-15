@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.PlayerViewModelFactory // ¡NUEVO! Importación de la fábrica
 
 /**
  * La Activity que alberga nuestro reproductor de video.
@@ -12,8 +13,10 @@ import com.kybers.play.ui.theme.IPTVAppTheme
  */
 class PlayerActivity : ComponentActivity() {
 
-    // Obtenemos una instancia del PlayerViewModel.
-    private val playerViewModel: PlayerViewModel by viewModels()
+    // Obtenemos una instancia del PlayerViewModel usando la fábrica.
+    private val playerViewModel: PlayerViewModel by viewModels {
+        PlayerViewModelFactory(application) // ¡CORREGIDO! Usando la nueva fábrica
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

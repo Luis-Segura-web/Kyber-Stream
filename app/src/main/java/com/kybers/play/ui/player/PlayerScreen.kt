@@ -5,12 +5,14 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -70,29 +72,46 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                controlsVisible = !controlsVisible
-            }
     ) {
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     this.player = player
                     useController = false
+                    controllerAutoShow = false
+                    controllerHideOnTouch = false
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
 
-        PlayerControls(
-            player = player,
-            isVisible = { controlsVisible },
-            isFullScreen = isFullScreen,
-            onVisibilityChanged = { controlsVisible = it },
-            onToggleFullScreen = { toggleFullScreen() }
-        )
+        // ¡CAMBIO CLAVE AQUÍ! El Box que detecta los toques y contiene los controles
+        // ahora se dibuja *después* del AndroidView en el mismo Box padre.
+        // Esto asegura que los eventos de toque sean capturados por esta capa.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            controlsVisible = !controlsVisible // Alterna la visibilidad de los controles
+                        }
+                    )
+                }
+        ) {
+            // Los controles del reproductor se dibujan encima de esta capa.
+            PlayerControls(
+                player = player,
+                controlsVisible = controlsVisible,
+                onControlsVisibilityChanged = { controlsVisible = it },
+                isFullScreen = isFullScreen,
+                onToggleFullScreen = { toggleFullScreen() },
+                channelName = null,
+                onPreviousChannel = { /* No hay navegación de canal anterior aquí */ },
+                onNextChannel = { /* No hay navegación de canal siguiente aquí */ },
+                isTvChannel = false, // Para PlayerScreen, asumimos que no es un canal de TV a menos que se especifique
+                onToggleResizeMode = { /* No hay lógica de ajuste de pantalla en esta pantalla genérica */ }
+            )
+        }
     }
 }

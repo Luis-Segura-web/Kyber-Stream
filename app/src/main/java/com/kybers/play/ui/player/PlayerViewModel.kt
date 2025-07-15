@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
 
 /**
  * ViewModel para gestionar la instancia de ExoPlayer.
@@ -18,8 +19,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         private set
 
     init {
-        // Creamos la instancia de ExoPlayer al iniciar el ViewModel.
-        player = ExoPlayer.Builder(getApplication()).build()
+        // ¡CORRECCIÓN CLAVE AQUÍ! Configuración de ExoPlayer simplificada y compatible con Media3.
+        player = ExoPlayer.Builder(getApplication())
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                    )
+                    .setTargetBufferBytes(DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build()
+            )
+            .build() // ¡IMPORTANTE! Eliminadas las configuraciones de setAudioSink, AudioCapabilities y setOffloadMode.
     }
 
     /**

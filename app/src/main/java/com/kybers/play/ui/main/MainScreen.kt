@@ -1,5 +1,8 @@
 package com.kybers.play.ui.main
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,6 +13,9 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -23,8 +29,8 @@ import androidx.navigation.compose.rememberNavController
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.home.HomeScreen
-import com.kybers.play.ui.home.HomeViewModel
+import com.kybers.play.ui.home.HomeScreen // ¡NUEVO! Importación para HomeScreen
+import com.kybers.play.ui.home.HomeViewModel // ¡NUEVO! Importación para HomeViewModel
 
 // Define las rutas, etiquetas e íconos para cada pantalla principal de la app.
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -46,28 +52,37 @@ private val items = listOf(
 @Composable
 fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
     val navController = rememberNavController()
+    // ¡NUEVO! Estado para controlar si ChannelsScreen está en fullscreen
+    var isChannelsFullScreen by remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+            // ¡CAMBIO CLAVE AQUÍ! La barra de navegación solo es visible si NO estamos en fullscreen
+            AnimatedVisibility(
+                visible = !isChannelsFullScreen,
+                enter = slideInVertically { it }, // Animación al aparecer
+                exit = slideOutVertically { it } // Animación al desaparecer
+            ) {
+                NavigationBar {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentDestination = navBackStackEntry?.destination
 
-                items.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                    items.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.label) },
+                            label = { Text(screen.label) },
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -79,7 +94,12 @@ fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
             }
             composable(Screen.Channels.route) {
                 val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
-                ChannelsScreen(viewModel = channelsViewModel)
+                ChannelsScreen(
+                    viewModel = channelsViewModel,
+                    onFullScreenToggled = { isFullScreen -> // ¡NUEVO! Recibe el callback
+                        isChannelsFullScreen = isFullScreen // Actualiza el estado local
+                    }
+                )
             }
             composable(Screen.Movies.route) {
                 MoviesScreen() // Placeholder

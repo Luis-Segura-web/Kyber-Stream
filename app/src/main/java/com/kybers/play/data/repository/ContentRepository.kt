@@ -12,9 +12,9 @@ import com.kybers.play.data.remote.model.XtreamResponse
  *
  * @param apiService La instancia de XtreamApiService configurada para el servidor de un usuario específico.
  */
-class ContentRepository(private val apiService: XtreamApiService) {
+open class ContentRepository(private val apiService: XtreamApiService) { // ¡CAMBIO AQUÍ! Ahora es 'open'
 
-    suspend fun authenticate(user: String, pass: String): XtreamResponse? {
+    open suspend fun authenticate(user: String, pass: String): XtreamResponse? { // También hacemos las funciones 'open' para mocks
         return try {
             val response = apiService.authenticate(user, pass)
             if (response.isSuccessful) response.body() else null
@@ -27,7 +27,7 @@ class ContentRepository(private val apiService: XtreamApiService) {
     /**
      * AÑADIDO: Obtiene las categorías de los canales en vivo.
      */
-    suspend fun getLiveCategories(user: String, pass: String): List<Category> {
+    open suspend fun getLiveCategories(user: String, pass: String): List<Category> {
         return try {
             val response = apiService.getLiveCategories(user, pass)
             response.body() ?: emptyList()
@@ -37,7 +37,7 @@ class ContentRepository(private val apiService: XtreamApiService) {
         }
     }
 
-    suspend fun getLiveStreams(user: String, pass: String, categoryId: Int): List<LiveStream> {
+    open suspend fun getLiveStreams(user: String, pass: String, categoryId: Int): List<LiveStream> {
         return try {
             val response = apiService.getLiveStreams(user, pass, categoryId)
             response.body() ?: emptyList()
@@ -47,7 +47,7 @@ class ContentRepository(private val apiService: XtreamApiService) {
         }
     }
 
-    suspend fun getMovies(user: String, pass: String, categoryId: Int = 1): List<Movie> {
+    open suspend fun getMovies(user: String, pass: String, categoryId: Int = 1): List<Movie> {
         return try {
             val response = apiService.getMovies(user, pass, categoryId)
             response.body() ?: emptyList()
@@ -57,7 +57,7 @@ class ContentRepository(private val apiService: XtreamApiService) {
         }
     }
 
-    suspend fun getSeries(user: String, pass: String, categoryId: Int = 1): List<Series> {
+    open suspend fun getSeries(user: String, pass: String, categoryId: Int = 1): List<Series> {
         return try {
             val response = apiService.getSeries(user, pass, categoryId)
             response.body() ?: emptyList()
