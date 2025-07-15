@@ -35,7 +35,9 @@ class MainActivity : ComponentActivity() {
             }
 
             // 6. Creamos la fábrica de ViewModels para el contenido.
+            // AHORA LE PASAMOS LA INSTANCIA DE 'application'
             val contentViewModelFactory = ContentViewModelFactory(
+                application = application, // <-- ¡AQUÍ ESTÁ EL CAMBIO!
                 contentRepository = appContainer.createContentRepository(user.url),
                 currentUser = user
             )
