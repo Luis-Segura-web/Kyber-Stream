@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -47,7 +48,7 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.PlayerControls
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChannelsScreen(
     viewModel: ChannelsViewModel,
@@ -141,7 +142,7 @@ private fun PlayerSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
+                    .then(if (isFullScreen) Modifier.fillMaxSize() else Modifier.aspectRatio(16f / 9f))
                     .background(Color.Black)
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = { controlsVisible = !controlsVisible })
@@ -296,9 +297,16 @@ fun CategoryHeader(
     isSelected: Boolean,
     onHeaderClick: () -> Unit
 ) {
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            .compositeOver(MaterialTheme.colorScheme.surface)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+        color = backgroundColor,
         tonalElevation = 3.dp
     ) {
         Row(

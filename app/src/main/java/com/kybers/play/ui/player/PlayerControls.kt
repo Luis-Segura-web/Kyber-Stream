@@ -1,12 +1,16 @@
 package com.kybers.play.ui.player
 
+import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +23,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +71,15 @@ fun PlayerControls(
         )
     }
 
+    // La capa de gestos siempre está activa en pantalla completa, pero es invisible.
+    // Se dibuja debajo de los controles visibles.
+    if (isFullScreen) {
+        GestureControlLayer(
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    // Capa de controles visibles (botones, etc.)
     AnimatedVisibility(
         modifier = modifier,
         visible = controlsVisible,
@@ -89,7 +105,6 @@ fun PlayerControls(
             BottomControlBar(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 isFullScreen = isFullScreen,
-                hasSubtitles = hasSubtitles,
                 onToggleFullScreen = onToggleFullScreen,
                 onShowSettings = { showSettingsDialog = true }
             )
@@ -97,12 +112,11 @@ fun PlayerControls(
     }
 }
 
+// --- Componentes de Controles ---
+
 @Composable
 private fun TopControlBar(
-    modifier: Modifier,
-    channelName: String?,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit
+    modifier: Modifier, channelName: String?, isFavorite: Boolean, onToggleFavorite: () -> Unit
 ) {
     Row(
         modifier = modifier
@@ -134,11 +148,7 @@ private fun TopControlBar(
 
 @Composable
 private fun CenterControls(
-    modifier: Modifier,
-    player: Player,
-    isTvChannel: Boolean,
-    onPreviousChannel: () -> Unit,
-    onNextChannel: () -> Unit
+    modifier: Modifier, player: Player, isTvChannel: Boolean, onPreviousChannel: () -> Unit, onNextChannel: () -> Unit
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -157,9 +167,7 @@ private fun CenterControls(
             IconButton(onClick = { if (isPlaying) player.pause() else player.play() }) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "Play/Pausa",
-                    tint = Color.White,
-                    modifier = Modifier.size(64.dp)
+                    "Play/Pausa", tint = Color.White, modifier = Modifier.size(64.dp)
                 )
             }
             IconButton(onClick = { player.seekForward() }) {
@@ -175,46 +183,35 @@ private fun CenterControls(
 
 @Composable
 private fun BottomControlBar(
-    modifier: Modifier,
-    isFullScreen: Boolean,
-    hasSubtitles: Boolean,
-    onToggleFullScreen: () -> Unit,
-    onShowSettings: () -> Unit
+    modifier: Modifier, isFullScreen: Boolean, onToggleFullScreen: () -> Unit, onShowSettings: () -> Unit
 ) {
-    val context = LocalContext.current
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            isMuted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
-            delay(500)
-        }
-    }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val context = LocalContext.current
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
+
+        LaunchedEffect(Unit) {
+            while (true) {
+                isMuted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
+                delay(500)
+            }
+        }
+
         if (!isFullScreen) {
             IconButton(onClick = { audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, 0) }) {
                 Icon(
                     imageVector = if(isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                    contentDescription = "Mute",
-                    tint = Color.White
+                    "Mute", tint = Color.White
                 )
             }
         }
 
         Spacer(Modifier.weight(1f))
-
-        if (hasSubtitles) {
-            IconButton(onClick = onShowSettings) {
-                Icon(Icons.Default.Subtitles, "Subtítulos", tint = Color.White)
-            }
-        }
 
         IconButton(onClick = onShowSettings) {
             Icon(Icons.Default.Settings, "Ajustes", tint = Color.White)
@@ -223,12 +220,139 @@ private fun BottomControlBar(
         IconButton(onClick = onToggleFullScreen) {
             Icon(
                 imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                contentDescription = "Pantalla Completa",
-                tint = Color.White
+                "Pantalla Completa", tint = Color.White
             )
         }
     }
 }
+
+// --- Lógica y UI para Gestos Verticales ---
+
+@Composable
+private fun GestureControlLayer(modifier: Modifier) {
+    val context = LocalContext.current
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+
+    var currentVolume by remember { mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)) }
+    var currentBrightness by remember { mutableFloatStateOf(context.getCurrentBrightness()) }
+
+    var showVolumeIndicator by remember { mutableStateOf(false) }
+    var showBrightnessIndicator by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Zona de Brillo (Izquierda)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = { showBrightnessIndicator = true },
+                            onDragEnd = { showBrightnessIndicator = false },
+                            onVerticalDrag = { _, dragAmount ->
+                                val newBrightness = (currentBrightness - dragAmount / size.height).coerceIn(0.01f, 1f)
+                                context.setWindowBrightness(newBrightness)
+                                currentBrightness = newBrightness
+                            }
+                        )
+                    }
+            )
+
+            // Zona central para otros gestos (doble toque, etc.)
+            Box(modifier = Modifier
+                .fillMaxHeight()
+                .weight(1.5f))
+
+            // Zona de Volumen (Derecha)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = { showVolumeIndicator = true },
+                            onDragEnd = { showVolumeIndicator = false },
+                            onVerticalDrag = { _, dragAmount ->
+                                val delta = -dragAmount / (size.height / maxVolume)
+                                val newVolume = (currentVolume + delta)
+                                    .toInt()
+                                    .coerceIn(0, maxVolume)
+                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+                                currentVolume = newVolume
+                            }
+                        )
+                    }
+            )
+        }
+
+        // Indicadores visuales que aparecen al deslizar
+        VerticalSliderIndicator(
+            modifier = Modifier.align(Alignment.CenterStart),
+            value = currentBrightness,
+            isVisible = showBrightnessIndicator,
+            icon = Icons.Default.Brightness7
+        )
+        VerticalSliderIndicator(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            value = currentVolume.toFloat() / maxVolume,
+            isVisible = showVolumeIndicator,
+            icon = Icons.Default.VolumeUp
+        )
+    }
+}
+
+@Composable
+private fun VerticalSliderIndicator(
+    modifier: Modifier, value: Float, isVisible: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    AnimatedVisibility(
+        visible = isVisible,
+        modifier = modifier.padding(horizontal = 24.dp),
+        enter = fadeIn(),
+        exit = fadeOut(animationSpec = tween(durationMillis = 500, delayMillis = 1000))
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .width(48.dp)
+                .fillMaxHeight()
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = Color.White)
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { value },
+                modifier = Modifier
+                    .graphicsLayer { rotationZ = -90f }
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.3f)
+            )
+        }
+    }
+}
+
+// --- Funciones de Ayuda para Brillo ---
+
+private fun Context.getCurrentBrightness(): Float {
+    val activity = this as? Activity
+    return activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 }
+        ?: Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+}
+
+private fun Context.setWindowBrightness(brightness: Float) {
+    (this as? Activity)?.window?.let { window ->
+        val layoutParams = window.attributes
+        layoutParams.screenBrightness = brightness
+        window.attributes = layoutParams
+    }
+}
+
+
+// --- Diálogo de Ajustes ---
 
 @Composable
 private fun SettingsDialog(
@@ -240,9 +364,9 @@ private fun SettingsDialog(
     onSelectSubtitle: (String) -> Unit
 ) {
     val aspectRatios = listOf(
-        "FIT" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
-        "STRETCH" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
-        "ZOOM" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        "Ajustar" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
+        "Estirar" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        "Zoom" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM
     )
 
     Dialog(onDismissRequest = onDismiss) {
@@ -257,7 +381,10 @@ private fun SettingsDialog(
 
                 item { SettingsSection("Ajuste de Pantalla") }
                 items(aspectRatios) { (name, mode) ->
-                    SettingsItem(text = name, isSelected = false) { onSetResizeMode(mode, name) }
+                    SettingsItem(text = name, isSelected = false) {
+                        onSetResizeMode(mode, name)
+                        onDismiss()
+                    }
                 }
 
                 item { SettingsSection("Velocidad") }

@@ -1,9 +1,20 @@
-// Aplicamos los plugins necesarios para una app de Android con Kotlin, KSP y Compose.
+// build.gradle.kts para la app Kyber-Play con Kotlin, KSP y Jetpack Compose
+
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
+}
+
+// Configuración global del compilador Kotlin
+kotlin {
+    compilerOptions {
+        // Migrado al nuevo compilerOptions DSL
+        jvmTarget.set(JvmTarget.fromTarget("1.8"))
+    }
 }
 
 android {
@@ -38,18 +49,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    // JvmTarget para Kotlin
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-
     buildFeatures {
         // Activamos Jetpack Compose
         compose = true
     }
 
     composeOptions {
-        // Asegúrate de que esta versión exista en tu catálogo (normalmente la misma que tu plugin Compose)
+        // Asegúrate de que esta versión exista en tu catálogo
         kotlinCompilerExtensionVersion = libs.versions.kotlin.get()
     }
 
@@ -68,7 +74,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
-    // Compose & navegación
+    // --- Compose & Navegación ---
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui)
