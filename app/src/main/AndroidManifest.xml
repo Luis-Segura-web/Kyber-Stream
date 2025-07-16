@@ -2,9 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permiso para acceder a Internet, esencial para cargar streams IPTV -->
+    <!-- Permisos -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- ¡NUEVO! Permiso para modificar la configuración de audio (control de volumen del dispositivo) -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
@@ -20,28 +19,36 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
-        <!-- MainActivity: La actividad principal que contendrá la navegación de la app -->
+        <!-- ¡NUEVO PUNTO DE ENTRADA! -->
+        <!-- SplashActivity: La nueva actividad de inicio que decide a dónde ir. -->
         <activity
-            android:name=".ui.main.MainActivity"
+            android:name=".ui.splash.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.KyberStream"
-            android:screenOrientation="portrait"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- LoginActivity: La actividad para la autenticación y selección de perfil -->
+        <!-- LoginActivity: Ahora es lanzada por SplashActivity si no hay usuarios. -->
         <activity
             android:name=".ui.login.LoginActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.KyberStream">
-            <!-- No se necesita intent-filter MAIN aquí, ya que MainActivity es el punto de entrada principal después del login -->
         </activity>
 
-        <!-- PlayerActivity: La actividad dedicada exclusivamente a la reproducción de video en pantalla completa -->
+        <!-- MainActivity: Lanzada por SplashActivity si hay usuarios. -->
+        <activity
+            android:name=".ui.main.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.KyberStream"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
+        </activity>
+
+        <!-- PlayerActivity: No cambia. -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
