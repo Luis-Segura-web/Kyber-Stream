@@ -22,15 +22,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.kybers.play.MainApplication
 import com.kybers.play.data.local.model.User
 import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.main.MainActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.work.CacheWorker
+import java.util.concurrent.TimeUnit
 
 class LoginActivity : ComponentActivity() {
 
-    // Obtenemos el ViewModel usando la factory que creamos.
     private val loginViewModel: LoginViewModel by viewModels {
         LoginViewModelFactory((application as MainApplication).container.userRepository)
     }
@@ -38,49 +42,87 @@ class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Aplicamos el tema de nuestra app.
             IPTVAppTheme {
-                LoginScreen(loginViewModel)
+                LoginScreen(
+                    viewModel = loginViewModel,
+                    onUserSelected = { user ->
+                        // Al seleccionar un usuario, programamos el worker y navegamos a la pantalla principal
+                        scheduleCacheWorker()
+                        navigateToMain(user.id)
+                    },
+                    onUserAdded = {
+                        // Después de añadir un usuario, también programamos el worker
+                        // La navegación ocurre automáticamente al cambiar el estado de la lista de usuarios
+                        scheduleCacheWorker()
+                    }
+                )
             }
         }
+    }
+
+    private fun navigateToMain(userId: Int) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra("USER_ID", userId)
+        }
+        startActivity(intent)
+        finish()
+    }
+
+    /**
+     * Configura y pone en cola la tarea periódica para sincronizar el caché.
+     */
+    private fun scheduleCacheWorker() {
+        // Creamos una petición de trabajo periódico que se ejecutará cada 12 horas.
+        val cacheWorkRequest = PeriodicWorkRequestBuilder<CacheWorker>(12, TimeUnit.HOURS)
+            // Aquí podríamos añadir restricciones, como "solo con Wi-Fi" o "solo cargando"
+            // .setConstraints(Constraints.Builder()...build())
+            .build()
+
+        // Usamos enqueueUniquePeriodicWork para asegurarnos de que solo haya una instancia
+        // de este trabajo programada a la vez.
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ContentCacheSync", // Un nombre único para nuestro trabajo
+            ExistingPeriodicWorkPolicy.KEEP, // Si ya existe, no hace nada. Si no, la crea.
+            cacheWorkRequest
+        )
     }
 }
 
 @Composable
-fun LoginScreen(viewModel: LoginViewModel) {
-    // Recolectamos el stateFlow de usuarios. `collectAsState` hace que la UI
-    // se recomponga automáticamente cuando la lista de usuarios cambia.
+fun LoginScreen(
+    viewModel: LoginViewModel,
+    onUserSelected: (User) -> Unit,
+    onUserAdded: () -> Unit
+) {
     val users by viewModel.users.collectAsState()
-    val context = LocalContext.current
-
-    // Un estado para controlar si se muestra el formulario de añadir usuario.
     var showAddUserForm by remember { mutableStateOf(false) }
+
+    // Efecto que se dispara cuando la lista de usuarios cambia de vacía a no vacía
+    // (es decir, después de que se añade el primer usuario).
+    LaunchedEffect(users.isNotEmpty()) {
+        if (users.size == 1 && showAddUserForm) {
+            // Si acabamos de añadir el primer usuario, lo seleccionamos automáticamente
+            onUserSelected(users.first())
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        // Si no hay usuarios, o si el usuario quiere añadir uno nuevo, mostramos el formulario.
         if (users.isEmpty() || showAddUserForm) {
             LoginForm(
                 onUserAdded = { profile, url, username, password ->
                     viewModel.addUser(profile, url, username, password)
-                    // Ocultamos el formulario después de añadir el usuario
-                    showAddUserForm = false
+                    onUserAdded() // Llama al callback para programar el worker
+                    // showAddUserForm se gestiona dentro del LaunchedEffect
                 },
-                // Si hay usuarios, mostramos un botón para volver a la lista
                 onCancel = { if (users.isNotEmpty()) showAddUserForm = false }
             )
         } else {
-            // Si hay usuarios, mostramos la pantalla de selección.
             UserSelectionContent(
                 users = users,
-                onUserSelected = { user ->
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        putExtra("USER_ID", user.id)
-                    }
-                    context.startActivity(intent)
-                },
+                onUserSelected = onUserSelected,
                 onDeleteUser = { user -> viewModel.deleteUser(user) },
                 onAddUserClicked = { showAddUserForm = true }
             )

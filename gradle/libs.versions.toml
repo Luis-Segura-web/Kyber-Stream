@@ -2,6 +2,7 @@
 
 [versions]
 # Plugins de Gradle - Usamos versiones estables y compatibles
+accompanistSystemuicontroller = "0.36.0"
 androidGradlePlugin     = "8.11.1"
 kotlin                  = "2.2.0"
 ksp                     = "2.2.0-2.0.2"  # Versión de KSP correspondiente a Kotlin 2.2.0
@@ -9,9 +10,10 @@ ksp                     = "2.2.0-2.0.2"  # Versión de KSP correspondiente a Kot
 # Jetpack Compose - Usamos un BOM compatible con Kotlin 2.2.0
 composeBom              = "2025.06.01"
 activityCompose         = "1.10.1"
+lifecycleRuntimeCompose = "2.9.2"
 materialIconsExtended   = "1.7.8"
-navigationCompose       = "2.9.1"
-lifecycleViewmodelCompose = "2.9.1"
+navigationCompose       = "2.9.2"
+lifecycleViewmodelCompose = "2.9.2"
 
 # Core de AndroidX
 coreKtx                 = "1.16.0"
@@ -19,7 +21,7 @@ coreKtx                 = "1.16.0"
 material                = "1.12.0"
 
 # Ciclo de vida (ViewModel, LiveData)
-lifecycle               = "2.9.1"
+lifecycle               = "2.9.2"
 
 # Coroutines
 coroutines              = "1.10.2"
@@ -32,8 +34,8 @@ moshi                   = "1.15.2"
 # Base de datos (Room)
 room                    = "2.7.2"
 
-# Reproductor de video (Media3)
-media3                  = "1.7.1"
+# Reproductor de video
+vlc = "3.6.2" # Versión estable y probada de libvlc-android
 
 # Carga de imágenes (Coil)
 coil                    = "2.7.0"
@@ -43,9 +45,13 @@ junit                   = "4.13.2"
 androidxJunit           = "1.2.1"
 espressoCore            = "3.6.1"
 
+workManager = "2.10.2"
+gson = "2.13.1"
 
 [libraries]
 # --- JETPACK COMPOSE ---
+accompanist-systemuicontroller = { module = "com.google.accompanist:accompanist-systemuicontroller", version.ref = "accompanistSystemuicontroller" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
 compose-bom                      = { group = "androidx.compose",           name = "compose-bom",         version.ref = "composeBom" }
 androidx-ui                      = { group = "androidx.compose.ui",        name = "ui" }
@@ -81,9 +87,7 @@ androidx-room-ktx                = { group = "androidx.room",          name = "r
 androidx-room-compiler           = { group = "androidx.room",          name = "room-compiler",      version.ref = "room" }
 
 # --- REPRODUCTOR DE VIDEO ---
-androidx-media3-exoplayer        = { group = "androidx.media3",        name = "media3-exoplayer",    version.ref = "media3" }
-androidx-media3-ui               = { group = "androidx.media3",        name = "media3-ui",           version.ref = "media3" }
-androidx-media3-exoplayer-hls    = { group = "androidx.media3",        name = "media3-exoplayer-hls",version.ref = "media3" }
+libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "vlc" }
 
 # --- CARGA DE IMÁGENES ---
 coil-compose                    = { group = "io.coil-kt",            name = "coil-compose",       version.ref = "coil" }
@@ -95,6 +99,9 @@ androidx-espresso-core           = { group = "androidx.test.espresso", name = "e
 androidx-ui-test-junit4          = { group = "androidx.compose.ui",   name = "ui-test-junit4" }
 androidx-ui-tooling              = { group = "androidx.compose.ui",   name = "ui-tooling" }
 androidx-ui-test-manifest        = { group = "androidx.compose.ui",   name = "ui-test-manifest" }
+
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 
 [plugins]

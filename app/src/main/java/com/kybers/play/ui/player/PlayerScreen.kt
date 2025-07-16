@@ -2,6 +2,7 @@ package com.kybers.play.ui.player
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.net.Uri
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -15,20 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.media3.common.MediaItem
-import androidx.media3.ui.PlayerView
-import com.kybers.play.ui.channels.ChannelsUiState
+//import com.kybers.play.ui.channels.VLCPlayer
+import org.videolan.libvlc.Media
 
 @Composable
-fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String) {
-    val player = playerViewModel.player
+fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitle: String) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
+    val mediaPlayer = playerViewModel.mediaPlayer
     var controlsVisible by remember { mutableStateOf(true) }
 
     val configuration = LocalConfiguration.current
@@ -39,90 +33,41 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String) {
     fun toggleFullScreen() {
         val activity = context as? Activity ?: return
         activity.requestedOrientation = if (isFullScreen) {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
 
     LaunchedEffect(streamUrl) {
-        val mediaItem = MediaItem.fromUri(streamUrl)
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.playWhenReady = true
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> player.pause()
-                Lifecycle.Event.ON_RESUME -> player.play()
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        val media = Media(mediaPlayer.libVLC, Uri.parse(streamUrl))
+        mediaPlayer.media = media
+        mediaPlayer.play()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { controlsVisible = !controlsVisible })
+            }
     ) {
-        // ¡MEJORA! El Box del reproductor ahora se adapta a la pantalla completa o a 16:9
-        Box(
-            modifier = if (isFullScreen) {
-                Modifier.fillMaxSize()
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-            }
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        this.player = player
-                        useController = false
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+        VLCPlayer(
+            mediaPlayer = mediaPlayer,
+            modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+        )
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = {
-                                controlsVisible = !controlsVisible
-                            }
-                        )
-                    }
-            ) {
-                PlayerControls(
-                    modifier = Modifier.fillMaxSize(),
-                    player = player,
-                    controlsVisible = controlsVisible,
-                    isFullScreen = isFullScreen,
-                    isTvChannel = false,
-                    channelName = "Stream",
-                    isFavorite = false,
-                    hasSubtitles = false,
-                    uiState = ChannelsUiState(),
-                    onToggleFullScreen = { toggleFullScreen() },
-                    onPreviousChannel = { /* No-op */ },
-                    onNextChannel = { /* No-op */ },
-                    onToggleFavorite = { /* No-op */ },
-                    onSetResizeMode = { _, _ -> /* No-op */ },
-                    onSetPlaybackSpeed = { /* No-op */ },
-                    onSelectAudioTrack = { /* No-op */ },
-                    onSelectSubtitle = { /* No-op */ }
-                )
+        PlayerControls(
+            mediaPlayer = mediaPlayer,
+            streamTitle = streamTitle,
+            isVisible = controlsVisible,
+            isFullScreen = isFullScreen,
+            onToggleFullScreen = ::toggleFullScreen,
+            onReplay = {
+                mediaPlayer.stop()
+                mediaPlayer.play()
             }
-        }
+        )
     }
 }

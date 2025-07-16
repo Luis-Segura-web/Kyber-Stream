@@ -29,23 +29,18 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.PlayerControls
+import com.kybers.play.ui.player.VLCPlayer // ¡NUEVO! Importamos el VLCPlayer
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -55,8 +50,7 @@ fun ChannelsScreen(
     onFullScreenToggled: (Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = LocalContext.current as? Activity
     var isFullScreen by remember { mutableStateOf(false) }
 
     DisposableEffect(uiState.isPlayerVisible) {
@@ -69,7 +63,7 @@ fun ChannelsScreen(
         }
     }
 
-    LaunchedEffect(isFullScreen, uiState.isPlayerVisible) {
+    LaunchedEffect(isFullScreen) {
         onFullScreenToggled(isFullScreen)
         activity?.let {
             val window = it.window
@@ -78,11 +72,7 @@ fun ChannelsScreen(
                 it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 insetsController.hide(WindowInsetsCompat.Type.systemBars())
             } else {
-                it.requestedOrientation = if (!uiState.isPlayerVisible) {
-                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                }
+                it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 insetsController.show(WindowInsetsCompat.Type.systemBars())
             }
         }
@@ -135,73 +125,52 @@ private fun PlayerSection(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var controlsVisible by remember { mutableStateOf(true) }
-    var resizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
-    Box {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isFullScreen) Modifier.fillMaxSize() else Modifier.aspectRatio(16f / 9f))
+    ) {
         AnimatedVisibility(visible = uiState.isPlayerVisible) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (isFullScreen) Modifier.fillMaxSize() else Modifier.aspectRatio(16f / 9f))
+                    .fillMaxSize()
                     .background(Color.Black)
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = { controlsVisible = !controlsVisible })
                     }
             ) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = viewModel.player
-                            useController = false
-                        }
-                    },
-                    update = { view ->
-                        view.resizeMode = resizeMode
-                    },
+                VLCPlayer(
+                    mediaPlayer = viewModel.mediaPlayer,
                     modifier = Modifier.fillMaxSize()
                 )
 
                 PlayerControls(
                     modifier = Modifier.fillMaxSize(),
-                    player = viewModel.player,
-                    controlsVisible = controlsVisible,
+                    mediaPlayer = viewModel.mediaPlayer,
+                    streamTitle = uiState.currentlyPlaying?.name ?: "Stream",
+                    isVisible = controlsVisible,
                     isFullScreen = isFullScreen,
-                    isTvChannel = uiState.isCurrentlyPlayingTvChannel,
-                    channelName = uiState.currentlyPlaying?.name,
-                    isFavorite = uiState.currentlyPlaying?.streamId.toString() in uiState.favoriteChannelIds,
-                    hasSubtitles = uiState.hasSubtitles,
-                    uiState = uiState,
                     onToggleFullScreen = onToggleFullScreen,
-                    onPreviousChannel = viewModel::playPreviousChannel,
-                    onNextChannel = viewModel::playNextChannel,
-                    onToggleFavorite = {
-                        uiState.currentlyPlaying?.streamId?.toString()?.let(viewModel::toggleFavorite)
-                    },
-                    onSetResizeMode = { mode, name ->
-                        resizeMode = mode
-                        viewModel.showPlayerToast("Ajuste: $name")
-                    },
-                    onSetPlaybackSpeed = viewModel::setPlaybackSpeed,
-                    onSelectAudioTrack = viewModel::selectAudioTrack,
-                    onSelectSubtitle = viewModel::selectSubtitle
+                    onReplay = { viewModel.retryPlayback() }
                 )
 
-                AnimatedVisibility(
-                    visible = uiState.playerToastMessage != null,
-                    modifier = Modifier.align(Alignment.Center),
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = uiState.playerToastMessage ?: "",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                    when (uiState.playerStatus) {
+                        PlayerStatus.BUFFERING -> CircularProgressIndicator(color = Color.White)
+                        PlayerStatus.ERROR -> {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Error al cargar el canal", color = Color.White)
+                                Spacer(Modifier.height(8.dp))
+                                Button(onClick = { viewModel.retryPlayback() }) {
+                                    Text("Reintentar")
+                                }
+                            }
+                        }
+                        else -> { /* No mostrar nada */ }
                     }
                 }
             }
@@ -298,8 +267,7 @@ fun CategoryHeader(
     onHeaderClick: () -> Unit
 ) {
     val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            .compositeOver(MaterialTheme.colorScheme.surface)
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f).compositeOver(MaterialTheme.colorScheme.surface)
     } else {
         MaterialTheme.colorScheme.surface
     }

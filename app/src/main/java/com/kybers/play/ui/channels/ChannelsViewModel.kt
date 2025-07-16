@@ -1,13 +1,9 @@
 package com.kybers.play.ui.channels
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.common.Tracks
-import androidx.media3.exoplayer.ExoPlayer
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
@@ -15,7 +11,17 @@ import com.kybers.play.data.repository.ContentRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media
+import org.videolan.libvlc.MediaPlayer
+import androidx.core.net.toUri
 
+// El enum de estado sigue siendo útil
+enum class PlayerStatus {
+    IDLE, BUFFERING, PLAYING, ERROR
+}
+
+// ... (Las data classes como ExpandableCategory, TrackInfo y ChannelsUiState no cambian) ...
 data class ExpandableCategory(
     val category: Category,
     val channels: List<LiveStream> = emptyList(),
@@ -46,8 +52,8 @@ data class ChannelsUiState(
     val hasSubtitles: Boolean = false,
     val isCurrentlyPlayingTvChannel: Boolean = false,
     val playbackSpeed: Float = 1f,
-    // ¡NUEVO! Para mostrar mensajes temporales en el reproductor
-    val playerToastMessage: String? = null
+    val playerToastMessage: String? = null,
+    val playerStatus: PlayerStatus = PlayerStatus.IDLE
 )
 
 open class ChannelsViewModel(
@@ -56,22 +62,33 @@ open class ChannelsViewModel(
     private val currentUser: User
 ) : AndroidViewModel(application) {
 
-    open val player: Player = ExoPlayer.Builder(application).build()
+    // --- ¡NUEVA LÓGICA DE VLC! ---
+    private lateinit var libVLC: LibVLC
+    lateinit var mediaPlayer: MediaPlayer
+        private set
 
-    protected val _uiState = MutableStateFlow(ChannelsUiState())
+    private val _uiState = MutableStateFlow(ChannelsUiState())
     open val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
 
     private val _originalCategories = MutableStateFlow<List<ExpandableCategory>>(emptyList())
     private val _favoriteChannelIds = MutableStateFlow<Set<String>>(emptySet())
 
-    private val playerListener = object : Player.Listener {
-        override fun onTracksChanged(tracks: Tracks) {
-            updateTrackInfo(tracks)
+    // Listener para los eventos del reproductor VLC
+    private val vlcPlayerListener = MediaPlayer.EventListener { event ->
+        val newStatus = when (event.type) {
+            MediaPlayer.Event.Buffering -> PlayerStatus.BUFFERING
+            MediaPlayer.Event.Playing -> PlayerStatus.PLAYING
+            MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
+            MediaPlayer.Event.EndReached -> PlayerStatus.IDLE
+            else -> null // No actualizamos el estado para otros eventos
+        }
+        if (newStatus != null) {
+            _uiState.update { it.copy(playerStatus = newStatus) }
         }
     }
 
     init {
-        player.addListener(playerListener)
+        setupVLC()
         loadInitialCategories()
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
@@ -81,91 +98,15 @@ open class ChannelsViewModel(
         }
     }
 
-    // ¡NUEVO! Función para mostrar un mensaje y ocultarlo después de un tiempo
-    fun showPlayerToast(message: String) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(playerToastMessage = message) }
-            delay(2000) // Muestra el mensaje por 2 segundos
-            _uiState.update { it.copy(playerToastMessage = null) }
-        }
+    private fun setupVLC() {
+        libVLC = LibVLC(getApplication())
+        mediaPlayer = MediaPlayer(libVLC)
+        mediaPlayer.setEventListener(vlcPlayerListener)
     }
 
-    private fun updateTrackInfo(tracks: Tracks) {
-        val audioTracks = tracks.groups.mapIndexedNotNull { groupIndex, group ->
-            if (group.type == C.TRACK_TYPE_AUDIO) {
-                (0 until group.length).map { trackIndex ->
-                    val format = group.getTrackFormat(trackIndex)
-                    TrackInfo(
-                        id = format.id ?: "$groupIndex:$trackIndex",
-                        language = format.language ?: "Desconocido",
-                        label = format.label ?: "Pista ${trackIndex + 1}",
-                        isSelected = group.isTrackSelected(trackIndex)
-                    )
-                }
-            } else null
-        }.flatten()
-
-        val subtitleTracks = tracks.groups.mapIndexedNotNull { groupIndex, group ->
-            if (group.type == C.TRACK_TYPE_TEXT) {
-                (0 until group.length).map { trackIndex ->
-                    val format = group.getTrackFormat(trackIndex)
-                    TrackInfo(
-                        id = format.id ?: "$groupIndex:$trackIndex",
-                        language = format.language ?: "Desconocido",
-                        label = format.label ?: "Subtítulo ${trackIndex + 1}",
-                        isSelected = group.isTrackSelected(trackIndex)
-                    )
-                }
-            } else null
-        }.flatten()
-
-        _uiState.update {
-            it.copy(
-                availableAudioTracks = audioTracks,
-                availableSubtitleTracks = subtitleTracks,
-                hasSubtitles = subtitleTracks.isNotEmpty()
-            )
-        }
-    }
-
-    open fun onCategoryToggled(categoryId: String) {
-        viewModelScope.launch {
-            val currentCategories = _originalCategories.value.toMutableList()
-            val categoryIndex = currentCategories.indexOfFirst { it.category.categoryId == categoryId }
-            if (categoryIndex == -1) return@launch
-
-            val item = currentCategories[categoryIndex]
-            val isCurrentlyExpanded = item.isExpanded
-
-            val newCategories = currentCategories.map { it.copy(isExpanded = false) }.toMutableList()
-
-            if (!isCurrentlyExpanded) {
-                newCategories[categoryIndex] = newCategories[categoryIndex].copy(isExpanded = true)
-
-                if (newCategories[categoryIndex].channels.isEmpty()) {
-                    newCategories[categoryIndex] = newCategories[categoryIndex].copy(isLoading = true)
-                    _originalCategories.value = newCategories
-                    filterCategories()
-
-                    val categoryIdAsInt = categoryId.toIntOrNull() ?: return@launch
-                    val channels = contentRepository.getLiveStreams(currentUser.username, currentUser.password, categoryIdAsInt)
-                    newCategories[categoryIndex] = newCategories[categoryIndex].copy(channels = channels, isLoading = false)
-                }
-            }
-
-            _originalCategories.value = newCategories
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
-            filterCategories()
-        }
-    }
-
-    open fun onFavoritesCategoryToggled() {
-        viewModelScope.launch {
-            val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
-            _originalCategories.value = collapsedCategories
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
-            filterCategories()
-        }
+    fun retryPlayback() {
+        val currentItem = uiState.value.currentlyPlaying ?: return
+        onChannelSelected(currentItem)
     }
 
     open fun onChannelSelected(channel: LiveStream) {
@@ -183,17 +124,70 @@ open class ChannelsViewModel(
                 isCurrentlyPlayingTvChannel = (channel.streamType == "live")
             )
         }
+
         val streamUrl = buildStreamUrl(channel)
-        player.setMediaItem(MediaItem.fromUri(streamUrl))
-        player.prepare()
-        player.playWhenReady = true
+        val media = Media(libVLC, streamUrl.toUri())
+        // Opciones para reducir la latencia en streams en vivo
+        media.addOption(":network-caching=150")
+        media.addOption(":clock-jitter=0")
+        media.addOption(":clock-synchro=0")
+
+        mediaPlayer.media = media
+        mediaPlayer.play()
     }
 
-    fun selectSubtitle(trackId: String) { /* Lógica futura */ }
-    fun selectAudioTrack(trackId: String) { /* Lógica futura */ }
-    fun setPlaybackSpeed(speed: Float) {
-        player.setPlaybackSpeed(speed)
-        _uiState.update { it.copy(playbackSpeed = speed) }
+    override fun onCleared() {
+        super.onCleared()
+        mediaPlayer.stop()
+        mediaPlayer.setEventListener(null)
+        mediaPlayer.release()
+        libVLC.release()
+    }
+
+    // El resto de las funciones (navegación, favoritos, etc.) no cambian su lógica interna,
+    // solo cómo interactúan con el nuevo reproductor.
+    fun showPlayerToast(message: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(playerToastMessage = message) }
+            delay(2000)
+            _uiState.update { it.copy(playerToastMessage = null) }
+        }
+    }
+
+    open fun onCategoryToggled(categoryId: String) {
+        viewModelScope.launch {
+            val currentCategories = _originalCategories.value.toMutableList()
+            val categoryIndex = currentCategories.indexOfFirst { it.category.categoryId == categoryId }
+            if (categoryIndex == -1) return@launch
+
+            val item = currentCategories[categoryIndex]
+            val isCurrentlyExpanded = item.isExpanded
+
+            val newCategories = currentCategories.map { it.copy(isExpanded = false) }.toMutableList()
+
+            if (!isCurrentlyExpanded) {
+                val channelsFromCache = contentRepository.getLiveStreamsByCategory(categoryId).first()
+
+                newCategories[categoryIndex] = newCategories[categoryIndex].copy(
+                    isExpanded = true,
+                    channels = channelsFromCache,
+                    isLoading = false
+                )
+            }
+
+            _originalCategories.value = newCategories
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
+            filterCategories()
+        }
+    }
+
+    open fun onFavoritesCategoryToggled() {
+        viewModelScope.launch {
+            val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
+            _originalCategories.value = collapsedCategories
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
+            filterCategories()
+        }
     }
 
     private fun loadInitialCategories() {
@@ -239,7 +233,7 @@ open class ChannelsViewModel(
     }
 
     open fun hidePlayer() {
-        player.stop()
+        mediaPlayer.stop()
         _uiState.update {
             it.copy(
                 isPlayerVisible = false,
@@ -286,12 +280,7 @@ open class ChannelsViewModel(
 
     private fun buildStreamUrl(channel: LiveStream): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"
+        // VLC es muy bueno detectando el tipo, así que podemos volver a .ts si es más común
         return "${baseUrl}live/${currentUser.username}/${currentUser.password}/${channel.streamId}.ts"
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        player.removeListener(playerListener)
-        player.release()
     }
 }

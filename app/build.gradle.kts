@@ -73,6 +73,11 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.accompanist.systemuicontroller)
+
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.gson)
 
     // --- Compose & Navegación ---
     implementation(platform(libs.compose.bom))
@@ -102,9 +107,7 @@ dependencies {
     ksp         (libs.androidx.room.compiler)
 
     // --- REPRODUCTOR DE VIDEO (Media3) ---
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.libvlc.all)
 
     // --- CARGA DE IMÁGENES ---
     implementation(libs.coil.compose)
