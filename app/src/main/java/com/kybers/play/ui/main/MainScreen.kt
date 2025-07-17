@@ -10,7 +10,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,18 +34,18 @@ import androidx.navigation.compose.rememberNavController
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.home.HomeScreen // ¡NUEVO! Importación para HomeScreen
-import com.kybers.play.ui.home.HomeViewModel // ¡NUEVO! Importación para HomeViewModel
+import com.kybers.play.ui.home.HomeScreen
+import com.kybers.play.ui.home.HomeViewModel
 
-// Define las rutas, etiquetas e íconos para cada pantalla principal de la app.
+// Defines the routes, labels, and icons for each main screen of the app.
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Home : Screen("home", "Inicio", Icons.Default.Home)
     object Channels : Screen("channels", "Canales", Icons.Default.Tv)
     object Movies : Screen("movies", "Películas", Icons.Default.Movie)
-    object Series : Screen("series", "Series", Icons.Default.Movie) // Se puede cambiar el ícono
+    object Series : Screen("series", "Series", Icons.Default.Movie) // Icon can be changed
 }
 
-// Lista de los ítems que se mostrarán en la barra de navegación inferior.
+// List of items to be displayed in the bottom navigation bar.
 private val items = listOf(
     Screen.Home,
     Screen.Channels,
@@ -52,16 +57,16 @@ private val items = listOf(
 @Composable
 fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
     val navController = rememberNavController()
-    // ¡NUEVO! Estado para controlar si ChannelsScreen está en fullscreen
-    var isChannelsFullScreen by remember { mutableStateOf(false) }
+    // ¡MODIFICADO! This state now controls the visibility of the bottom navigation bar.
+    var isBottomBarVisible by remember { mutableStateOf(true) }
 
     Scaffold(
         bottomBar = {
-            // ¡CAMBIO CLAVE AQUÍ! La barra de navegación solo es visible si NO estamos en fullscreen
+            // The navigation bar animates based on the state.
             AnimatedVisibility(
-                visible = !isChannelsFullScreen,
-                enter = slideInVertically { it }, // Animación al aparecer
-                exit = slideOutVertically { it } // Animación al desaparecer
+                visible = isBottomBarVisible,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it }
             ) {
                 NavigationBar {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -94,10 +99,11 @@ fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
             }
             composable(Screen.Channels.route) {
                 val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
+                // ¡MODIFICADO! The callback now controls the bar's visibility.
                 ChannelsScreen(
                     viewModel = channelsViewModel,
-                    onFullScreenToggled = { isFullScreen -> // ¡NUEVO! Recibe el callback
-                        isChannelsFullScreen = isFullScreen // Actualiza el estado local
+                    onFullScreenToggled = { isFullScreen ->
+                        isBottomBarVisible = !isFullScreen
                     }
                 )
             }
@@ -111,7 +117,7 @@ fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
     }
 }
 
-// --- Pantallas de Marcador de Posición (Placeholders) ---
+// --- Placeholder Screens ---
 
 @Composable
 fun MoviesScreen() {
