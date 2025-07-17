@@ -4,11 +4,11 @@ import android.app.Application
 import android.content.Context
 import androidx.work.Configuration
 import com.kybers.play.data.local.AppDatabase
+import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 
-// ¡CORREGIDO! La forma correcta de proveer la configuración de WorkManager
 class MainApplication : Application(), Configuration.Provider {
 
     lateinit var container: AppContainer
@@ -25,14 +25,23 @@ class MainApplication : Application(), Configuration.Provider {
             .build()
 }
 
+/**
+ * Dependency Injection container at the application level.
+ */
 class AppContainer(context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
-    val userRepository by lazy { UserRepository(database.userDao()) }
 
+    // The repositories and the sync manager are now public properties of the container.
+    val userRepository by lazy { UserRepository(database.userDao()) }
+    val syncManager by lazy { SyncManager(context) } // ¡NUEVO! Se crea la instancia del SyncManager.
+
+    /**
+     * Creates a ContentRepository instance for a specific base URL.
+     * This allows connecting to different IPTV servers.
+     */
     fun createContentRepository(baseUrl: String): ContentRepository {
         val apiService = RetrofitClient.create(baseUrl)
-        // ¡CORREGIDO! Pasamos los DAOs en el orden correcto que espera el constructor
         return ContentRepository(
             apiService = apiService,
             liveStreamDao = database.liveStreamDao(),

@@ -6,32 +6,59 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.kybers.play.MainApplication
 import com.kybers.play.data.local.model.User
 import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.main.MainActivity
+import com.kybers.play.ui.sync.SyncActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
-import com.kybers.play.work.CacheWorker
-import java.util.concurrent.TimeUnit
 
 class LoginActivity : ComponentActivity() {
 
@@ -41,23 +68,35 @@ class LoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val syncManager = (application as MainApplication).container.syncManager
+
         setContent {
             IPTVAppTheme {
                 LoginScreen(
                     viewModel = loginViewModel,
                     onUserSelected = { user ->
-                        // Al seleccionar un usuario, programamos el worker y navegamos a la pantalla principal
-                        scheduleCacheWorker()
-                        navigateToMain(user.id)
+                        if (syncManager.isSyncNeeded()) {
+                            navigateToSync(user.id)
+                        } else {
+                            navigateToMain(user.id)
+                        }
                     },
-                    onUserAdded = {
-                        // Después de añadir un usuario, también programamos el worker
-                        // La navegación ocurre automáticamente al cambiar el estado de la lista de usuarios
-                        scheduleCacheWorker()
+                    onUserAdded = { user ->
+                        // A new user always requires a sync.
+                        navigateToSync(user.id)
                     }
                 )
             }
         }
+    }
+
+    private fun navigateToSync(userId: Int) {
+        val intent = Intent(this, SyncActivity::class.java).apply {
+            putExtra("USER_ID", userId)
+        }
+        startActivity(intent)
+        finish()
     }
 
     private fun navigateToMain(userId: Int) {
@@ -67,65 +106,77 @@ class LoginActivity : ComponentActivity() {
         startActivity(intent)
         finish()
     }
-
-    /**
-     * Configura y pone en cola la tarea periódica para sincronizar el caché.
-     */
-    private fun scheduleCacheWorker() {
-        // Creamos una petición de trabajo periódico que se ejecutará cada 12 horas.
-        val cacheWorkRequest = PeriodicWorkRequestBuilder<CacheWorker>(12, TimeUnit.HOURS)
-            // Aquí podríamos añadir restricciones, como "solo con Wi-Fi" o "solo cargando"
-            // .setConstraints(Constraints.Builder()...build())
-            .build()
-
-        // Usamos enqueueUniquePeriodicWork para asegurarnos de que solo haya una instancia
-        // de este trabajo programada a la vez.
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "ContentCacheSync", // Un nombre único para nuestro trabajo
-            ExistingPeriodicWorkPolicy.KEEP, // Si ya existe, no hace nada. Si no, la crea.
-            cacheWorkRequest
-        )
-    }
 }
 
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
     onUserSelected: (User) -> Unit,
-    onUserAdded: () -> Unit
+    onUserAdded: (User) -> Unit
 ) {
-    val users by viewModel.users.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var showAddUserForm by remember { mutableStateOf(false) }
 
-    // Efecto que se dispara cuando la lista de usuarios cambia de vacía a no vacía
-    // (es decir, después de que se añade el primer usuario).
-    LaunchedEffect(users.isNotEmpty()) {
-        if (users.size == 1 && showAddUserForm) {
-            // Si acabamos de añadir el primer usuario, lo seleccionamos automáticamente
-            onUserSelected(users.first())
+    // This effect handles the navigation for the FIRST user added.
+    // It watches for the uiState to change to a UserList.
+    LaunchedEffect(uiState) {
+        val currentState = uiState
+        // If we were showing the form and now we have a list of users,
+        // it means the first user was just added.
+        if (showAddUserForm && currentState is LoginUiState.UserList) {
+            currentState.users.firstOrNull()?.let { onUserAdded(it) }
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        if (users.isEmpty() || showAddUserForm) {
-            LoginForm(
-                onUserAdded = { profile, url, username, password ->
-                    viewModel.addUser(profile, url, username, password)
-                    onUserAdded() // Llama al callback para programar el worker
-                    // showAddUserForm se gestiona dentro del LaunchedEffect
-                },
-                onCancel = { if (users.isNotEmpty()) showAddUserForm = false }
-            )
-        } else {
-            UserSelectionContent(
-                users = users,
-                onUserSelected = onUserSelected,
-                onDeleteUser = { user -> viewModel.deleteUser(user) },
-                onAddUserClicked = { showAddUserForm = true }
-            )
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        when (val state = uiState) {
+            // State 1: Loading. Show a logo and a progress indicator.
+            is LoginUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircleOutline,
+                            contentDescription = "Logo de la App",
+                            modifier = Modifier.size(120.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        CircularProgressIndicator()
+                    }
+                }
+            }
+            // State 2: No users found. Show the registration form.
+            is LoginUiState.ShowRegistration -> {
+                // Set the flag to true so the LaunchedEffect knows we are in the registration flow.
+                showAddUserForm = true
+                LoginForm(
+                    onUserAdded = { profile, url, username, password ->
+                        viewModel.addUser(profile, url, username, password)
+                    },
+                    onCancel = { /* Not cancelable if no users exist */ },
+                    isCancelable = false
+                )
+            }
+            // State 3: Users exist. Show the selection list or the add form if requested.
+            is LoginUiState.UserList -> {
+                if (showAddUserForm) {
+                    LoginForm(
+                        onUserAdded = { profile, url, username, password ->
+                            viewModel.addUser(profile, url, username, password)
+                            showAddUserForm = false // Hide form after adding
+                        },
+                        onCancel = { showAddUserForm = false },
+                        isCancelable = true
+                    )
+                } else {
+                    UserSelectionContent(
+                        users = state.users,
+                        onUserSelected = onUserSelected,
+                        onDeleteUser = { user -> viewModel.deleteUser(user) },
+                        onAddUserClicked = { showAddUserForm = true }
+                    )
+                }
+            }
         }
     }
 }
@@ -208,7 +259,11 @@ fun UserItem(user: User, onClick: () -> Unit, onDelete: () -> Unit) {
 }
 
 @Composable
-fun LoginForm(onUserAdded: (String, String, String, String) -> Unit, onCancel: () -> Unit) {
+fun LoginForm(
+    onUserAdded: (String, String, String, String) -> Unit,
+    onCancel: () -> Unit,
+    isCancelable: Boolean
+) {
     var profileName by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -258,14 +313,16 @@ fun LoginForm(onUserAdded: (String, String, String, String) -> Unit, onCancel: (
         Spacer(modifier = Modifier.height(32.dp))
 
         Row {
-            Button(
-                onClick = onCancel,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Cancelar")
+            if (isCancelable) {
+                Button(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancelar")
+                }
+                Spacer(modifier = Modifier.width(16.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
             Button(
                 onClick = {
                     onUserAdded(profileName, url, username, password)

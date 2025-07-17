@@ -18,18 +18,16 @@ open class ContentRepository(
     private val seriesDao: SeriesDao
 ) {
 
-    // --- FUNCIONES DE LECTURA (Leen desde el caché) ---
+    // --- Data Reading Functions (from cache) ---
 
     fun getLiveStreamsByCategory(categoryId: String): Flow<List<LiveStream>> {
         return liveStreamDao.getLiveStreamsByCategory(categoryId)
     }
 
-    // ¡NUEVO! Para la pantalla de Inicio
     fun getAllMovies(): Flow<List<Movie>> {
         return movieDao.getAllMovies()
     }
 
-    // ¡NUEVO! Para la pantalla de Inicio
     fun getAllSeries(): Flow<List<Series>> {
         return seriesDao.getAllSeries()
     }
@@ -42,7 +40,12 @@ open class ContentRepository(
         }
     }
 
-    open suspend fun cacheAllData(user: String, pass: String) {
+    // --- Granular Caching Functions ---
+
+    /**
+     * Caches only the live stream channels.
+     */
+    suspend fun cacheLiveStreams(user: String, pass: String) {
         val liveCategories = apiService.getLiveCategories(user, pass).body() ?: emptyList()
         for (category in liveCategories) {
             try {
@@ -51,10 +54,16 @@ open class ContentRepository(
                     liveStreamDao.insertAll(streams)
                 }
             } catch (e: Exception) {
+                // Log or handle exceptions for individual categories
                 e.printStackTrace()
             }
         }
+    }
 
+    /**
+     * Caches only the movies.
+     */
+    suspend fun cacheMovies(user: String, pass: String) {
         val movieCategories = apiService.getMovieCategories(user, pass).body() ?: emptyList()
         for (category in movieCategories) {
             try {
@@ -66,7 +75,12 @@ open class ContentRepository(
                 e.printStackTrace()
             }
         }
+    }
 
+    /**
+     * Caches only the series.
+     */
+    suspend fun cacheSeries(user: String, pass: String) {
         val seriesCategories = apiService.getSeriesCategories(user, pass).body() ?: emptyList()
         for (category in seriesCategories) {
             try {

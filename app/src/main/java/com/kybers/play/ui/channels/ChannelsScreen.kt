@@ -1,7 +1,13 @@
 package com.kybers.play.ui.channels
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.media.AudioManager
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -62,6 +68,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -69,6 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import coil.compose.AsyncImage
@@ -85,52 +93,83 @@ fun ChannelsScreen(
     onFullScreenToggled: (Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val activity = LocalContext.current as? Activity
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    // --- SIDE EFFECT HANDLING ---
+    // --- System Controls and Listeners ---
 
+    // Listen for system volume changes
+    SystemVolumeReceiver(audioManager) {
+        viewModel.updateSystemVolume(it)
+    }
+
+    // Effect to manage screen properties when player is visible
     DisposableEffect(uiState.isPlayerVisible) {
         val window = activity?.window
         if (uiState.isPlayerVisible) {
+            // Keep screen on
             window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // Get initial system values
+            val initialBrightness = window?.attributes?.screenBrightness ?: -1f
+            viewModel.setInitialSystemValues(
+                volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC),
+                maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+                brightness = if (initialBrightness >= 0) initialBrightness else 0.5f // Default if not set
+            )
         }
         onDispose {
+            // Restore original brightness when player is hidden
+            window?.attributes?.let {
+                if (uiState.originalBrightness >= 0) {
+                    it.screenBrightness = uiState.originalBrightness
+                    window.attributes = it
+                }
+            }
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Effect to handle screen orientation and system UI based on fullscreen state
+    val configuration = LocalConfiguration.current
+    LaunchedEffect(configuration.orientation) {
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (isLandscape != uiState.isFullScreen) {
+            viewModel.onToggleFullScreen()
         }
     }
 
     LaunchedEffect(uiState.isFullScreen) {
         onFullScreenToggled(uiState.isFullScreen)
-        activity?.let {
-            val window = it.window
-            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-            if (uiState.isFullScreen) {
-                it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                insetsController.hide(WindowInsetsCompat.Type.systemBars())
-            } else {
-                it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                insetsController.show(WindowInsetsCompat.Type.systemBars())
-            }
+        val window = activity?.window ?: return@LaunchedEffect
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        if (uiState.isFullScreen) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
-    DisposableEffect(uiState.brightness) {
+    // Effect to apply screen brightness changes
+    DisposableEffect(uiState.screenBrightness) {
         val window = activity?.window
-        val layoutParams = window?.attributes
-        layoutParams?.screenBrightness = uiState.brightness
-        window?.attributes = layoutParams
+        if (uiState.isPlayerVisible && uiState.isFullScreen) {
+            val layoutParams = window?.attributes
+            layoutParams?.screenBrightness = uiState.screenBrightness
+            window?.attributes = layoutParams
+        }
         onDispose {}
     }
 
     BackHandler(enabled = uiState.isPlayerVisible) {
         if (uiState.isFullScreen) {
-            viewModel.onToggleFullScreen()
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
             viewModel.hidePlayer()
         }
     }
 
-    // --- MAIN UI ---
+    // --- Main UI ---
 
     Scaffold(
         topBar = {
@@ -150,7 +189,7 @@ fun ChannelsScreen(
                 .fillMaxSize()
                 .then(if (!uiState.isFullScreen) Modifier.padding(paddingValues) else Modifier)
         ) {
-            PlayerSection(viewModel = viewModel)
+            PlayerSection(viewModel = viewModel, audioManager = audioManager)
 
             AnimatedVisibility(visible = !uiState.isFullScreen) {
                 ChannelListSection(viewModel = viewModel)
@@ -161,9 +200,11 @@ fun ChannelsScreen(
 
 
 @Composable
-private fun PlayerSection(viewModel: ChannelsViewModel) {
+private fun PlayerSection(viewModel: ChannelsViewModel, audioManager: AudioManager) {
     val uiState by viewModel.uiState.collectAsState()
     var controlsVisible by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val activity = context as? Activity
 
     LaunchedEffect(controlsVisible, uiState.playerStatus) {
         if (controlsVisible && uiState.playerStatus == PlayerStatus.PLAYING) {
@@ -199,8 +240,9 @@ private fun PlayerSection(viewModel: ChannelsViewModel) {
                 isFavorite = uiState.currentlyPlaying?.let { it.streamId.toString() in uiState.favoriteChannelIds } ?: false,
                 isFullScreen = uiState.isFullScreen,
                 streamTitle = uiState.currentlyPlaying?.name ?: "Stream",
-                volume = uiState.volume,
-                brightness = uiState.brightness,
+                systemVolume = uiState.systemVolume,
+                maxSystemVolume = uiState.maxSystemVolume,
+                screenBrightness = uiState.screenBrightness,
                 audioTracks = uiState.availableAudioTracks,
                 subtitleTracks = uiState.availableSubtitleTracks,
                 videoTracks = uiState.availableVideoTracks,
@@ -211,11 +253,18 @@ private fun PlayerSection(viewModel: ChannelsViewModel) {
                 onPlayPause = { if (viewModel.mediaPlayer.isPlaying) viewModel.mediaPlayer.pause() else viewModel.mediaPlayer.play() },
                 onNext = { viewModel.playNextChannel() },
                 onPrevious = { viewModel.playPreviousChannel() },
-                onToggleMute = { viewModel.toggleMute() },
+                onToggleMute = { viewModel.onToggleMute(audioManager) },
                 onToggleFavorite = { uiState.currentlyPlaying?.let { viewModel.toggleFavorite(it.streamId.toString()) } },
-                onToggleFullScreen = { viewModel.onToggleFullScreen() },
-                onSetVolume = { viewModel.setVolume(it) },
-                onSetBrightness = { viewModel.setBrightness(it) },
+                onToggleFullScreen = {
+                    // ¡CORRECCIÓN! Usamos la variable 'activity' que ya está disponible en este ámbito.
+                    activity?.requestedOrientation = if (uiState.isFullScreen) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
+                },
+                onSetVolume = { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, it, 0) },
+                onSetBrightness = { viewModel.setScreenBrightness(it) },
                 onToggleAudioMenu = { viewModel.toggleAudioMenu(it) },
                 onToggleSubtitleMenu = { viewModel.toggleSubtitleMenu(it) },
                 onToggleVideoMenu = { viewModel.toggleVideoMenu(it) },
@@ -241,6 +290,27 @@ private fun PlayerSection(viewModel: ChannelsViewModel) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SystemVolumeReceiver(audioManager: AudioManager, onVolumeChange: (Int) -> Unit) {
+    val context = LocalContext.current
+
+    DisposableEffect(Unit) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == "android.media.VOLUME_CHANGED_ACTION") {
+                    val volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    onVolumeChange(volume)
+                }
+            }
+        }
+        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose {
+            context.unregisterReceiver(receiver)
         }
     }
 }

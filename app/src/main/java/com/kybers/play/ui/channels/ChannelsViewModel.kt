@@ -1,6 +1,8 @@
 package com.kybers.play.ui.channels
 
 import android.app.Application
+import android.media.AudioManager
+import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +10,6 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,8 +51,13 @@ data class ChannelsUiState(
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
     val isMuted: Boolean = false,
-    val volume: Int = 100,
-    val brightness: Float = 0.5f,
+    // System-related states
+    val systemVolume: Int = 0,
+    val maxSystemVolume: Int = 1,
+    val screenBrightness: Float = 0.5f,
+    // States to restore original values
+    val originalBrightness: Float = -1f, // -1 indicates not set
+    // Track selection states
     val availableAudioTracks: List<TrackInfo> = emptyList(),
     val availableSubtitleTracks: List<TrackInfo> = emptyList(),
     val availableVideoTracks: List<TrackInfo> = emptyList(),
@@ -76,23 +82,15 @@ open class ChannelsViewModel(
     private val _originalCategories = MutableStateFlow<List<ExpandableCategory>>(emptyList())
     private val _favoriteChannelIds = MutableStateFlow<Set<String>>(emptySet())
 
-    // ¡NUEVO! Lista de opciones para estabilizar la reproducción.
     private val vlcOptions = arrayListOf(
-        // Caché de red y 'live' (en ms)
-        "--network-caching=50000",
-        "--live-caching=50000",
-        // Caché de archivo y de multiplexado (en ms)
-        "--file-caching=50000",
-        "--sout-mux-caching=50000",
-        // Usar libavcodec y prioridad para evitar retrasos
-        "--codec=avcodec",
-        "--avcodec-fast",
-        // Sincronización de reloj maestro y cero jitter
+        "--network-caching=3000",
+        "--file-caching=3000",
         "--clock-jitter=0",
-        "--clock-synchro=master",
-        // Evitar desechar o saltar fotogramas tardíos
+        "--clock-synchro=0",
         "--no-drop-late-frames",
-        "--no-skip-frames"
+        "--no-skip-frames",
+        "--sout-ts-dts-delay=0",
+        "--no-ts-trust-pcr"
     )
 
     private val vlcPlayerListener = MediaPlayer.EventListener { event ->
@@ -124,7 +122,6 @@ open class ChannelsViewModel(
     }
 
     private fun setupVLC() {
-        // ¡MODIFICADO! Inicializamos LibVLC con las nuevas opciones.
         libVLC = LibVLC(getApplication(), vlcOptions)
         mediaPlayer = MediaPlayer(libVLC).apply {
             setEventListener(vlcPlayerListener)
@@ -152,14 +149,43 @@ open class ChannelsViewModel(
         val streamUrl = buildStreamUrl(channel)
 
         val media = Media(libVLC, streamUrl.toUri()).apply {
-            // ¡MODIFICADO! Aplicamos las opciones a cada media para máxima compatibilidad.
             vlcOptions.forEach { addOption(it) }
         }
 
         mediaPlayer.media = media
         mediaPlayer.play()
-        mediaPlayer.volume = if (_uiState.value.isMuted) 0 else _uiState.value.volume
+        // Mute the internal player if the system is muted
+        mediaPlayer.volume = if (_uiState.value.isMuted) 0 else 100
     }
+
+    // --- System Controls State Management ---
+
+    fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
+        _uiState.update {
+            it.copy(
+                systemVolume = volume,
+                maxSystemVolume = maxVolume,
+                originalBrightness = brightness, // Save initial brightness
+                screenBrightness = brightness
+            )
+        }
+    }
+
+    fun updateSystemVolume(newVolume: Int) {
+        _uiState.update { it.copy(systemVolume = newVolume) }
+    }
+
+    fun setScreenBrightness(newBrightness: Float) {
+        _uiState.update { it.copy(screenBrightness = newBrightness.coerceIn(0f, 1f)) }
+    }
+
+    fun onToggleMute(audioManager: AudioManager) {
+        val isMuted = !_uiState.value.isMuted
+        audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMuted)
+        _uiState.update { it.copy(isMuted = isMuted) }
+    }
+
+    // --- Track Selection ---
 
     private fun updateTrackInfo() {
         val audioTracks = mediaPlayer.audioTracks?.map {
@@ -205,28 +231,14 @@ open class ChannelsViewModel(
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
     fun toggleVideoMenu(show: Boolean) = _uiState.update { it.copy(showVideoMenu = show) }
 
+    // --- Playback and Navigation ---
+
     fun retryPlayback() {
         uiState.value.currentlyPlaying?.let { onChannelSelected(it) }
     }
 
     fun onToggleFullScreen() {
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
-    }
-
-    fun toggleMute() {
-        val newMutedState = !_uiState.value.isMuted
-        mediaPlayer.volume = if (newMutedState) 0 else _uiState.value.volume
-        _uiState.update { it.copy(isMuted = newMutedState) }
-    }
-
-    fun setVolume(newVolume: Int) {
-        val finalVolume = newVolume.coerceIn(0, 100)
-        mediaPlayer.volume = finalVolume
-        _uiState.update { it.copy(volume = finalVolume, isMuted = finalVolume == 0) }
-    }
-
-    fun setBrightness(newBrightness: Float) {
-        _uiState.update { it.copy(brightness = newBrightness.coerceIn(0f, 1f)) }
     }
 
     override fun onCleared() {
@@ -276,6 +288,8 @@ open class ChannelsViewModel(
         }
     }
 
+    // --- Category and List Management ---
+
     open fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         filterCategories()
@@ -283,32 +297,34 @@ open class ChannelsViewModel(
 
     open fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
-            val currentCategories = _originalCategories.value.toMutableList()
-            val categoryIndex = currentCategories.indexOfFirst { it.category.categoryId == categoryId }
+            val currentOriginals = _originalCategories.value
+            val categoryIndex = currentOriginals.indexOfFirst { it.category.categoryId == categoryId }
             if (categoryIndex == -1) return@launch
 
-            val item = currentCategories[categoryIndex]
-            val isCurrentlyExpanded = item.isExpanded
+            val clickedCategory = currentOriginals[categoryIndex]
 
-            val newCategories = _originalCategories.value.map {
-                it.copy(isExpanded = false, isLoading = false)
-            }.toMutableList()
+            if (clickedCategory.isExpanded) {
+                val newOriginals = currentOriginals.toMutableList()
+                newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = false)
+                _originalCategories.value = newOriginals
+            } else {
+                val categoriesWithLoading = currentOriginals.map {
+                    it.copy(isExpanded = it.category.categoryId == categoryId, isLoading = it.category.categoryId == categoryId)
+                }
+                _originalCategories.value = categoriesWithLoading
+                filterCategories()
 
-            if (!isCurrentlyExpanded) {
-                newCategories[categoryIndex] = newCategories[categoryIndex].copy(isLoading = true)
-                filterCategories(newCategories) // Update UI to show loading
+                val channels = contentRepository.getLiveStreamsByCategory(categoryId).first()
 
-                val channelsFromCache = contentRepository.getLiveStreamsByCategory(categoryId).first()
-                newCategories[categoryIndex] = newCategories[categoryIndex].copy(
-                    isExpanded = true,
-                    channels = channelsFromCache,
-                    isLoading = false
-                )
+                val finalCategories = _originalCategories.value.toMutableList()
+                val finalIndex = finalCategories.indexOfFirst { it.category.categoryId == categoryId }
+                if (finalIndex != -1) {
+                    finalCategories[finalIndex] = finalCategories[finalIndex].copy(channels = channels, isLoading = false)
+                    _originalCategories.value = finalCategories
+                }
             }
-
-            _originalCategories.value = newCategories
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
             filterCategories()
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
         }
     }
 
@@ -322,26 +338,25 @@ open class ChannelsViewModel(
         }
     }
 
-    private fun filterCategories(categoriesToFilter: List<ExpandableCategory> = _originalCategories.value) {
+    private fun filterCategories() {
         val query = _uiState.value.searchQuery
-        val filteredList = if (query.isBlank()) {
-            categoriesToFilter
+        val masterList = _originalCategories.value
+
+        val finalFilteredList = if (query.isBlank()) {
+            masterList
         } else {
-            categoriesToFilter.mapNotNull { expandableCategory ->
-                val filteredChannels = expandableCategory.channels.filter {
+            masterList.mapNotNull { category ->
+                val filteredChannels = category.channels.filter {
                     it.name.contains(query, ignoreCase = true)
                 }
-                if (filteredChannels.isNotEmpty() || expandableCategory.category.categoryName.contains(query, ignoreCase = true)) {
-                    expandableCategory.copy(
-                        channels = filteredChannels,
-                        isExpanded = filteredChannels.isNotEmpty()
-                    )
+                if (category.category.categoryName.contains(query, ignoreCase = true) || filteredChannels.isNotEmpty()) {
+                    category.copy(channels = filteredChannels)
                 } else {
                     null
                 }
             }
         }
-        _uiState.update { it.copy(categories = filteredList) }
+        _uiState.update { it.copy(categories = finalFilteredList) }
     }
 
     internal fun getFavoriteChannels(): List<LiveStream> {
@@ -358,8 +373,9 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
             filterCategories()
+
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
         }
     }
 }

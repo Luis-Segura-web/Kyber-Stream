@@ -4,16 +4,17 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.kybers.play.data.local.model.User
+import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.player.PlayerViewModel
-import com.kybers.play.ui.splash.SplashViewModel // ¡LA INVITACIÓN QUE FALTABA!
+import com.kybers.play.ui.sync.SyncViewModel
 
 /**
- * Fábrica para el LoginViewModel, que solo necesita el UserRepository.
+ * Factory for the LoginViewModel, which only needs the UserRepository.
  */
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -26,7 +27,7 @@ class LoginViewModelFactory(private val userRepository: UserRepository) : ViewMo
 }
 
 /**
- * Fábrica para todos los ViewModels que dependen del contenido (Home, Canales, etc.).
+ * Factory for all ViewModels that depend on content (Home, Channels, etc.).
  */
 class ContentViewModelFactory(
     private val application: Application,
@@ -48,7 +49,7 @@ class ContentViewModelFactory(
 }
 
 /**
- * Fábrica para el PlayerViewModel, que solo necesita la Application.
+ * Factory for the PlayerViewModel, which only needs the Application.
  */
 class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -61,13 +62,17 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
 }
 
 /**
- * Fábrica para el nuevo SplashViewModel.
+ * ¡NUEVO! Factory for the SyncViewModel.
+ * This factory provides the SyncViewModel with its required dependencies.
  */
-class SplashViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
+class SyncViewModelFactory(
+    private val contentRepository: ContentRepository,
+    private val syncManager: SyncManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SplashViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SplashViewModel(userRepository) as T
+            return SyncViewModel(contentRepository, syncManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
