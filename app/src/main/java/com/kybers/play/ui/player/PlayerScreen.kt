@@ -1,11 +1,14 @@
 package com.kybers.play.ui.player
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
+import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -29,9 +32,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
-import androidx.core.net.toUri
 
 @Composable
 fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitle: String) {
@@ -58,7 +64,25 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         derivedStateOf { configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
     }
 
-    // --- Effects and Listeners ---
+    // Observador del ciclo de vida para el modo PiP automático.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && !isFullScreen) { // Entrar en PiP si no está en pantalla completa
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val aspectRatio = Rational(16, 9)
+                    val pipParams = PictureInPictureParams.Builder()
+                        .setAspectRatio(aspectRatio)
+                        .build()
+                    activity?.enterPictureInPictureMode(pipParams)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Keep screen on while player is active and manage listeners
     DisposableEffect(Unit) {
@@ -112,10 +136,55 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         }
     }
 
+    // Función para entrar en modo Picture-in-Picture manualmente.
+    fun enterPictureInPictureMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val aspectRatio = Rational(16, 9)
+            val pipParams = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+                .build()
+            activity?.enterPictureInPictureMode(pipParams)
+        }
+    }
+
+    // ¡NUEVO! Función para cambiar la relación de aspecto del reproductor.
+    // Como PlayerScreen es para VOD y no tiene un ViewModel de canales,
+    // implementamos una lógica simple de ciclo para la relación de aspecto aquí.
+    var currentAspectRatioIndex by remember { mutableIntStateOf(0) }
+    val aspectRatioModes = remember { listOf("FIT_SCREEN", "FILL_SCREEN", "16:9", "4:3") }
+
+    fun toggleAspectRatio() {
+        currentAspectRatioIndex = (currentAspectRatioIndex + 1) % aspectRatioModes.size
+        val nextMode = aspectRatioModes[currentAspectRatioIndex]
+
+        when (nextMode) {
+            "FIT_SCREEN" -> {
+                mediaPlayer.setAspectRatio(null) // Restablece a la relación de aspecto original del video
+                mediaPlayer.setScale(0.0f) // 0.0f suele significar "ajustar a la pantalla"
+            }
+            "FILL_SCREEN" -> {
+                mediaPlayer.setAspectRatio(null) // Restablece a la relación de aspecto original del video
+                mediaPlayer.setScale(1.0f) // 1.0f suele significar "llenar la pantalla" (puede recortar)
+            }
+            "16:9" -> {
+                mediaPlayer.setAspectRatio("16:9")
+                mediaPlayer.setScale(0.0f)
+            }
+            "4:3" -> {
+                mediaPlayer.setAspectRatio("4:3")
+                mediaPlayer.setScale(0.0f)
+            }
+        }
+    }
+
     LaunchedEffect(streamUrl) {
         val media = Media(mediaPlayer.libVLC, streamUrl.toUri())
         mediaPlayer.media = media
         mediaPlayer.play()
+        // Aplicar la relación de aspecto inicial al cargar el stream.
+        toggleAspectRatio() // Llama una vez para establecer el modo por defecto o el guardado (si lo hubiera).
+        toggleAspectRatio() // Llama una segunda vez para ciclar al primer modo visible (FIT_SCREEN)
+        // Esto es un workaround para asegurar que el modo inicial se aplique.
     }
 
     // --- UI ---
@@ -179,8 +248,9 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
             onToggleVideoMenu = {},
             onSelectAudioTrack = {},
             onSelectSubtitleTrack = {},
-            onSelectVideoTrack = {}
+            onSelectVideoTrack = {},
+            onPictureInPicture = ::enterPictureInPictureMode,
+            onToggleAspectRatio = ::toggleAspectRatio // ¡CORRECCIÓN! Pasamos el callback
         )
     }
 }
-

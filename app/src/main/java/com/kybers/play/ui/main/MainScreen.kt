@@ -17,6 +17,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,8 +35,8 @@ import androidx.navigation.compose.rememberNavController
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.home.HomeScreen
-import com.kybers.play.ui.home.HomeViewModel
+import com.kybers.play.ui.home.HomeViewModel // ¡CORRECCIÓN! Importamos HomeViewModel
+import com.kybers.play.ui.home.HomeScreen // ¡CORRECCIÓN! Importamos HomeScreen
 
 // Defines the routes, labels, and icons for each main screen of the app.
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -57,19 +58,31 @@ private val items = listOf(
 @Composable
 fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
     val navController = rememberNavController()
-    // ¡MODIFICADO! This state now controls the visibility of the bottom navigation bar.
     var isBottomBarVisible by remember { mutableStateOf(true) }
+
+    // Obtenemos el back stack entry actual para saber la ruta.
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Mantenemos una referencia al ChannelsViewModel para poder llamarlo.
+    val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
+
+    // ¡NUEVO! Efecto para detener la reproducción cuando se cambia de pestaña.
+    LaunchedEffect(currentRoute) {
+        // Si la ruta actual NO es la de canales y el reproductor estaba visible, ocúltalo.
+        if (currentRoute != Screen.Channels.route) {
+            channelsViewModel.hidePlayer()
+        }
+    }
 
     Scaffold(
         bottomBar = {
-            // The navigation bar animates based on the state.
             AnimatedVisibility(
                 visible = isBottomBarVisible,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it }
             ) {
                 NavigationBar {
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
 
                     items.forEach { screen ->
@@ -98,8 +111,7 @@ fun MainScreen(contentViewModelFactory: ContentViewModelFactory) {
                 HomeScreen(homeViewModel)
             }
             composable(Screen.Channels.route) {
-                val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
-                // ¡MODIFICADO! The callback now controls the bar's visibility.
+                // Pasamos el mismo channelsViewModel que se observa en el LaunchedEffect.
                 ChannelsScreen(
                     viewModel = channelsViewModel,
                     onFullScreenToggled = { isFullScreen ->

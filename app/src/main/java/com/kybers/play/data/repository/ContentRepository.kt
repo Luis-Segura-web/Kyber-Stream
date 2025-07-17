@@ -24,6 +24,11 @@ open class ContentRepository(
         return liveStreamDao.getLiveStreamsByCategory(categoryId)
     }
 
+    // ¡NUEVO! Función para obtener todos los LiveStream desde la base de datos local.
+    fun getAllLiveStreams(): Flow<List<LiveStream>> {
+        return liveStreamDao.getAllLiveStreams()
+    }
+
     fun getAllMovies(): Flow<List<Movie>> {
         return movieDao.getAllMovies()
     }

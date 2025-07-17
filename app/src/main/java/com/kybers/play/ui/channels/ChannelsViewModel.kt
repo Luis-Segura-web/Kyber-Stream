@@ -2,18 +2,20 @@ package com.kybers.play.ui.channels
 
 import android.app.Application
 import android.media.AudioManager
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
+import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -21,10 +23,27 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
+// Enum para representar el estado actual del reproductor.
 enum class PlayerStatus {
-    IDLE, BUFFERING, PLAYING, ERROR
+    IDLE, BUFFERING, PLAYING, ERROR, PAUSED
 }
 
+// Enum para las opciones de ordenamiento.
+enum class SortOrder {
+    DEFAULT, // Orden original del servicio (por ID o el que venga por defecto de la API)
+    AZ,      // Alfabético A-Z
+    ZA       // Alfabético Z-A
+}
+
+// Enum para los modos de relación de aspecto.
+enum class AspectRatioMode {
+    FIT_SCREEN,   // Ajustar a la pantalla (por defecto de VLC, escala 0.0f)
+    FILL_SCREEN,  // Llenar la pantalla (puede recortar, escala 1.0f si no hay ratio específico)
+    ASPECT_16_9,  // Relación de aspecto 16:9
+    ASPECT_4_3    // Relación de aspecto 4:3
+}
+
+// Data class para representar una categoría de canales que puede expandirse o contraerse.
 data class ExpandableCategory(
     val category: Category,
     val channels: List<LiveStream> = emptyList(),
@@ -32,12 +51,14 @@ data class ExpandableCategory(
     val isLoading: Boolean = false
 )
 
+// Data class para la información de las pistas de audio, subtítulos o video.
 data class TrackInfo(
     val id: Int,
     val name: String,
     val isSelected: Boolean
 )
 
+// Data class que representa el estado completo de la UI de la pantalla de canales.
 data class ChannelsUiState(
     val isLoading: Boolean = true,
     val searchQuery: String = "",
@@ -51,25 +72,29 @@ data class ChannelsUiState(
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
     val isMuted: Boolean = false,
-    // System-related states
     val systemVolume: Int = 0,
     val maxSystemVolume: Int = 1,
     val screenBrightness: Float = 0.5f,
-    // States to restore original values
-    val originalBrightness: Float = -1f, // -1 indicates not set
-    // Track selection states
+    val originalBrightness: Float = -1f,
     val availableAudioTracks: List<TrackInfo> = emptyList(),
     val availableSubtitleTracks: List<TrackInfo> = emptyList(),
     val availableVideoTracks: List<TrackInfo> = emptyList(),
     val showAudioMenu: Boolean = false,
     val showSubtitleMenu: Boolean = false,
-    val showVideoMenu: Boolean = false
+    val showVideoMenu: Boolean = false,
+    val categorySortOrder: SortOrder = SortOrder.DEFAULT,
+    val channelSortOrder: SortOrder = SortOrder.DEFAULT,
+    val showSortMenu: Boolean = false,
+    val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
+    val currentPosition: Long = 0L, // ¡NUEVO! Posición actual de reproducción en milisegundos.
+    val duration: Long = 0L // ¡NUEVO! Duración total del stream en milisegundos.
 )
 
 open class ChannelsViewModel(
     application: Application,
     private val contentRepository: ContentRepository,
-    private val currentUser: User
+    private val currentUser: User,
+    private val preferenceManager: PreferenceManager
 ) : AndroidViewModel(application) {
 
     private lateinit var libVLC: LibVLC
@@ -81,6 +106,9 @@ open class ChannelsViewModel(
 
     private val _originalCategories = MutableStateFlow<List<ExpandableCategory>>(emptyList())
     private val _favoriteChannelIds = MutableStateFlow<Set<String>>(emptySet())
+
+    private val _scrollToItemEvent = MutableSharedFlow<String>()
+    val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
     private val vlcOptions = arrayListOf(
         "--network-caching=3000",
@@ -100,9 +128,14 @@ open class ChannelsViewModel(
                 updateTrackInfo()
                 PlayerStatus.PLAYING
             }
+            MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
             MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
             MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
             MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
+            MediaPlayer.Event.TimeChanged -> { // ¡NUEVO! Actualizar posición y duración
+                _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
+                null // No cambiar el PlayerStatus por un cambio de tiempo
+            }
             else -> null
         }
         if (newStatus != null && newStatus != currentState) {
@@ -112,11 +145,22 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
+        val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
+        val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
+        val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
+
+        _uiState.update {
+            it.copy(
+                categorySortOrder = savedCategorySortOrder,
+                channelSortOrder = savedChannelSortOrder,
+                currentAspectRatioMode = savedAspectRatioMode
+            )
+        }
         loadInitialCategories()
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
-                filterCategories()
+                filterAndSortCategories()
             }
         }
     }
@@ -129,7 +173,7 @@ open class ChannelsViewModel(
     }
 
     open fun onChannelSelected(channel: LiveStream) {
-        val allVisibleChannels = (if (uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
                 _uiState.value.categories.flatMap { it.channels }
         val index = allVisibleChannels.indexOfFirst { it.streamId == channel.streamId }
 
@@ -142,7 +186,9 @@ open class ChannelsViewModel(
                 playerStatus = PlayerStatus.BUFFERING,
                 availableAudioTracks = emptyList(),
                 availableSubtitleTracks = emptyList(),
-                availableVideoTracks = emptyList()
+                availableVideoTracks = emptyList(),
+                currentPosition = 0L, // Reiniciar posición al cambiar de canal
+                duration = 0L // Reiniciar duración al cambiar de canal
             )
         }
 
@@ -154,8 +200,15 @@ open class ChannelsViewModel(
 
         mediaPlayer.media = media
         mediaPlayer.play()
-        // Mute the internal player if the system is muted
-        mediaPlayer.volume = if (_uiState.value.isMuted) 0 else 100
+        mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
+
+        applyAspectRatio(_uiState.value.currentAspectRatioMode)
+    }
+
+    // ¡NUEVO! Función para buscar en el stream.
+    fun seekTo(position: Long) {
+        mediaPlayer.time = position
+        _uiState.update { it.copy(currentPosition = position) }
     }
 
     // --- System Controls State Management ---
@@ -165,7 +218,7 @@ open class ChannelsViewModel(
             it.copy(
                 systemVolume = volume,
                 maxSystemVolume = maxVolume,
-                originalBrightness = brightness, // Save initial brightness
+                originalBrightness = brightness,
                 screenBrightness = brightness
             )
         }
@@ -260,7 +313,7 @@ open class ChannelsViewModel(
     }
 
     open fun playNextChannel() {
-        val allVisibleChannels = (if (uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
                 _uiState.value.categories.flatMap { it.channels }
         val currentIndex = _uiState.value.currentChannelIndex
         if (currentIndex != -1 && currentIndex < allVisibleChannels.size - 1) {
@@ -269,7 +322,7 @@ open class ChannelsViewModel(
     }
 
     open fun playPreviousChannel() {
-        val allVisibleChannels = (if (uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
                 _uiState.value.categories.flatMap { it.channels }
         val currentIndex = _uiState.value.currentChannelIndex
         if (currentIndex > 0) {
@@ -283,8 +336,44 @@ open class ChannelsViewModel(
             it.copy(
                 isPlayerVisible = false,
                 isFullScreen = false,
-                playerStatus = PlayerStatus.IDLE
+                playerStatus = PlayerStatus.IDLE,
+                currentPosition = 0L, // Reiniciar posición al ocultar el reproductor
+                duration = 0L // Reiniciar duración al ocultar el reproductor
             )
+        }
+    }
+
+    // --- Aspect Ratio Control ---
+    open fun toggleAspectRatio() {
+        val nextMode = when (_uiState.value.currentAspectRatioMode) {
+            AspectRatioMode.FIT_SCREEN -> AspectRatioMode.FILL_SCREEN
+            AspectRatioMode.FILL_SCREEN -> AspectRatioMode.ASPECT_16_9
+            AspectRatioMode.ASPECT_16_9 -> AspectRatioMode.ASPECT_4_3
+            AspectRatioMode.ASPECT_4_3 -> AspectRatioMode.FIT_SCREEN
+        }
+        applyAspectRatio(nextMode)
+        preferenceManager.saveAspectRatioMode(nextMode.name)
+        _uiState.update { it.copy(currentAspectRatioMode = nextMode) }
+    }
+
+    private fun applyAspectRatio(mode: AspectRatioMode) {
+        when (mode) {
+            AspectRatioMode.FIT_SCREEN -> {
+                mediaPlayer.setAspectRatio(null)
+                mediaPlayer.setScale(0.0f)
+            }
+            AspectRatioMode.FILL_SCREEN -> {
+                mediaPlayer.setAspectRatio(null)
+                mediaPlayer.setScale(1.0f)
+            }
+            AspectRatioMode.ASPECT_16_9 -> {
+                mediaPlayer.setAspectRatio("16:9")
+                mediaPlayer.setScale(0.0f)
+            }
+            AspectRatioMode.ASPECT_4_3 -> {
+                mediaPlayer.setAspectRatio("4:3")
+                mediaPlayer.setScale(0.0f)
+            }
         }
     }
 
@@ -292,7 +381,7 @@ open class ChannelsViewModel(
 
     open fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
-        filterCategories()
+        filterAndSortCategories()
     }
 
     open fun onCategoryToggled(categoryId: String) {
@@ -303,19 +392,12 @@ open class ChannelsViewModel(
 
             val clickedCategory = currentOriginals[categoryIndex]
 
-            if (clickedCategory.isExpanded) {
-                val newOriginals = currentOriginals.toMutableList()
-                newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = false)
-                _originalCategories.value = newOriginals
-            } else {
-                val categoriesWithLoading = currentOriginals.map {
-                    it.copy(isExpanded = it.category.categoryId == categoryId, isLoading = it.category.categoryId == categoryId)
-                }
-                _originalCategories.value = categoriesWithLoading
-                filterCategories()
+            val newOriginals = currentOriginals.toMutableList()
+            newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = !clickedCategory.isExpanded)
+            _originalCategories.value = newOriginals
 
+            if (!clickedCategory.isExpanded && clickedCategory.channels.isEmpty() && !clickedCategory.isLoading) {
                 val channels = contentRepository.getLiveStreamsByCategory(categoryId).first()
-
                 val finalCategories = _originalCategories.value.toMutableList()
                 val finalIndex = finalCategories.indexOfFirst { it.category.categoryId == categoryId }
                 if (finalIndex != -1) {
@@ -323,8 +405,11 @@ open class ChannelsViewModel(
                     _originalCategories.value = finalCategories
                 }
             }
-            filterCategories()
+
+            filterAndSortCategories()
             _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
+
+            _scrollToItemEvent.emit(categoryId)
         }
     }
 
@@ -332,36 +417,82 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-            val expandableCategories = categories.map { ExpandableCategory(category = it) }
+            val allChannels = contentRepository.getAllLiveStreams().first()
+
+            val channelsByCategory = allChannels.groupBy { it.categoryId }
+
+            val expandableCategories = categories.map { category ->
+                ExpandableCategory(
+                    category = category,
+                    channels = channelsByCategory[category.categoryId] ?: emptyList(),
+                    isExpanded = false,
+                    isLoading = false
+                )
+            }
             _originalCategories.value = expandableCategories
             _uiState.update { it.copy(isLoading = false, categories = expandableCategories) }
+            filterAndSortCategories()
         }
     }
 
-    private fun filterCategories() {
-        val query = _uiState.value.searchQuery
+    private fun filterAndSortCategories() {
+        val query = _uiState.value.searchQuery.trim()
         val masterList = _originalCategories.value
+        val currentCategorySortOrder = _uiState.value.categorySortOrder
+        val currentChannelSortOrder = _uiState.value.channelSortOrder
 
-        val finalFilteredList = if (query.isBlank()) {
-            masterList
-        } else {
-            masterList.mapNotNull { category ->
-                val filteredChannels = category.channels.filter {
-                    it.name.contains(query, ignoreCase = true)
-                }
-                if (category.category.categoryName.contains(query, ignoreCase = true) || filteredChannels.isNotEmpty()) {
-                    category.copy(channels = filteredChannels)
-                } else {
-                    null
-                }
+        val filteredCategories = masterList.map { originalCategory ->
+            val filteredChannels = originalCategory.channels.filter {
+                it.name.contains(query, ignoreCase = true)
             }
+            originalCategory.copy(channels = filteredChannels)
+        }.filter {
+            it.category.categoryName.contains(query, ignoreCase = true) || it.channels.isNotEmpty() || query.isBlank()
         }
-        _uiState.update { it.copy(categories = finalFilteredList) }
+
+        val sortedChannelsInCategories = filteredCategories.map { category ->
+            val sortedChannels = when (currentChannelSortOrder) {
+                SortOrder.AZ -> category.channels.sortedBy { it.name }
+                SortOrder.ZA -> category.channels.sortedByDescending { it.name }
+                SortOrder.DEFAULT -> category.channels
+            }
+            category.copy(channels = sortedChannels)
+        }
+
+        val finalSortedCategories = when (currentCategorySortOrder) {
+            SortOrder.AZ -> sortedChannelsInCategories.sortedBy { it.category.categoryName }
+            SortOrder.ZA -> sortedChannelsInCategories.sortedByDescending { it.category.categoryName }
+            SortOrder.DEFAULT -> sortedChannelsInCategories
+        }
+
+        val categoriesWithCorrectExpansion = finalSortedCategories.map { category ->
+            val shouldBeExpanded = if (query.isNotBlank()) {
+                category.category.categoryName.contains(query, ignoreCase = true) || category.channels.isNotEmpty()
+            } else {
+                masterList.find { it.category.categoryId == category.category.categoryId }?.isExpanded ?: false
+            }
+            category.copy(isExpanded = shouldBeExpanded)
+        }
+
+        _uiState.update { it.copy(categories = categoriesWithCorrectExpansion) }
     }
+
 
     internal fun getFavoriteChannels(): List<LiveStream> {
         val allChannels = _originalCategories.value.flatMap { it.channels }.distinctBy { it.streamId }
-        return allChannels.filter { it.streamId.toString() in _uiState.value.favoriteChannelIds }
+        val query = _uiState.value.searchQuery.trim()
+        val currentChannelSortOrder = _uiState.value.channelSortOrder
+
+        val favoriteChannels = allChannels.filter {
+            it.streamId.toString() in _uiState.value.favoriteChannelIds &&
+                    it.name.contains(query, ignoreCase = true)
+        }
+
+        return when (currentChannelSortOrder) {
+            SortOrder.AZ -> favoriteChannels.sortedBy { it.name }
+            SortOrder.ZA -> favoriteChannels.sortedByDescending { it.name }
+            SortOrder.DEFAULT -> favoriteChannels
+        }
     }
 
     private fun buildStreamUrl(channel: LiveStream): String {
@@ -373,9 +504,50 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
-            filterCategories()
+            filterAndSortCategories()
 
             _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
+            _scrollToItemEvent.emit("favorites")
         }
+    }
+
+    // --- Funciones para el menú de ordenación ---
+
+    fun toggleSortMenu(show: Boolean) {
+        _uiState.update { it.copy(showSortMenu = show) }
+    }
+
+    fun setCategorySortOrder(sortOrder: SortOrder) {
+        viewModelScope.launch {
+            preferenceManager.saveSortOrder("category", sortOrder.name)
+            _uiState.update { it.copy(categorySortOrder = sortOrder) }
+            filterAndSortCategories()
+        }
+    }
+
+    fun setChannelSortOrder(sortOrder: SortOrder) {
+        viewModelScope.launch {
+            preferenceManager.saveSortOrder("channel", sortOrder.name)
+            _uiState.update { it.copy(channelSortOrder = sortOrder) }
+            filterAndSortCategories()
+        }
+    }
+}
+
+// Extensión para convertir String a SortOrder
+fun String.toSortOrder(): SortOrder {
+    return try {
+        SortOrder.valueOf(this)
+    } catch (e: IllegalArgumentException) {
+        SortOrder.DEFAULT
+    }
+}
+
+// Extensión para convertir String a AspectRatioMode
+fun String.toAspectRatioMode(): AspectRatioMode {
+    return try {
+        AspectRatioMode.valueOf(this)
+    } catch (e: IllegalArgumentException) {
+        AspectRatioMode.FIT_SCREEN
     }
 }

@@ -35,11 +35,12 @@ class MainActivity : ComponentActivity() {
             }
 
             // 6. Creamos la fábrica de ViewModels para el contenido.
-            // AHORA LE PASAMOS LA INSTANCIA DE 'application'
+            // ¡CORRECCIÓN! Ahora le pasamos la instancia de 'preferenceManager'
             val contentViewModelFactory = ContentViewModelFactory(
-                application = application, // <-- ¡AQUÍ ESTÁ EL CAMBIO!
+                application = application,
                 contentRepository = appContainer.createContentRepository(user.url),
-                currentUser = user
+                currentUser = user,
+                preferenceManager = appContainer.preferenceManager // <-- ¡AQUÍ ESTÁ LA CORRECCIÓN!
             )
 
             // 7. Establecemos el contenido de la actividad.

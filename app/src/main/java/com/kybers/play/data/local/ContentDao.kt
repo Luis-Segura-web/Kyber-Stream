@@ -14,6 +14,10 @@ interface LiveStreamDao {
     @Query("SELECT * FROM live_streams WHERE categoryId = :categoryId")
     fun getLiveStreamsByCategory(categoryId: String): Flow<List<LiveStream>>
 
+    // ¡NUEVO! Consulta para obtener todos los LiveStream.
+    @Query("SELECT * FROM live_streams")
+    fun getAllLiveStreams(): Flow<List<LiveStream>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(streams: List<LiveStream>)
 }

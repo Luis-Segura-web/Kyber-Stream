@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.work.Configuration
 import com.kybers.play.data.local.AppDatabase
+import com.kybers.play.data.preferences.PreferenceManager // ¡NUEVO! Importamos PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.ContentRepository
@@ -34,7 +35,8 @@ class AppContainer(context: Context) {
 
     // The repositories and the sync manager are now public properties of the container.
     val userRepository by lazy { UserRepository(database.userDao()) }
-    val syncManager by lazy { SyncManager(context) } // ¡NUEVO! Se crea la instancia del SyncManager.
+    val syncManager by lazy { SyncManager(context) }
+    val preferenceManager by lazy { PreferenceManager(context) } // ¡NUEVO! Instancia de PreferenceManager
 
     /**
      * Creates a ContentRepository instance for a specific base URL.
