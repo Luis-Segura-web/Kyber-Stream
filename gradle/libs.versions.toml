@@ -8,7 +8,7 @@ kotlin                  = "2.2.0"
 ksp                     = "2.2.0-2.0.2"  # Versión de KSP correspondiente a Kotlin 2.2.0
 
 # Jetpack Compose - Usamos un BOM compatible con Kotlin 2.2.0
-composeBom              = "2025.06.01"
+composeBom              = "2025.07.00"
 activityCompose         = "1.10.1"
 lifecycleRuntimeCompose = "2.9.2"
 materialIconsExtended   = "1.7.8"
@@ -87,6 +87,7 @@ androidx-room-ktx                = { group = "androidx.room",          name = "r
 androidx-room-compiler           = { group = "androidx.room",          name = "room-compiler",      version.ref = "room" }
 
 # --- REPRODUCTOR DE VIDEO ---
+#noinspection Aligned16KB
 libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "vlc" }
 
 # --- CARGA DE IMÁGENES ---

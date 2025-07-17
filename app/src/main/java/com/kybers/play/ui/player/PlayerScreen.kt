@@ -19,6 +19,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import androidx.core.net.toUri
 
 @Composable
 fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitle: String) {
@@ -42,11 +45,11 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
 
     // State for system volume
-    var systemVolume by remember { mutableStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)) }
+    var systemVolume by remember { mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)) }
     val maxSystemVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
 
     // State for screen brightness
-    var screenBrightness by remember { mutableStateOf(activity?.window?.attributes?.screenBrightness ?: 0.5f) }
+    var screenBrightness by remember { mutableFloatStateOf(activity?.window?.attributes?.screenBrightness ?: 0.5f) }
     val originalBrightness = remember { activity?.window?.attributes?.screenBrightness ?: -1f }
 
 
@@ -110,7 +113,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     }
 
     LaunchedEffect(streamUrl) {
-        val media = Media(mediaPlayer.libVLC, Uri.parse(streamUrl))
+        val media = Media(mediaPlayer.libVLC, streamUrl.toUri())
         mediaPlayer.media = media
         mediaPlayer.play()
     }

@@ -99,6 +99,12 @@ fun ChannelsScreen(
 
     // --- System Controls and Listeners ---
 
+    // A flag to remember if we ever entered fullscreen, to decide if brightness should be restored.
+    var wasFullScreen by remember(uiState.isPlayerVisible) { mutableStateOf(false) }
+    if (uiState.isFullScreen) {
+        wasFullScreen = true
+    }
+
     // Listen for system volume changes
     SystemVolumeReceiver(audioManager) {
         viewModel.updateSystemVolume(it)
@@ -108,22 +114,22 @@ fun ChannelsScreen(
     DisposableEffect(uiState.isPlayerVisible) {
         val window = activity?.window
         if (uiState.isPlayerVisible) {
-            // Keep screen on
             window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            // Get initial system values
             val initialBrightness = window?.attributes?.screenBrightness ?: -1f
             viewModel.setInitialSystemValues(
                 volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC),
                 maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
-                brightness = if (initialBrightness >= 0) initialBrightness else 0.5f // Default if not set
+                brightness = if (initialBrightness >= 0) initialBrightness else 0.5f
             )
         }
         onDispose {
-            // Restore original brightness when player is hidden
-            window?.attributes?.let {
-                if (uiState.originalBrightness >= 0) {
-                    it.screenBrightness = uiState.originalBrightness
-                    window.attributes = it
+            // ¡CORRECCIÓN! Restore original brightness ONLY if it was modified (i.e., we were in fullscreen).
+            if (wasFullScreen) {
+                window?.attributes?.let {
+                    if (uiState.originalBrightness >= 0) {
+                        it.screenBrightness = uiState.originalBrightness
+                        window.attributes = it
+                    }
                 }
             }
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -249,14 +255,19 @@ private fun PlayerSection(viewModel: ChannelsViewModel, audioManager: AudioManag
                 showAudioMenu = uiState.showAudioMenu,
                 showSubtitleMenu = uiState.showSubtitleMenu,
                 showVideoMenu = uiState.showVideoMenu,
-                onClose = { viewModel.hidePlayer() },
+                onClose = {
+                    // ¡CORRECCIÓN! This logic handles both fullscreen and portrait exit correctly.
+                    if (uiState.isFullScreen) {
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    }
+                    viewModel.hidePlayer()
+                },
                 onPlayPause = { if (viewModel.mediaPlayer.isPlaying) viewModel.mediaPlayer.pause() else viewModel.mediaPlayer.play() },
                 onNext = { viewModel.playNextChannel() },
                 onPrevious = { viewModel.playPreviousChannel() },
                 onToggleMute = { viewModel.onToggleMute(audioManager) },
                 onToggleFavorite = { uiState.currentlyPlaying?.let { viewModel.toggleFavorite(it.streamId.toString()) } },
                 onToggleFullScreen = {
-                    // ¡CORRECCIÓN! Usamos la variable 'activity' que ya está disponible en este ámbito.
                     activity?.requestedOrientation = if (uiState.isFullScreen) {
                         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     } else {
