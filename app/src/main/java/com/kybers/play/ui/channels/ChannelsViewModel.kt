@@ -26,6 +26,8 @@ import org.videolan.libvlc.MediaPlayer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers // <--- ¡IMPORTACIÓN NUEVA!
+import kotlinx.coroutines.withContext // <--- ¡IMPORTACIÓN NUEVA!
 
 // Enum para representar el estado actual del reproductor.
 enum class PlayerStatus {
@@ -102,7 +104,7 @@ open class ChannelsViewModel(
     private val contentRepository: ContentRepository,
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
-    private val syncManager: SyncManager // ¡NUEVO! Inyectar SyncManager
+    private val syncManager: SyncManager
 ) : AndroidViewModel(application) {
 
     private lateinit var libVLC: LibVLC
@@ -156,14 +158,14 @@ open class ChannelsViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
-        val lastSyncTime = syncManager.getLastSyncTimestamp() // ¡NUEVO! Obtener la última marca de tiempo
+        val lastSyncTime = syncManager.getLastSyncTimestamp()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 channelSortOrder = savedChannelSortOrder,
                 currentAspectRatioMode = savedAspectRatioMode,
-                lastUpdatedTimestamp = lastSyncTime // ¡NUEVO! Inicializar la marca de tiempo
+                lastUpdatedTimestamp = lastSyncTime
             )
         }
         loadInitialCategories()
@@ -352,23 +354,32 @@ open class ChannelsViewModel(
                 playerStatus = PlayerStatus.IDLE,
                 currentPosition = 0L,
                 duration = 0L,
-                isInPipMode = false // Asegurarse de que el estado PiP se resetee
+                isInPipMode = false
             )
         }
     }
 
     /**
-     * ¡NUEVO! Función para actualizar manualmente los canales.
+     * Función para actualizar manualmente los canales.
      * Muestra un indicador de carga, realiza la sincronización de datos
      * y actualiza la marca de tiempo de la última actualización.
+     * Los datos siempre se cargarán desde el servidor, luego se guardarán en caché y finalmente
+     * se mostrarán desde esa caché actualizada.
      */
     fun refreshChannelsManually() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) } // Mostrar indicador de carga
             try {
-                // Forzar la recarga de categorías y canales desde la API
+                // Paso 1: Forzar la recarga y caché de los canales VIVOS desde la API.
+                // Esto sobrescribirá los datos existentes en la base de datos local con los más recientes.
+                withContext(Dispatchers.IO) { // Ejecutar en un hilo de E/S para no bloquear la UI
+                    contentRepository.cacheLiveStreams(currentUser.username, currentUser.password)
+                }
+
+                // Paso 2: Recargar las categorías y los canales DE LA BASE DE DATOS LOCAL
+                // (que ahora contiene los datos más frescos del servidor).
                 val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                val allChannels = contentRepository.getAllLiveStreams().first() // Obtener de la base de datos local
+                val allChannels = contentRepository.getAllLiveStreams().first()
 
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
 
@@ -376,7 +387,7 @@ open class ChannelsViewModel(
                     ExpandableCategory(
                         category = category,
                         channels = channelsByCategory[category.categoryId] ?: emptyList(),
-                        isExpanded = false,
+                        isExpanded = false, // Mantener contraídas por defecto al refrescar
                         isLoading = false
                     )
                 }
@@ -387,8 +398,10 @@ open class ChannelsViewModel(
                 _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp()) } // Actualizar en UI State
 
             } catch (e: Exception) {
-                // Manejar errores de actualización, por ejemplo, mostrar un Toast
+                // Manejar errores de actualización, por ejemplo, mostrar un Toast o un Snackbar
                 e.printStackTrace()
+                // Aquí podrías añadir una lógica para mostrar un mensaje de error al usuario.
+                // Ejemplo: Toast.makeText(getApplication(), "Error al actualizar canales: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) } // Ocultar indicador de carga
             }
@@ -602,7 +615,8 @@ open class ChannelsViewModel(
     // Función auxiliar para formatear la marca de tiempo a una cadena legible
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        // <--- ¡CAMBIO AQUÍ PARA UN FORMATO MÁS CORTO! --->
+        val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
         return sdf.format(Date(timestamp))
     }
 }

@@ -266,14 +266,14 @@ fun ChannelsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
 
-                                // Texto de última actualización
+                                // Texto de última actualización (formato más compacto)
                                 Text(
                                     text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall, // Usamos un estilo más pequeño
                                     color = Color.White.copy(alpha = 0.7f),
                                     modifier = Modifier.align(Alignment.CenterVertically)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(8.dp)) // Espaciador para separar del botón
 
                                 // Botón para actualizar manualmente
                                 IconButton(
@@ -292,7 +292,6 @@ fun ChannelsScreen(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = Color.White
                     )
-                    // No necesitamos el bloque 'actions' aquí, ya que lo hemos integrado en el 'title'
                 )
             }
         }
