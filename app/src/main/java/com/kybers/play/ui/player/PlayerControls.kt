@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -95,10 +96,10 @@ fun PlayerControls(
     onSelectVideoTrack: (Int) -> Unit,
     onPictureInPicture: () -> Unit,
     onToggleAspectRatio: () -> Unit,
-    currentPosition: Long, // ¡NUEVO! Posición actual del reproductor
-    duration: Long,       // ¡NUEVO! Duración total del stream
-    onSeek: (Long) -> Unit, // ¡NUEVO! Callback para buscar en el stream
-    onAnyInteraction: () -> Unit // ¡NUEVO! Callback para reiniciar el temporizador
+    currentPosition: Long,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    onAnyInteraction: () -> Unit
 ) {
     AnimatedVisibility(
         modifier = modifier,
@@ -115,10 +116,9 @@ fun PlayerControls(
                 isFullScreen = isFullScreen,
                 onClose = onClose,
                 onToggleFavorite = onToggleFavorite,
-                onToggleFullScreen = onToggleFullScreen,
                 onPictureInPicture = onPictureInPicture,
-                onToggleAspectRatio = onToggleAspectRatio,
-                onAnyInteraction = onAnyInteraction // Pasamos el callback
+                // onToggleAspectRatio = onToggleAspectRatio, // ¡CORRECCIÓN! Eliminado de TopControls
+                onAnyInteraction = onAnyInteraction
             )
 
             CenterControls(
@@ -128,7 +128,7 @@ fun PlayerControls(
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onPrevious = onPrevious,
-                onAnyInteraction = onAnyInteraction // Pasamos el callback
+                onAnyInteraction = onAnyInteraction
             )
 
             BottomControls(
@@ -148,14 +148,14 @@ fun PlayerControls(
                 onSelectAudioTrack = onSelectAudioTrack,
                 onSelectSubtitleTrack = onSelectSubtitleTrack,
                 onSelectVideoTrack = onSelectVideoTrack,
-                currentPosition = currentPosition, // Pasamos la posición
-                duration = duration,               // Pasamos la duración
-                onSeek = onSeek,                   // Pasamos el callback de búsqueda
-                onAnyInteraction = onAnyInteraction // Pasamos el callback
+                currentPosition = currentPosition,
+                duration = duration,
+                onSeek = onSeek,
+                onAnyInteraction = onAnyInteraction,
+                onToggleFullScreen = onToggleFullScreen,
+                onToggleAspectRatio = onToggleAspectRatio // ¡CORRECCIÓN! Añadido a BottomControls
             )
 
-            // Los sliders laterales se mantienen exactamente como están,
-            // su interacción se maneja en ChannelsScreen.kt.
             if (isFullScreen) {
                 SideSliders(
                     modifier = Modifier.fillMaxSize(),
@@ -165,7 +165,7 @@ fun PlayerControls(
                     isMuted = isMuted,
                     onSetVolume = onSetVolume,
                     onSetBrightness = onSetBrightness,
-                    onAnyInteraction = onAnyInteraction // Pasamos el callback
+                    onAnyInteraction = onAnyInteraction
                 )
             }
         }
@@ -208,10 +208,9 @@ private fun TopControls(
     isFullScreen: Boolean,
     onClose: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onToggleFullScreen: () -> Unit,
     onPictureInPicture: () -> Unit,
-    onToggleAspectRatio: () -> Unit,
-    onAnyInteraction: () -> Unit // ¡NUEVO! Callback para reiniciar el temporizador
+    // onToggleAspectRatio: () -> Unit, // Se mantiene aquí si la lógica de ChannelsScreen lo pasa, pero no se usa en la UI de TopControls
+    onAnyInteraction: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 36.dp else 24.dp
 
@@ -222,7 +221,7 @@ private fun TopControls(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { onClose(); onAnyInteraction() }) { // Llama a onAnyInteraction
+        IconButton(onClick = { onClose(); onAnyInteraction() }) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White, modifier = Modifier.size(iconSize))
         }
         Text(
@@ -235,27 +234,20 @@ private fun TopControls(
             modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) { // Llama a onAnyInteraction
-                Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
-            }
+            // ¡CORRECCIÓN! El botón de AspectRatio se ha movido de aquí.
+            // IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
+            //     Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+            // }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = { onPictureInPicture(); onAnyInteraction() }) { // Llama a onAnyInteraction
+                IconButton(onClick = { onPictureInPicture(); onAnyInteraction() }) {
                     Icon(Icons.Default.PictureInPictureAlt, "Modo Picture-in-Picture", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
             }
-            IconButton(onClick = { onToggleFavorite(); onAnyInteraction() }) { // Llama a onAnyInteraction
+            IconButton(onClick = { onToggleFavorite(); onAnyInteraction() }) {
                 Icon(
                     if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     "Favorito",
                     tint = if (isFavorite) Color.Red else Color.White,
-                    modifier = Modifier.size(iconSize)
-                )
-            }
-            IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) { // Llama a onAnyInteraction
-                Icon(
-                    if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                    "Pantalla Completa",
-                    tint = Color.White,
                     modifier = Modifier.size(iconSize)
                 )
             }
@@ -271,35 +263,33 @@ private fun CenterControls(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
-    onAnyInteraction: () -> Unit // ¡NUEVO! Callback para reiniciar el temporizador
+    onAnyInteraction: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 48.dp else 40.dp
     val centerIconSize = if (isFullScreen) 64.dp else 56.dp
-    val spacerWidth = 32.dp // Espaciado fijo para Portrait y Landscape
+    val spacerWidth = 32.dp
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center, // Centramos los elementos
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Espaciador para empujar el botón "Anterior" más hacia la izquierda en pantalla completa
         if (isFullScreen) Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = { onPrevious(); onAnyInteraction() }) { // Llama a onAnyInteraction
+        IconButton(onClick = { onPrevious(); onAnyInteraction() }) {
             Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(iconSize))
         }
 
-        Spacer(modifier = Modifier.width(spacerWidth)) // Espaciador fijo
+        Spacer(modifier = Modifier.width(spacerWidth))
 
-        IconButton(onClick = { onPlayPause(); onAnyInteraction() }) { // Llama a onAnyInteraction
+        IconButton(onClick = { onPlayPause(); onAnyInteraction() }) {
             Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
         }
 
-        Spacer(modifier = Modifier.width(spacerWidth)) // Espaciador fijo
+        Spacer(modifier = Modifier.width(spacerWidth))
 
-        IconButton(onClick = { onNext(); onAnyInteraction() }) { // Llama a onAnyInteraction
+        IconButton(onClick = { onNext(); onAnyInteraction() }) {
             Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(iconSize))
         }
-        // Espaciador para empujar el botón "Siguiente" más hacia la derecha en pantalla completa
         if (isFullScreen) Spacer(modifier = Modifier.weight(1f))
     }
 }
@@ -322,10 +312,12 @@ private fun BottomControls(
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
     onSelectVideoTrack: (Int) -> Unit,
-    currentPosition: Long, // Recibimos la posición actual
-    duration: Long,       // Recibimos la duración total
-    onSeek: (Long) -> Unit, // Recibimos el callback de búsqueda
-    onAnyInteraction: () -> Unit // ¡NUEVO! Callback para reiniciar el temporizador
+    currentPosition: Long,
+    duration: Long,
+    onSeek: (Long) -> Unit,
+    onAnyInteraction: () -> Unit,
+    onToggleFullScreen: () -> Unit,
+    onToggleAspectRatio: () -> Unit // ¡CORRECCIÓN! Nuevo parámetro para el botón AspectRatio
 ) {
     val iconSize = if (isFullScreen) 36.dp else 24.dp
     val formattedCurrentTime = formatTime(currentPosition)
@@ -340,17 +332,16 @@ private fun BottomControls(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween // Distribuye los elementos
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(onClick = { onToggleMute(); onAnyInteraction() }) { // Llama a onAnyInteraction
+            IconButton(onClick = { onToggleMute(); onAnyInteraction() }) {
                 Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
             }
 
-            // Slider de búsqueda
             Slider(
                 value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
                 onValueChange = { progress ->
-                    onAnyInteraction() // Reinicia el temporizador al arrastrar el slider
+                    onAnyInteraction()
                     onSeek((progress * duration).toLong())
                 },
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
@@ -368,8 +359,11 @@ private fun BottomControls(
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            if (!isFullScreen) { // Botón de fullscreen solo en Portrait
-                IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) { // Llama a onAnyInteraction
+            if (!isFullScreen) { // Controles en Portrait
+                IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) { // ¡CORRECCIÓN! Botón de AspectRatio aquí
+                    Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+                }
+                IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
                     Icon(Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
             } else { // Controles adicionales en Landscape/Fullscreen
@@ -402,7 +396,7 @@ private fun SideSliders(
     isMuted: Boolean,
     onSetVolume: (Int) -> Unit,
     onSetBrightness: (Float) -> Unit,
-    onAnyInteraction: () -> Unit // ¡NUEVO! Callback para reiniciar el temporizador
+    onAnyInteraction: () -> Unit
 ) {
     Row(
         modifier = modifier.padding(horizontal = 16.dp),
@@ -466,7 +460,6 @@ private fun TrackMenu(
     }
 }
 
-// Función auxiliar para formatear el tiempo de milisegundos a HH:MM:SS
 fun formatTime(millis: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(millis)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % TimeUnit.HOURS.toMinutes(1)

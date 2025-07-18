@@ -1,5 +1,7 @@
 package com.kybers.play.ui.home
 
+import android.util.Log // Importación necesaria para Log.d
+import android.widget.Toast // Importación necesaria para Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,12 +20,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.data.remote.model.Movie // Asegúrate de que Movie esté importado
+import com.kybers.play.data.remote.model.Series // Asegúrate de que Series esté importado
 
 @Composable
 fun HomeScreen(homeViewModel: HomeViewModel) {
     // Observamos el estado de la UI desde el ViewModel.
     // La UI se recompondrá automáticamente cuando este estado cambie.
     val uiState by homeViewModel.uiState.collectAsState()
+    val context = LocalContext.current // Obtenemos el contexto para el Toast
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (uiState.isLoading) {
@@ -44,7 +49,12 @@ fun HomeScreen(homeViewModel: HomeViewModel) {
                             ContentPoster(
                                 imageUrl = movie.streamIcon,
                                 contentDescription = movie.name,
-                                onClick = { /* TODO: Navegar a detalles de película */ }
+                                onClick = {
+                                    // ¡CORRECCIÓN! Placeholder para la navegación de películas
+                                    Log.d("HomeScreen", "Clic en película: ${movie.name}")
+                                    Toast.makeText(context, "Clic en película: ${movie.name}", Toast.LENGTH_SHORT).show()
+                                    // TODO: Aquí se integraría la navegación a la pantalla de detalles de la película
+                                }
                             )
                         }
                     )
@@ -61,7 +71,12 @@ fun HomeScreen(homeViewModel: HomeViewModel) {
                             ContentPoster(
                                 imageUrl = series.cover,
                                 contentDescription = series.name,
-                                onClick = { /* TODO: Navegar a detalles de serie */ }
+                                onClick = {
+                                    // ¡CORRECCIÓN! Placeholder para la navegación de series
+                                    Log.d("HomeScreen", "Clic en serie: ${series.name}")
+                                    Toast.makeText(context, "Clic en serie: ${series.name}", Toast.LENGTH_SHORT).show()
+                                    // TODO: Aquí se integraría la navegación a la pantalla de detalles de la serie
+                                }
                             )
                         }
                     )
@@ -106,13 +121,13 @@ fun <T> ContentRow(
 fun ContentPoster(
     imageUrl: String?,
     contentDescription: String?,
-    onClick: () -> Unit
+    onClick: () -> Unit // El callback onClick se mantiene
 ) {
     Card(
         modifier = Modifier
             .width(140.dp)
             .height(210.dp)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick), // El clickable usa el callback
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         // Usamos Coil para cargar la imagen desde la URL.
@@ -120,6 +135,7 @@ fun ContentPoster(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(imageUrl)
                 .crossfade(true) // Efecto de fundido suave
+                .error(android.R.drawable.stat_notify_error) // Añadir un placeholder de error
                 .build(),
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop, // Escala la imagen para llenar el espacio

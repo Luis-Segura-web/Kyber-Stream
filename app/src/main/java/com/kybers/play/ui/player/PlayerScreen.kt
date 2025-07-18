@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,11 +51,11 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     var isPlaying by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
 
-    // State for system volume
+    // State para el volumen del sistema
     var systemVolume by remember { mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)) }
     val maxSystemVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
 
-    // State for screen brightness
+    // State para el brillo de la pantalla
     var screenBrightness by remember { mutableFloatStateOf(activity?.window?.attributes?.screenBrightness ?: 0.5f) }
     val originalBrightness = remember { activity?.window?.attributes?.screenBrightness ?: -1f }
 
@@ -63,6 +64,10 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     val isFullScreen by remember(configuration) {
         derivedStateOf { configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
     }
+
+    // ¡NUEVO! Estados para la posición y duración del reproductor
+    var currentPosition by remember { mutableStateOf(0L) }
+    var duration by remember { mutableStateOf(0L) }
 
     // Observador del ciclo de vida para el modo PiP automático.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -93,6 +98,10 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 MediaPlayer.Event.Playing -> isPlaying = true
                 MediaPlayer.Event.Paused -> isPlaying = false
                 MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> isPlaying = false
+                MediaPlayer.Event.TimeChanged -> { // ¡NUEVO! Actualizar posición y duración
+                    currentPosition = event.timeChanged
+                    duration = mediaPlayer.length
+                }
             }
         }
         mediaPlayer.setEventListener(vlcListener)
@@ -147,9 +156,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         }
     }
 
-    // ¡NUEVO! Función para cambiar la relación de aspecto del reproductor.
-    // Como PlayerScreen es para VOD y no tiene un ViewModel de canales,
-    // implementamos una lógica simple de ciclo para la relación de aspecto aquí.
+    // Función para cambiar la relación de aspecto del reproductor.
     var currentAspectRatioIndex by remember { mutableIntStateOf(0) }
     val aspectRatioModes = remember { listOf("FIT_SCREEN", "FILL_SCREEN", "16:9", "4:3") }
 
@@ -176,6 +183,20 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
             }
         }
     }
+
+    // ¡NUEVO! Función para buscar en el stream
+    val onSeek: (Long) -> Unit = { position ->
+        mediaPlayer.time = position
+    }
+
+    // ¡NUEVO! Callback para reiniciar el temporizador de visibilidad de controles
+    val onAnyInteraction: () -> Unit = {
+        controlsVisible = true
+        // Podrías añadir un LaunchedEffect aquí para ocultar los controles después de un tiempo
+        // si no hay más interacciones. Esto ya está implementado en ChannelsScreen,
+        // pero para PlayerScreen (VOD) también podría ser útil.
+    }
+
 
     LaunchedEffect(streamUrl) {
         val media = Media(mediaPlayer.libVLC, streamUrl.toUri())
@@ -209,7 +230,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
             isVisible = controlsVisible,
             isPlaying = isPlaying,
             isMuted = isMuted,
-            isFavorite = false, // Not applicable for single streams
+            isFavorite = false, // No aplica para streams individuales
             isFullScreen = isFullScreen,
             streamTitle = streamTitle,
             systemVolume = systemVolume,
@@ -250,7 +271,11 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
             onSelectSubtitleTrack = {},
             onSelectVideoTrack = {},
             onPictureInPicture = ::enterPictureInPictureMode,
-            onToggleAspectRatio = ::toggleAspectRatio // ¡CORRECCIÓN! Pasamos el callback
+            onToggleAspectRatio = ::toggleAspectRatio,
+            currentPosition = currentPosition, // ¡CORRECCIÓN! Pasamos la posición
+            duration = duration,               // ¡CORRECCIÓN! Pasamos la duración
+            onSeek = onSeek,                   // ¡CORRECCIÓN! Pasamos el callback de búsqueda
+            onAnyInteraction = onAnyInteraction // ¡CORRECCIÓN! Pasamos el callback de interacción
         )
     }
 }

@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.kybers.play.data.local.model.User
-import com.kybers.play.data.preferences.PreferenceManager // ¡NUEVO! Importamos PreferenceManager
+import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
@@ -35,7 +35,7 @@ class ContentViewModelFactory(
     private val application: Application,
     private val contentRepository: ContentRepository,
     private val currentUser: User,
-    private val preferenceManager: PreferenceManager // ¡NUEVO! Añadimos PreferenceManager
+    private val preferenceManager: PreferenceManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -44,7 +44,7 @@ class ContentViewModelFactory(
                 HomeViewModel(contentRepository, currentUser) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
-                ChannelsViewModel(application, contentRepository, currentUser, preferenceManager) as T // ¡ACTUALIZADO! Pasamos preferenceManager
+                ChannelsViewModel(application, contentRepository, currentUser, preferenceManager) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -80,3 +80,5 @@ class SyncViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
+
+// ¡CORRECCIÓN! Se ha eliminado SplashViewModelFactory ya que SplashViewModel no se utiliza.

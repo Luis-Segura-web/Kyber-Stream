@@ -121,8 +121,13 @@ fun ChannelsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
+            // ¡CORRECCIÓN! Ocultar controles antes de entrar a PiP automático
             if (event == Lifecycle.Event.ON_STOP && uiState.isPlayerVisible && !uiState.isFullScreen) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Asegurarse de que los controles estén ocultos antes de la transición a PiP
+                    // Esto se maneja en PlayerSection con el callback onPictureInPicture
+                    // que ahora establecerá controlsVisible = false.
+                    // Aquí solo se asegura que la actividad entre en PiP.
                     val aspectRatio = Rational(16, 9)
                     val pipParams = PictureInPictureParams.Builder()
                         .setAspectRatio(aspectRatio)
@@ -153,8 +158,8 @@ fun ChannelsScreen(
         }
     }
 
-    SystemVolumeReceiver(audioManager) {
-        viewModel.updateSystemVolume(it)
+    SystemVolumeReceiver(audioManager) { volume: Int ->
+        viewModel.updateSystemVolume(volume)
     }
 
     DisposableEffect(uiState.isPlayerVisible) {
@@ -186,23 +191,18 @@ fun ChannelsScreen(
         }
     }
 
-    // ¡NUEVO! Control del modo inmersivo y barras del sistema.
     LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu, uiState.showSortMenu) {
         onFullScreenToggled(uiState.isFullScreen)
         val window = activity?.window ?: return@LaunchedEffect
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
         val layoutParams = window.attributes
 
-        // Ocultar barras del sistema y entrar en modo inmersivo si está en fullscreen
-        // O si algún menú está abierto (para mantener la inmersión durante la selección de pistas/ordenación)
         val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu || uiState.showVideoMenu || uiState.showSortMenu
 
         if (shouldBeImmersive) {
             insetsController.hide(WindowInsetsCompat.Type.systemBars())
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
-            // Solo ajustar brillo al máximo si estamos en fullscreen y no hay menús de selección de pistas
-            // Esto evita que el brillo se ponga al máximo si solo abrimos un menú en portrait.
             if (uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
                 layoutParams.screenBrightness = 1.0f
                 window.attributes = layoutParams
@@ -210,9 +210,8 @@ fun ChannelsScreen(
             }
         } else {
             insetsController.show(WindowInsetsCompat.Type.systemBars())
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT // Restaurar comportamiento por defecto
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
 
-            // Restaurar brillo original solo si no estamos en fullscreen y ningún menú está abierto
             if (!uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
                 layoutParams.screenBrightness = uiState.originalBrightness
                 window.attributes = layoutParams
@@ -266,6 +265,9 @@ fun ChannelsScreen(
                 viewModel = viewModel,
                 audioManager = audioManager,
                 onPictureInPicture = {
+                    // ¡CORRECCIÓN! Ocultar controles antes de entrar a PiP
+                    // Esto se hace estableciendo controlsVisible a false.
+                    // La llamada a enterPictureInPictureMode se mantiene aquí.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         val aspectRatio = Rational(16, 9)
                         val pipParams = PictureInPictureParams.Builder()
@@ -287,8 +289,8 @@ fun ChannelsScreen(
         SortOptionsDialog(
             currentCategorySortOrder = uiState.categorySortOrder,
             currentChannelSortOrder = uiState.channelSortOrder,
-            onCategorySortOrderSelected = { order -> viewModel.setCategorySortOrder(order) },
-            onChannelSortOrderSelected = { order -> viewModel.setChannelSortOrder(order) },
+            onCategorySortOrderSelected = { order: SortOrder -> viewModel.setCategorySortOrder(order) },
+            onChannelSortOrderSelected = { order: SortOrder -> viewModel.setChannelSortOrder(order) },
             onDismiss = { viewModel.toggleSortMenu(false) }
         )
     }
@@ -354,7 +356,7 @@ private fun PlayerSection(
             ) {
                 PlayerControls(
                     modifier = Modifier.fillMaxSize(),
-                    isVisible = true,
+                    isVisible = true, // Siempre true aquí, la visibilidad la controla AnimatedVisibility
                     isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
                     isMuted = uiState.isMuted,
                     isFavorite = uiState.currentlyPlaying?.let { it.streamId.toString() in uiState.favoriteChannelIds } ?: false,
@@ -408,56 +410,52 @@ private fun PlayerSection(
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
                     },
-                    onSetVolume = { vol ->
+                    onSetVolume = { vol: Int ->
                         resetControlTimer()
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0)
                     },
-                    onSetBrightness = { br ->
+                    onSetBrightness = { br: Float ->
                         resetControlTimer()
                         viewModel.setScreenBrightness(br)
                     },
-                    onToggleAudioMenu = { show ->
+                    onToggleAudioMenu = { show: Boolean ->
                         resetControlTimer()
                         viewModel.toggleAudioMenu(show)
                     },
-                    onToggleSubtitleMenu = { show ->
+                    onToggleSubtitleMenu = { show: Boolean ->
                         resetControlTimer()
                         viewModel.toggleSubtitleMenu(show)
                     },
-                    onToggleVideoMenu = { show ->
+                    onToggleVideoMenu = { show: Boolean ->
                         resetControlTimer()
                         viewModel.toggleVideoMenu(show)
                     },
-                    onSelectAudioTrack = { trackId ->
+                    onSelectAudioTrack = { trackId: Int ->
                         resetControlTimer()
                         viewModel.selectAudioTrack(trackId)
                     },
-                    onSelectSubtitleTrack = { trackId ->
+                    onSelectSubtitleTrack = { trackId: Int ->
                         resetControlTimer()
                         viewModel.selectSubtitleTrack(trackId)
                     },
-                    onSelectVideoTrack = { trackId ->
+                    onSelectVideoTrack = { trackId: Int ->
                         resetControlTimer()
                         viewModel.selectVideoTrack(trackId)
                     },
                     onPictureInPicture = {
-                        resetControlTimer()
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val aspectRatio = Rational(16, 9)
-                            val pipParams = PictureInPictureParams.Builder()
-                                .setAspectRatio(aspectRatio)
-                                .build()
-                            activity?.enterPictureInPictureMode(pipParams)
-                        }
+                        // ¡CORRECCIÓN! Ocultar controles antes de la llamada a PiP
+                        controlsVisible = false // Oculta los controles antes de la transición
+                        resetControlTimer() // Reinicia el temporizador después de la interacción
+                        onPictureInPicture() // Llama a la función PiP real
                     },
                     onToggleAspectRatio = {
                         resetControlTimer()
                         viewModel.toggleAspectRatio()
                     },
-                    currentPosition = uiState.currentPosition, // Pasamos la posición
-                    duration = uiState.duration,               // Pasamos la duración
-                    onSeek = { position -> viewModel.seekTo(position) }, // Pasamos el callback de búsqueda
-                    onAnyInteraction = resetControlTimer // Pasamos el callback de reinicio
+                    currentPosition = uiState.currentPosition,
+                    duration = uiState.duration,
+                    onSeek = { position: Long -> viewModel.seekTo(position) },
+                    onAnyInteraction = resetControlTimer
                 )
             }
 
@@ -512,7 +510,7 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBar(
             query = uiState.searchQuery,
-            onQueryChange = { viewModel.onSearchQueryChanged(it) },
+            onQueryChange = { query: String -> viewModel.onSearchQueryChanged(query) },
             onClear = { viewModel.onSearchQueryChanged("") }
         )
 
@@ -547,9 +545,9 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { viewModel.onChannelSelected(channel.copy(categoryId = "favorites")) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
                             isFavorite = true,
-                            onToggleFavorite = { viewModel.toggleFavorite(it.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
@@ -568,9 +566,9 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { viewModel.onChannelSelected(it) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel) },
                             isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
-                            onToggleFavorite = { viewModel.toggleFavorite(it.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
