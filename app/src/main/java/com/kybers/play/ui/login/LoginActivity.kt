@@ -59,6 +59,10 @@ import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.main.MainActivity
 import com.kybers.play.ui.sync.SyncActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
+import android.util.Log // Importación necesaria para Log
+
+// Nota: LoginViewModel y LoginUiState están en el mismo paquete (com.kybers.play.ui.login),
+// por lo que no necesitan importación explícita aquí.
 
 class LoginActivity : ComponentActivity() {
 
@@ -76,14 +80,20 @@ class LoginActivity : ComponentActivity() {
                 LoginScreen(
                     viewModel = loginViewModel,
                     onUserSelected = { user ->
-                        if (syncManager.isSyncNeeded()) {
+                        Log.d("LoginActivity", "Usuario seleccionado: ${user.profileName} (ID: ${user.id})")
+                        // ¡CAMBIO CLAVE! Ahora se verifica la necesidad de sincronización para el usuario específico
+                        if (syncManager.isSyncNeeded(user.id)) {
+                            Log.d("LoginActivity", "Sincronización necesaria para userId: ${user.id}")
                             navigateToSync(user.id)
                         } else {
+                            Log.d("LoginActivity", "Sincronización NO necesaria para userId: ${user.id}. Navegando a Main.")
                             navigateToMain(user.id)
                         }
                     },
                     onUserAdded = { user ->
-                        // A new user always requires a sync.
+                        Log.d("LoginActivity", "Nuevo usuario añadido: ${user.profileName} (ID: ${user.id}). Forzando sincronización.")
+                        // Un nuevo usuario SIEMPRE requiere una sincronización.
+                        // No es necesario llamar a isSyncNeeded aquí, ya que es un usuario nuevo.
                         navigateToSync(user.id)
                     }
                 )
@@ -92,6 +102,7 @@ class LoginActivity : ComponentActivity() {
     }
 
     private fun navigateToSync(userId: Int) {
+        Log.d("LoginActivity", "navigateToSync: Navegando a SyncActivity con userId = $userId")
         val intent = Intent(this, SyncActivity::class.java).apply {
             putExtra("USER_ID", userId)
         }
@@ -100,6 +111,7 @@ class LoginActivity : ComponentActivity() {
     }
 
     private fun navigateToMain(userId: Int) {
+        Log.d("LoginActivity", "navigateToMain: Navegando a MainActivity con userId = $userId")
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra("USER_ID", userId)
         }
@@ -117,12 +129,8 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showAddUserForm by remember { mutableStateOf(false) }
 
-    // This effect handles the navigation for the FIRST user added.
-    // It watches for the uiState to change to a UserList.
     LaunchedEffect(uiState) {
         val currentState = uiState
-        // If we were showing the form and now we have a list of users,
-        // it means the first user was just added.
         if (showAddUserForm && currentState is LoginUiState.UserList) {
             currentState.users.firstOrNull()?.let { onUserAdded(it) }
         }
@@ -130,7 +138,6 @@ fun LoginScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         when (val state = uiState) {
-            // State 1: Loading. Show a logo and a progress indicator.
             is LoginUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -145,9 +152,7 @@ fun LoginScreen(
                     }
                 }
             }
-            // State 2: No users found. Show the registration form.
             is LoginUiState.ShowRegistration -> {
-                // Set the flag to true so the LaunchedEffect knows we are in the registration flow.
                 showAddUserForm = true
                 LoginForm(
                     onUserAdded = { profile, url, username, password ->
@@ -157,13 +162,12 @@ fun LoginScreen(
                     isCancelable = false
                 )
             }
-            // State 3: Users exist. Show the selection list or the add form if requested.
             is LoginUiState.UserList -> {
                 if (showAddUserForm) {
                     LoginForm(
                         onUserAdded = { profile, url, username, password ->
                             viewModel.addUser(profile, url, username, password)
-                            showAddUserForm = false // Hide form after adding
+                            showAddUserForm = false
                         },
                         onCancel = { showAddUserForm = false },
                         isCancelable = true

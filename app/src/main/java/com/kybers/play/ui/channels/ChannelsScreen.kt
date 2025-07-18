@@ -124,19 +124,11 @@ fun ChannelsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val isInPip = activity?.isInPictureInPictureMode ?: false
-                viewModel.setInPipMode(isInPip) // Actualizar el estado PiP en el ViewModel
+                viewModel.setInPipMode(isInPip)
 
-                // Lógica refinada para destruir el reproductor al salir de PiP.
-                // El reproductor solo se destruirá si:
-                // 1. El evento es ON_STOP (la app se va a segundo plano o se cierra).
-                // 2. Y NO estamos en modo PiP.
-                // 3. Y el reproductor estaba visible.
-                // Esto cubre el caso de cerrar PiP sin volver a la app.
                 if (event == Lifecycle.Event.ON_STOP && !isInPip && uiState.isPlayerVisible) {
                     viewModel.hidePlayer()
                 }
-                // Si el evento es ON_RESUME y NO estamos en PiP (significa que volvimos de PiP),
-                // el reproductor DEBE seguir reproduciéndose. No llamamos a hidePlayer() aquí.
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -245,18 +237,16 @@ fun ChannelsScreen(
             AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isPlayerVisible) {
                 TopAppBar(
                     title = {
-                        // ¡CORRECCIÓN! Mejor acomodo para el título y los elementos de la derecha
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween // Distribuye el título a la izquierda y las acciones a la derecha
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Canales", color = Color.White) // Título a la izquierda
+                            Text("Canales", color = Color.White)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End // Agrupa las acciones a la derecha
+                                horizontalArrangement = Arrangement.End
                             ) {
-                                // Indicador de carga para actualización
                                 if (uiState.isRefreshing) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(24.dp),
@@ -266,19 +256,17 @@ fun ChannelsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }
 
-                                // Texto de última actualización (formato más compacto)
                                 Text(
                                     text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
-                                    style = MaterialTheme.typography.labelSmall, // Usamos un estilo más pequeño
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = Color.White.copy(alpha = 0.7f),
                                     modifier = Modifier.align(Alignment.CenterVertically)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp)) // Espaciador para separar del botón
+                                Spacer(modifier = Modifier.width(8.dp))
 
-                                // Botón para actualizar manualmente
                                 IconButton(
                                     onClick = { viewModel.refreshChannelsManually() },
-                                    enabled = !uiState.isRefreshing // Deshabilitar si ya se está actualizando
+                                    enabled = !uiState.isRefreshing
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Actualizar canales", tint = Color.White)
                                 }
@@ -480,10 +468,9 @@ private fun PlayerSection(
                         viewModel.selectVideoTrack(trackId)
                     },
                     onPictureInPicture = {
-                        // Ocultar controles y notificar al ViewModel sobre el modo PiP
-                        controlsVisible = false // Oculta los controles antes de la transición
-                        viewModel.setInPipMode(true) // Notifica al ViewModel que estamos en PiP
-                        onPictureInPicture() // Llama a la función PiP real
+                        controlsVisible = false
+                        viewModel.setInPipMode(true)
+                        onPictureInPicture()
                     },
                     onToggleAspectRatio = {
                         resetControlTimer()
@@ -544,6 +531,13 @@ private fun SystemVolumeReceiver(audioManager: AudioManager, onVolumeChange: (In
 private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: LazyListState) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Mueve la declaración y el LaunchedEffect para favoriteChannels aquí,
+    // fuera de cualquier bloque condicional directo, pero dentro del Composable.
+    var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
+    LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds) {
+        favoriteChannels = viewModel.getFavoriteChannels()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBar(
             query = uiState.searchQuery,
@@ -565,7 +559,6 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
             }
 
             if (uiState.isFavoritesCategoryExpanded) {
-                val favoriteChannels = viewModel.getFavoriteChannels()
                 if (favoriteChannels.isEmpty()) {
                     item {
                         Text(
@@ -699,12 +692,11 @@ fun ChannelListItem(
             .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Iconos cuadrados con esquinas redondeadas y fondo blanco
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(8.dp)) // Esquinas redondeadas
-                .background(Color.White) // Fondo blanco
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White)
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
@@ -713,7 +705,7 @@ fun ChannelListItem(
                     .error(android.R.drawable.stat_notify_error)
                     .build(),
                 contentDescription = channel.name,
-                contentScale = ContentScale.Fit, // Ajustar la imagen dentro del cuadrado
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )
         }

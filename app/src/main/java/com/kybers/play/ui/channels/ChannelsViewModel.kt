@@ -2,6 +2,7 @@ package com.kybers.play.ui.channels
 
 import android.app.Application
 import android.media.AudioManager
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,14 +22,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers // <--- ¡IMPORTACIÓN NUEVA!
-import kotlinx.coroutines.withContext // <--- ¡IMPORTACIÓN NUEVA!
 
 // Enum para representar el estado actual del reproductor.
 enum class PlayerStatus {
@@ -95,8 +96,8 @@ data class ChannelsUiState(
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
     val isInPipMode: Boolean = false,
-    val lastUpdatedTimestamp: Long = 0L, // ¡NUEVO! Marca de tiempo de la última actualización
-    val isRefreshing: Boolean = false // ¡NUEVO! Estado para indicar si se está actualizando manualmente
+    val lastUpdatedTimestamp: Long = 0L,
+    val isRefreshing: Boolean = false
 )
 
 open class ChannelsViewModel(
@@ -155,10 +156,12 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
+        // Las preferencias de ordenación y aspecto son globales, no por usuario.
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
-        val lastSyncTime = syncManager.getLastSyncTimestamp()
+        // La última sincronización SÍ es por usuario.
+        val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
         _uiState.update {
             it.copy(
@@ -185,36 +188,40 @@ open class ChannelsViewModel(
     }
 
     open fun onChannelSelected(channel: LiveStream) {
-        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
-                _uiState.value.categories.flatMap { it.channels }
-        val index = allVisibleChannels.indexOfFirst { it.streamId == channel.streamId }
+        viewModelScope.launch {
+            // Asegurarse de que 'channel' es accesible aquí.
+            // Si el error persiste, la estructura de la función onChannelSelected podría estar dañada.
+            val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+                    _uiState.value.categories.flatMap { it.channels }
+            val index = allVisibleChannels.indexOfFirst { it.streamId == channel.streamId }
 
-        _uiState.update {
-            it.copy(
-                currentlyPlaying = channel,
-                isPlayerVisible = true,
-                screenTitle = channel.name,
-                currentChannelIndex = index,
-                playerStatus = PlayerStatus.BUFFERING,
-                availableAudioTracks = emptyList(),
-                availableSubtitleTracks = emptyList(),
-                availableVideoTracks = emptyList(),
-                currentPosition = 0L,
-                duration = 0L
-            )
+            _uiState.update {
+                it.copy(
+                    currentlyPlaying = channel,
+                    isPlayerVisible = true,
+                    screenTitle = channel.name,
+                    currentChannelIndex = index,
+                    playerStatus = PlayerStatus.BUFFERING,
+                    availableAudioTracks = emptyList(),
+                    availableSubtitleTracks = emptyList(),
+                    availableVideoTracks = emptyList(),
+                    currentPosition = 0L,
+                    duration = 0L
+                )
+            }
+
+            val streamUrl = buildStreamUrl(channel)
+
+            val media = Media(libVLC, streamUrl.toUri()).apply {
+                vlcOptions.forEach { addOption(it) }
+            }
+
+            mediaPlayer.media = media
+            mediaPlayer.play()
+            mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
+
+            applyAspectRatio(_uiState.value.currentAspectRatioMode)
         }
-
-        val streamUrl = buildStreamUrl(channel)
-
-        val media = Media(libVLC, streamUrl.toUri()).apply {
-            vlcOptions.forEach { addOption(it) }
-        }
-
-        mediaPlayer.media = media
-        mediaPlayer.play()
-        mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
-
-        applyAspectRatio(_uiState.value.currentAspectRatioMode)
     }
 
     fun seekTo(position: Long) {
@@ -328,20 +335,24 @@ open class ChannelsViewModel(
     }
 
     open fun playNextChannel() {
-        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
-                _uiState.value.categories.flatMap { it.channels }
-        val currentIndex = _uiState.value.currentChannelIndex
-        if (currentIndex != -1 && currentIndex < allVisibleChannels.size - 1) {
-            onChannelSelected(allVisibleChannels[currentIndex + 1])
+        viewModelScope.launch {
+            val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+                    _uiState.value.categories.flatMap { it.channels }
+            val currentIndex = _uiState.value.currentChannelIndex
+            if (currentIndex != -1 && currentIndex < allVisibleChannels.size - 1) {
+                onChannelSelected(allVisibleChannels[currentIndex + 1])
+            }
         }
     }
 
     open fun playPreviousChannel() {
-        val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
-                _uiState.value.categories.flatMap { it.channels }
-        val currentIndex = _uiState.value.currentChannelIndex
-        if (currentIndex > 0) {
-            onChannelSelected(allVisibleChannels[currentIndex - 1])
+        viewModelScope.launch {
+            val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
+                    _uiState.value.categories.flatMap { it.channels }
+            val currentIndex = _uiState.value.currentChannelIndex
+            if (currentIndex > 0) {
+                onChannelSelected(allVisibleChannels[currentIndex - 1])
+            }
         }
     }
 
@@ -368,18 +379,18 @@ open class ChannelsViewModel(
      */
     fun refreshChannelsManually() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true) } // Mostrar indicador de carga
+            Log.d("ChannelsViewModel", "Iniciando refreshChannelsManually()...")
+            _uiState.update { it.copy(isRefreshing = true) }
             try {
-                // Paso 1: Forzar la recarga y caché de los canales VIVOS desde la API.
-                // Esto sobrescribirá los datos existentes en la base de datos local con los más recientes.
-                withContext(Dispatchers.IO) { // Ejecutar en un hilo de E/S para no bloquear la UI
-                    contentRepository.cacheLiveStreams(currentUser.username, currentUser.password)
+                withContext(Dispatchers.IO) {
+                    Log.d("ChannelsViewModel", "Caché de LiveStreams para userId: ${currentUser.id}")
+                    contentRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
                 }
 
-                // Paso 2: Recargar las categorías y los canales DE LA BASE DE DATOS LOCAL
-                // (que ahora contiene los datos más frescos del servidor).
                 val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                val allChannels = contentRepository.getAllLiveStreams().first()
+                val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first()
+                Log.d("ChannelsViewModel", "Canales obtenidos de la DB para userId ${currentUser.id} después del refresh: ${allChannels.size}")
+
 
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
 
@@ -387,23 +398,22 @@ open class ChannelsViewModel(
                     ExpandableCategory(
                         category = category,
                         channels = channelsByCategory[category.categoryId] ?: emptyList(),
-                        isExpanded = false, // Mantener contraídas por defecto al refrescar
+                        isExpanded = false,
                         isLoading = false
                     )
                 }
                 _originalCategories.value = expandableCategories
-                filterAndSortCategories() // Re-filtrar y ordenar con los nuevos datos
+                Log.d("ChannelsViewModel", "Categorías originales actualizadas después del refresh: ${_originalCategories.value.size}")
+                filterAndSortCategories()
 
-                syncManager.saveLastSyncTimestamp() // Guardar la nueva marca de tiempo
-                _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp()) } // Actualizar en UI State
+                syncManager.saveLastSyncTimestamp(currentUser.id)
+                _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)) }
+                Log.d("ChannelsViewModel", "Sincronización manual completada. Última actualización: ${formatTimestamp(syncManager.getLastSyncTimestamp(currentUser.id))}")
 
             } catch (e: Exception) {
-                // Manejar errores de actualización, por ejemplo, mostrar un Toast o un Snackbar
-                e.printStackTrace()
-                // Aquí podrías añadir una lógica para mostrar un mensaje de error al usuario.
-                // Ejemplo: Toast.makeText(getApplication(), "Error al actualizar canales: ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e("ChannelsViewModel", "Error en refreshChannelsManually(): ${e.message}", e)
             } finally {
-                _uiState.update { it.copy(isRefreshing = false) } // Ocultar indicador de carga
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }
@@ -451,9 +461,13 @@ open class ChannelsViewModel(
 
     open fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
+            Log.d("ChannelsViewModel", "onCategoryToggled() para categoryId: $categoryId, userId: ${currentUser.id}")
             val currentOriginals = _originalCategories.value
             val categoryIndex = currentOriginals.indexOfFirst { it.category.categoryId == categoryId }
-            if (categoryIndex == -1) return@launch
+            if (categoryIndex == -1) {
+                Log.w("ChannelsViewModel", "Categoría no encontrada: $categoryId")
+                return@launch
+            }
 
             val clickedCategory = currentOriginals[categoryIndex]
             val isCurrentlyExpanded = clickedCategory.isExpanded
@@ -468,18 +482,8 @@ open class ChannelsViewModel(
             _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
 
             newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = !isCurrentlyExpanded)
-
             _originalCategories.value = newOriginals
-
-            if (!isCurrentlyExpanded && clickedCategory.channels.isEmpty() && !clickedCategory.isLoading) {
-                val channels = contentRepository.getLiveStreamsByCategory(categoryId).first()
-                val finalCategories = _originalCategories.value.toMutableList()
-                val finalIndex = finalCategories.indexOfFirst { it.category.categoryId == categoryId }
-                if (finalIndex != -1) {
-                    finalCategories[finalIndex] = finalCategories[finalIndex].copy(channels = channels, isLoading = false)
-                    _originalCategories.value = finalCategories
-                }
-            }
+            Log.d("ChannelsViewModel", "Estado de expansión de categorías actualizado.")
 
             filterAndSortCategories()
             _scrollToItemEvent.emit(categoryId)
@@ -489,23 +493,31 @@ open class ChannelsViewModel(
 
     private fun loadInitialCategories() {
         viewModelScope.launch {
+            Log.d("ChannelsViewModel", "Iniciando loadInitialCategories() para userId: ${currentUser.id}")
             _uiState.update { it.copy(isLoading = true) }
-            val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-            val allChannels = contentRepository.getAllLiveStreams().first()
+            try {
+                val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
+                val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first()
+                Log.d("ChannelsViewModel", "Categorías obtenidas: ${categories.size}, Todos los canales de DB para userId ${currentUser.id}: ${allChannels.size}")
 
-            val channelsByCategory = allChannels.groupBy { it.categoryId }
+                val channelsByCategory = allChannels.groupBy { it.categoryId }
 
-            val expandableCategories = categories.map { category ->
-                ExpandableCategory(
-                    category = category,
-                    channels = channelsByCategory[category.categoryId] ?: emptyList(),
-                    isExpanded = false,
-                    isLoading = false
-                )
+                val expandableCategories = categories.map { category ->
+                    ExpandableCategory(
+                        category = category,
+                        channels = channelsByCategory[category.categoryId] ?: emptyList(),
+                        isExpanded = false,
+                        isLoading = false
+                    )
+                }
+                _originalCategories.value = expandableCategories
+                _uiState.update { it.copy(isLoading = false, categories = expandableCategories) }
+                filterAndSortCategories()
+                Log.d("ChannelsViewModel", "Carga inicial de categorías y canales completada.")
+            } catch (e: Exception) {
+                Log.e("ChannelsViewModel", "Error en loadInitialCategories(): ${e.message}", e)
+                _uiState.update { it.copy(isLoading = false) }
             }
-            _originalCategories.value = expandableCategories
-            _uiState.update { it.copy(isLoading = false, categories = expandableCategories) }
-            filterAndSortCategories()
         }
     }
 
@@ -549,11 +561,11 @@ open class ChannelsViewModel(
         }
 
         _uiState.update { it.copy(categories = categoriesWithCorrectExpansion) }
+        Log.d("ChannelsViewModel", "filterAndSortCategories() ejecutado. Categorías UI: ${_uiState.value.categories.size}")
     }
 
-
-    internal fun getFavoriteChannels(): List<LiveStream> {
-        val allChannels = _originalCategories.value.flatMap { it.channels }.distinctBy { it.streamId }
+    internal suspend fun getFavoriteChannels(): List<LiveStream> {
+        val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first().distinctBy { it.streamId }
         val query = _uiState.value.searchQuery.trim()
         val currentChannelSortOrder = _uiState.value.channelSortOrder
 
@@ -561,7 +573,7 @@ open class ChannelsViewModel(
             it.streamId.toString() in _uiState.value.favoriteChannelIds &&
                     it.name.contains(query, ignoreCase = true)
         }
-
+        Log.d("ChannelsViewModel", "Canales favoritos obtenidos: ${favoriteChannels.size}")
         return when (currentChannelSortOrder) {
             SortOrder.AZ -> favoriteChannels.sortedBy { it.name }
             SortOrder.ZA -> favoriteChannels.sortedByDescending { it.name }
@@ -576,13 +588,12 @@ open class ChannelsViewModel(
 
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
+            Log.d("ChannelsViewModel", "onFavoritesCategoryToggled()")
             val isCurrentlyExpanded = _uiState.value.isFavoritesCategoryExpanded
 
-            // Contraer todas las demás categorías
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
 
-            // Toglear el estado de favoritos
             _uiState.update { it.copy(isFavoritesCategoryExpanded = !isCurrentlyExpanded) }
 
             filterAndSortCategories()
@@ -615,7 +626,6 @@ open class ChannelsViewModel(
     // Función auxiliar para formatear la marca de tiempo a una cadena legible
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        // <--- ¡CAMBIO AQUÍ PARA UN FORMATO MÁS CORTO! --->
         val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
         return sdf.format(Date(timestamp))
     }

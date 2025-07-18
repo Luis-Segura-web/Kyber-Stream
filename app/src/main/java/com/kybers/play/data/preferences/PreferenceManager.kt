@@ -17,7 +17,7 @@ class PreferenceManager(context: Context) {
     companion object {
         private const val PREFS_NAME = "app_preferences"
         private const val KEY_SORT_ORDER_PREFIX = "sort_order_"
-        private const val KEY_ASPECT_RATIO_MODE = "aspect_ratio_mode" // ¡NUEVO! Clave para el modo de relación de aspecto
+        private const val KEY_ASPECT_RATIO_MODE = "aspect_ratio_mode"
     }
 
     /**
@@ -45,7 +45,7 @@ class PreferenceManager(context: Context) {
      * Saves the selected aspect ratio mode.
      * @param mode The AspectRatioMode enum value to save as a String.
      */
-    fun saveAspectRatioMode(mode: String) { // ¡NUEVO! Función para guardar el modo de relación de aspecto
+    fun saveAspectRatioMode(mode: String) {
         with(sharedPreferences.edit()) {
             putString(KEY_ASPECT_RATIO_MODE, mode)
             apply()
@@ -56,7 +56,7 @@ class PreferenceManager(context: Context) {
      * Retrieves the saved aspect ratio mode.
      * @return The saved AspectRatioMode enum value as a String, or "FIT_SCREEN" if not found.
      */
-    fun getAspectRatioMode(): String { // ¡NUEVO! Función para obtener el modo de relación de aspecto
+    fun getAspectRatioMode(): String {
         return sharedPreferences.getString(KEY_ASPECT_RATIO_MODE, "FIT_SCREEN") ?: "FIT_SCREEN"
     }
 }

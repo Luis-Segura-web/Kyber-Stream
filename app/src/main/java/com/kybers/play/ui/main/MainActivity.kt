@@ -38,13 +38,13 @@ class MainActivity : ComponentActivity() {
             }
 
             // 6. Creamos la fábrica de ViewModels para el contenido.
-            // ¡CORRECCIÓN! Ahora le pasamos la instancia de 'syncManager'
-            contentViewModelFactory = ContentViewModelFactory( // Asignar a la variable de clase
+            // ¡CONFIRMADO! Aquí ya se está pasando el objeto 'user' completo.
+            contentViewModelFactory = ContentViewModelFactory(
                 application = application,
                 contentRepository = appContainer.createContentRepository(user.url),
-                currentUser = user,
+                currentUser = user, // <-- ¡Aquí está el user, perfecto!
                 preferenceManager = appContainer.preferenceManager,
-                syncManager = appContainer.syncManager // <-- ¡AQUÍ ESTÁ LA CORRECCIÓN!
+                syncManager = appContainer.syncManager
             )
 
             // 7. Establecemos el contenido de la actividad.

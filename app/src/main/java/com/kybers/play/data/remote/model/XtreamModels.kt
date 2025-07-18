@@ -3,6 +3,7 @@ package com.kybers.play.data.remote.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.squareup.moshi.Json
+// import com.squareup.moshi.Transient // <--- ¡ELIMINAR ESTA IMPORTACIÓN!
 
 /**
  * Representa la respuesta principal de la API al hacer login.
@@ -54,10 +55,11 @@ data class Category(
 
 /**
  * Representa un canal de TV en vivo. Ahora también es una entidad de Room.
+ * 'userId' se mueve fuera del constructor principal y es 'var'.
+ * ¡CORREGIDO! Se eliminó @Transient.
  */
-@Entity(tableName = "live_streams")
+@Entity(tableName = "live_streams", primaryKeys = ["streamId", "userId"])
 data class LiveStream(
-    @PrimaryKey
     @Json(name = "stream_id") val streamId: Int,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
@@ -69,14 +71,19 @@ data class LiveStream(
     @Json(name = "tv_archive") val tvArchive: Int,
     @Json(name = "direct_source") val directSource: String,
     @Json(name = "tv_archive_duration") val tvArchiveDuration: Int
-)
+) {
+    // userId se declara fuera del constructor principal y es 'var'.
+    // Moshi lo ignora automáticamente aquí.
+    var userId: Int = 0
+}
 
 /**
  * Representa una película (VOD - Video On Demand). Es una entidad de Room.
+ * 'userId' se mueve fuera del constructor principal y es 'var'.
+ * ¡CORREGIDO! Se eliminó @Transient.
  */
-@Entity(tableName = "movies")
+@Entity(tableName = "movies", primaryKeys = ["streamId", "userId"])
 data class Movie(
-    @PrimaryKey
     @Json(name = "stream_id") val streamId: Int,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
@@ -87,14 +94,19 @@ data class Movie(
     @Json(name = "added") val added: String,
     @Json(name = "category_id") val categoryId: String,
     @Json(name = "container_extension") val containerExtension: String
-)
+) {
+    // userId se declara fuera del constructor principal y es 'var'.
+    // Moshi lo ignora automáticamente aquí.
+    var userId: Int = 0
+}
 
 /**
  * Representa una serie. Es una entidad de Room.
+ * 'userId' se mueve fuera del constructor principal y es 'var'.
+ * ¡CORREGIDO! Se eliminó @Transient.
  */
-@Entity(tableName = "series")
+@Entity(tableName = "series", primaryKeys = ["seriesId", "userId"])
 data class Series(
-    @PrimaryKey
     @Json(name = "series_id") val seriesId: Int,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
@@ -111,4 +123,8 @@ data class Series(
     @Json(name = "youtube_trailer") val youtubeTrailer: String?,
     @Json(name = "episode_run_time") val episodeRunTime: String?,
     @Json(name = "category_id") val categoryId: String
-)
+) {
+    // userId se declara fuera del constructor principal y es 'var'.
+    // Moshi lo ignora automáticamente aquí.
+    var userId: Int = 0
+}

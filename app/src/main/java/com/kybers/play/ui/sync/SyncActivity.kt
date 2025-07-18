@@ -2,6 +2,7 @@ package com.kybers.play.ui.sync
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log // <-- ¡NUEVA IMPORTACIÓN!
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,10 +25,13 @@ class SyncActivity : ComponentActivity() {
 
     private var currentUser: User? = null
 
+    // El ViewModel se inicializa más tarde, una vez que currentUser esté disponible.
     private val syncViewModel: SyncViewModel by viewModels {
+        // Asegurarse de que currentUser no sea nulo antes de usarlo.
+        // Si es nulo aquí, es un error de lógica que debe ser manejado antes.
+        val user = currentUser ?: throw IllegalStateException("User must be set before accessing SyncViewModel.")
         val appContainer = (application as MainApplication).container
-        // We need to create the ContentRepository for the current user to sync data.
-        val contentRepository = appContainer.createContentRepository(currentUser!!.url)
+        val contentRepository = appContainer.createContentRepository(user.url)
         SyncViewModelFactory(contentRepository, appContainer.syncManager)
     }
 
@@ -35,45 +39,47 @@ class SyncActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val userId = intent.getIntExtra("USER_ID", -1)
+        Log.d("SyncActivity", "onCreate: Recibido userId = $userId")
+
         if (userId == -1) {
-            // If no valid user ID is passed, we can't proceed.
-            // Navigate back to LoginActivity.
+            Log.e("SyncActivity", "onCreate: No se recibió un userId válido. Volviendo a Login.")
             navigateToLogin()
             return
         }
 
-        // We need to fetch the user details asynchronously before setting the content.
         lifecycleScope.launch {
             val user = (application as MainApplication).container.userRepository.getUserById(userId)
             if (user == null) {
+                Log.e("SyncActivity", "onCreate: Usuario con ID $userId no encontrado en la base de datos. Volviendo a Login.")
                 navigateToLogin()
             } else {
                 currentUser = user
-                // Now that we have the user, we can set the content and start the sync.
+                Log.d("SyncActivity", "onCreate: Usuario cargado: ${currentUser?.profileName} (ID: ${currentUser?.id})")
+
                 setContent {
                     IPTVAppTheme {
                         SyncScreen(
                             viewModel = syncViewModel,
                             onSyncComplete = { navigateToMain(userId) },
                             onSyncFailed = {
-                                // Inform the user and navigate back to login.
                                 Toast.makeText(this@SyncActivity, "Data sync failed. Please try again.", Toast.LENGTH_LONG).show()
+                                Log.e("SyncActivity", "onCreate: Sincronización fallida para userId: $userId")
                                 navigateToLogin()
                             }
                         )
                     }
                 }
-                // Start the sync process after the UI is set up.
-                syncViewModel.startSync(user)
+                // Iniciar el proceso de sincronización después de que la UI esté configurada.
+                // Asegurarse de que currentUser no sea nulo al pasarlo.
+                currentUser?.let { syncViewModel.startSync(it) } ?: Log.e("SyncActivity", "Error: currentUser es nulo al intentar iniciar la sincronización.")
             }
         }
     }
 
     private fun navigateToMain(userId: Int) {
+        Log.d("SyncActivity", "navigateToMain: Navegando a MainActivity con userId = $userId")
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra("USER_ID", userId)
-            // These flags clear the task stack, so the user can't go back to the
-            // login or sync screens.
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         startActivity(intent)
@@ -81,6 +87,7 @@ class SyncActivity : ComponentActivity() {
     }
 
     private fun navigateToLogin() {
+        Log.d("SyncActivity", "navigateToLogin: Navegando de vuelta a LoginActivity.")
         val intent = Intent(this, LoginActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
