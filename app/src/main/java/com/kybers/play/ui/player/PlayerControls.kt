@@ -259,7 +259,7 @@ private fun CenterControls(
     onPrevious: () -> Unit,
     onAnyInteraction: () -> Unit
 ) {
-    // ¡CORRECCIÓN! Tamaños de iconos y espaciado duplicados para fullscreen
+    // Tamaños de iconos y espaciado duplicados para fullscreen
     val iconSize = if (isFullScreen) 96.dp else 40.dp // Doble de 48dp
     val centerIconSize = if (isFullScreen) 128.dp else 56.dp // Doble de 64dp
     val spacerWidth = if (isFullScreen) 64.dp else 32.dp // Doble de 32dp
@@ -366,7 +366,7 @@ private fun BottomControls(
                     horizontalArrangement = Arrangement.spacedBy(8.dp), // Espaciado entre iconos
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // ¡CORRECCIÓN! Orden de izquierda a derecha para la visualización
+                    // Orden de izquierda a derecha para la visualización
                     // Subtítulos
                     if (subtitleTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
                         TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = { show -> onToggleSubtitleMenu(show); onAnyInteraction() }, tracks = subtitleTracks, onSelectTrack = { trackId -> onSelectSubtitleTrack(trackId); onAnyInteraction() }) {

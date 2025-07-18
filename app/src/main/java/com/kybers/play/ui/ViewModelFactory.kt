@@ -29,13 +29,14 @@ class LoginViewModelFactory(private val userRepository: UserRepository) : ViewMo
 
 /**
  * Factory for all ViewModels that depend on content (Home, Channels, etc.).
- * ¡ACTUALIZADO! Ahora inyecta PreferenceManager en ChannelsViewModel.
+ * ¡ACTUALIZADO! Ahora inyecta PreferenceManager y SyncManager en ChannelsViewModel.
  */
 class ContentViewModelFactory(
     private val application: Application,
     private val contentRepository: ContentRepository,
     private val currentUser: User,
-    private val preferenceManager: PreferenceManager
+    private val preferenceManager: PreferenceManager,
+    private val syncManager: SyncManager // ¡NUEVO! Añadimos SyncManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -44,7 +45,8 @@ class ContentViewModelFactory(
                 HomeViewModel(contentRepository, currentUser) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
-                ChannelsViewModel(application, contentRepository, currentUser, preferenceManager) as T
+                // ¡ACTUALIZADO! Pasamos preferenceManager y syncManager
+                ChannelsViewModel(application, contentRepository, currentUser, preferenceManager, syncManager) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
@@ -80,5 +82,3 @@ class SyncViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
-
-// ¡CORRECCIÓN! Se ha eliminado SplashViewModelFactory ya que SplashViewModel no se utiliza.

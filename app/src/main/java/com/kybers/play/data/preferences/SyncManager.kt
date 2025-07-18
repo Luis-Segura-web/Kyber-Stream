@@ -49,4 +49,13 @@ class SyncManager(context: Context) {
             apply()
         }
     }
+
+    /**
+     * Retrieves the timestamp of the last successful sync.
+     *
+     * @return The timestamp in milliseconds, or 0L if no sync has occurred yet.
+     */
+    fun getLastSyncTimestamp(): Long {
+        return sharedPreferences.getLong(KEY_LAST_SYNC_TIMESTAMP, 0L)
+    }
 }

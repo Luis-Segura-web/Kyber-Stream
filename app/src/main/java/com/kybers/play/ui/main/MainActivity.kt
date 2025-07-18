@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
  * Alberga el NavHost con todas las pantallas principales (Inicio, Canales, etc.).
  */
 class MainActivity : ComponentActivity() {
+    // Variable para almacenar la fábrica de ViewModels.
+    private lateinit var contentViewModelFactory: ContentViewModelFactory
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -35,12 +38,13 @@ class MainActivity : ComponentActivity() {
             }
 
             // 6. Creamos la fábrica de ViewModels para el contenido.
-            // ¡CORRECCIÓN! Ahora le pasamos la instancia de 'preferenceManager'
-            val contentViewModelFactory = ContentViewModelFactory(
+            // ¡CORRECCIÓN! Ahora le pasamos la instancia de 'syncManager'
+            contentViewModelFactory = ContentViewModelFactory( // Asignar a la variable de clase
                 application = application,
                 contentRepository = appContainer.createContentRepository(user.url),
                 currentUser = user,
-                preferenceManager = appContainer.preferenceManager // <-- ¡AQUÍ ESTÁ LA CORRECCIÓN!
+                preferenceManager = appContainer.preferenceManager,
+                syncManager = appContainer.syncManager // <-- ¡AQUÍ ESTÁ LA CORRECCIÓN!
             )
 
             // 7. Establecemos el contenido de la actividad.

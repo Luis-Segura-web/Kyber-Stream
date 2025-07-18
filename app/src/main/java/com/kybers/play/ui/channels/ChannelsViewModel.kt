@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
@@ -22,6 +23,9 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Enum para representar el estado actual del reproductor.
 enum class PlayerStatus {
@@ -88,14 +92,17 @@ data class ChannelsUiState(
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
-    val isInPipMode: Boolean = false // ¡NUEVO! Estado para indicar si está en modo PiP
+    val isInPipMode: Boolean = false,
+    val lastUpdatedTimestamp: Long = 0L, // ¡NUEVO! Marca de tiempo de la última actualización
+    val isRefreshing: Boolean = false // ¡NUEVO! Estado para indicar si se está actualizando manualmente
 )
 
 open class ChannelsViewModel(
     application: Application,
     private val contentRepository: ContentRepository,
     private val currentUser: User,
-    private val preferenceManager: PreferenceManager
+    private val preferenceManager: PreferenceManager,
+    private val syncManager: SyncManager // ¡NUEVO! Inyectar SyncManager
 ) : AndroidViewModel(application) {
 
     private lateinit var libVLC: LibVLC
@@ -149,12 +156,14 @@ open class ChannelsViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
+        val lastSyncTime = syncManager.getLastSyncTimestamp() // ¡NUEVO! Obtener la última marca de tiempo
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 channelSortOrder = savedChannelSortOrder,
-                currentAspectRatioMode = savedAspectRatioMode
+                currentAspectRatioMode = savedAspectRatioMode,
+                lastUpdatedTimestamp = lastSyncTime // ¡NUEVO! Inicializar la marca de tiempo
             )
         }
         loadInitialCategories()
@@ -294,7 +303,6 @@ open class ChannelsViewModel(
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
     }
 
-    // ¡NUEVO! Método para actualizar el estado de PiP
     fun setInPipMode(isInPip: Boolean) {
         _uiState.update { it.copy(isInPipMode = isInPip) }
     }
@@ -349,6 +357,44 @@ open class ChannelsViewModel(
         }
     }
 
+    /**
+     * ¡NUEVO! Función para actualizar manualmente los canales.
+     * Muestra un indicador de carga, realiza la sincronización de datos
+     * y actualiza la marca de tiempo de la última actualización.
+     */
+    fun refreshChannelsManually() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRefreshing = true) } // Mostrar indicador de carga
+            try {
+                // Forzar la recarga de categorías y canales desde la API
+                val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
+                val allChannels = contentRepository.getAllLiveStreams().first() // Obtener de la base de datos local
+
+                val channelsByCategory = allChannels.groupBy { it.categoryId }
+
+                val expandableCategories = categories.map { category ->
+                    ExpandableCategory(
+                        category = category,
+                        channels = channelsByCategory[category.categoryId] ?: emptyList(),
+                        isExpanded = false,
+                        isLoading = false
+                    )
+                }
+                _originalCategories.value = expandableCategories
+                filterAndSortCategories() // Re-filtrar y ordenar con los nuevos datos
+
+                syncManager.saveLastSyncTimestamp() // Guardar la nueva marca de tiempo
+                _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp()) } // Actualizar en UI State
+
+            } catch (e: Exception) {
+                // Manejar errores de actualización, por ejemplo, mostrar un Toast
+                e.printStackTrace()
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) } // Ocultar indicador de carga
+            }
+        }
+    }
+
     // --- Aspect Ratio Control ---
     open fun toggleAspectRatio() {
         val nextMode = when (_uiState.value.currentAspectRatioMode) {
@@ -397,12 +443,22 @@ open class ChannelsViewModel(
             if (categoryIndex == -1) return@launch
 
             val clickedCategory = currentOriginals[categoryIndex]
+            val isCurrentlyExpanded = clickedCategory.isExpanded
 
             val newOriginals = currentOriginals.toMutableList()
-            newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = !clickedCategory.isExpanded)
+
+            for (i in newOriginals.indices) {
+                if (newOriginals[i].category.categoryId != categoryId) {
+                    newOriginals[i] = newOriginals[i].copy(isExpanded = false)
+                }
+            }
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
+
+            newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = !isCurrentlyExpanded)
+
             _originalCategories.value = newOriginals
 
-            if (!clickedCategory.isExpanded && clickedCategory.channels.isEmpty() && !clickedCategory.isLoading) {
+            if (!isCurrentlyExpanded && clickedCategory.channels.isEmpty() && !clickedCategory.isLoading) {
                 val channels = contentRepository.getLiveStreamsByCategory(categoryId).first()
                 val finalCategories = _originalCategories.value.toMutableList()
                 val finalIndex = finalCategories.indexOfFirst { it.category.categoryId == categoryId }
@@ -413,11 +469,10 @@ open class ChannelsViewModel(
             }
 
             filterAndSortCategories()
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
-
             _scrollToItemEvent.emit(categoryId)
         }
     }
+
 
     private fun loadInitialCategories() {
         viewModelScope.launch {
@@ -508,11 +563,16 @@ open class ChannelsViewModel(
 
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
+            val isCurrentlyExpanded = _uiState.value.isFavoritesCategoryExpanded
+
+            // Contraer todas las demás categorías
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
-            filterAndSortCategories()
 
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = !it.isFavoritesCategoryExpanded) }
+            // Toglear el estado de favoritos
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = !isCurrentlyExpanded) }
+
+            filterAndSortCategories()
             _scrollToItemEvent.emit("favorites")
         }
     }
@@ -537,6 +597,13 @@ open class ChannelsViewModel(
             _uiState.update { it.copy(channelSortOrder = sortOrder) }
             filterAndSortCategories()
         }
+    }
+
+    // Función auxiliar para formatear la marca de tiempo a una cadena legible
+    fun formatTimestamp(timestamp: Long): String {
+        if (timestamp == 0L) return "Nunca"
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 }
 

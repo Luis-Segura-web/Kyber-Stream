@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -125,11 +126,11 @@ fun ChannelsScreen(
                 val isInPip = activity?.isInPictureInPictureMode ?: false
                 viewModel.setInPipMode(isInPip) // Actualizar el estado PiP en el ViewModel
 
-                // ¡CORRECCIÓN! Lógica refinada para destruir el reproductor al salir de PiP.
+                // Lógica refinada para destruir el reproductor al salir de PiP.
                 // El reproductor solo se destruirá si:
                 // 1. El evento es ON_STOP (la app se va a segundo plano o se cierra).
-                // 2. NO estamos en modo PiP.
-                // 3. El reproductor estaba visible.
+                // 2. Y NO estamos en modo PiP.
+                // 3. Y el reproductor estaba visible.
                 // Esto cubre el caso de cerrar PiP sin volver a la app.
                 if (event == Lifecycle.Event.ON_STOP && !isInPip && uiState.isPlayerVisible) {
                     viewModel.hidePlayer()
@@ -243,16 +244,55 @@ fun ChannelsScreen(
         topBar = {
             AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isPlayerVisible) {
                 TopAppBar(
-                    title = { Text("Canales") },
+                    title = {
+                        // ¡CORRECCIÓN! Mejor acomodo para el título y los elementos de la derecha
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween // Distribuye el título a la izquierda y las acciones a la derecha
+                        ) {
+                            Text("Canales", color = Color.White) // Título a la izquierda
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End // Agrupa las acciones a la derecha
+                            ) {
+                                // Indicador de carga para actualización
+                                if (uiState.isRefreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+
+                                // Texto de última actualización
+                                Text(
+                                    text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.align(Alignment.CenterVertically)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Botón para actualizar manualmente
+                                IconButton(
+                                    onClick = { viewModel.refreshChannelsManually() },
+                                    enabled = !uiState.isRefreshing // Deshabilitar si ya se está actualizando
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Actualizar canales", tint = Color.White)
+                                }
+                                IconButton(onClick = { viewModel.toggleSortMenu(true) }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Opciones de ordenación", tint = Color.White)
+                                }
+                            }
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         titleContentColor = Color.White
-                    ),
-                    actions = {
-                        IconButton(onClick = { viewModel.toggleSortMenu(true) }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Opciones de ordenación", tint = Color.White)
-                        }
-                    }
+                    )
+                    // No necesitamos el bloque 'actions' aquí, ya que lo hemos integrado en el 'title'
                 )
             }
         }
@@ -441,7 +481,7 @@ private fun PlayerSection(
                         viewModel.selectVideoTrack(trackId)
                     },
                     onPictureInPicture = {
-                        // ¡CORRECCIÓN! Ocultar controles y notificar al ViewModel sobre el modo PiP
+                        // Ocultar controles y notificar al ViewModel sobre el modo PiP
                         controlsVisible = false // Oculta los controles antes de la transición
                         viewModel.setInPipMode(true) // Notifica al ViewModel que estamos en PiP
                         onPictureInPicture() // Llama a la función PiP real
@@ -660,7 +700,7 @@ fun ChannelListItem(
             .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ¡CORRECCIÓN! Iconos cuadrados con esquinas redondeadas y fondo blanco
+        // Iconos cuadrados con esquinas redondeadas y fondo blanco
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -728,7 +768,7 @@ fun SortOptionsDialog(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Ordenar Canales por:", style = MaterialTheme.typography.titleSmall)
                 SortOrder.entries.forEach { order ->
