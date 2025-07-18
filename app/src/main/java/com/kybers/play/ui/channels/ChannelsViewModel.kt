@@ -86,8 +86,9 @@ data class ChannelsUiState(
     val channelSortOrder: SortOrder = SortOrder.DEFAULT,
     val showSortMenu: Boolean = false,
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
-    val currentPosition: Long = 0L, // ¡NUEVO! Posición actual de reproducción en milisegundos.
-    val duration: Long = 0L // ¡NUEVO! Duración total del stream en milisegundos.
+    val currentPosition: Long = 0L,
+    val duration: Long = 0L,
+    val isInPipMode: Boolean = false // ¡NUEVO! Estado para indicar si está en modo PiP
 )
 
 open class ChannelsViewModel(
@@ -132,9 +133,9 @@ open class ChannelsViewModel(
             MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
             MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
             MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
-            MediaPlayer.Event.TimeChanged -> { // ¡NUEVO! Actualizar posición y duración
+            MediaPlayer.Event.TimeChanged -> {
                 _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
-                null // No cambiar el PlayerStatus por un cambio de tiempo
+                null
             }
             else -> null
         }
@@ -187,8 +188,8 @@ open class ChannelsViewModel(
                 availableAudioTracks = emptyList(),
                 availableSubtitleTracks = emptyList(),
                 availableVideoTracks = emptyList(),
-                currentPosition = 0L, // Reiniciar posición al cambiar de canal
-                duration = 0L // Reiniciar duración al cambiar de canal
+                currentPosition = 0L,
+                duration = 0L
             )
         }
 
@@ -205,7 +206,6 @@ open class ChannelsViewModel(
         applyAspectRatio(_uiState.value.currentAspectRatioMode)
     }
 
-    // ¡NUEVO! Función para buscar en el stream.
     fun seekTo(position: Long) {
         mediaPlayer.time = position
         _uiState.update { it.copy(currentPosition = position) }
@@ -294,6 +294,11 @@ open class ChannelsViewModel(
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
     }
 
+    // ¡NUEVO! Método para actualizar el estado de PiP
+    fun setInPipMode(isInPip: Boolean) {
+        _uiState.update { it.copy(isInPipMode = isInPip) }
+    }
+
     override fun onCleared() {
         super.onCleared()
         mediaPlayer.stop()
@@ -337,8 +342,9 @@ open class ChannelsViewModel(
                 isPlayerVisible = false,
                 isFullScreen = false,
                 playerStatus = PlayerStatus.IDLE,
-                currentPosition = 0L, // Reiniciar posición al ocultar el reproductor
-                duration = 0L // Reiniciar duración al ocultar el reproductor
+                currentPosition = 0L,
+                duration = 0L,
+                isInPipMode = false // Asegurarse de que el estado PiP se resetee
             )
         }
     }

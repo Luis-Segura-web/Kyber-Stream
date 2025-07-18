@@ -117,14 +117,13 @@ fun PlayerControls(
                 onClose = onClose,
                 onToggleFavorite = onToggleFavorite,
                 onPictureInPicture = onPictureInPicture,
-                // onToggleAspectRatio = onToggleAspectRatio, // ¡CORRECCIÓN! Eliminado de TopControls
                 onAnyInteraction = onAnyInteraction
             )
 
             CenterControls(
                 modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
-                isFullScreen = isFullScreen,
+                isFullScreen = isFullScreen, // Pasa isFullScreen para ajustar tamaño
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onPrevious = onPrevious,
@@ -153,7 +152,7 @@ fun PlayerControls(
                 onSeek = onSeek,
                 onAnyInteraction = onAnyInteraction,
                 onToggleFullScreen = onToggleFullScreen,
-                onToggleAspectRatio = onToggleAspectRatio // ¡CORRECCIÓN! Añadido a BottomControls
+                onToggleAspectRatio = onToggleAspectRatio
             )
 
             if (isFullScreen) {
@@ -209,7 +208,6 @@ private fun TopControls(
     onClose: () -> Unit,
     onToggleFavorite: () -> Unit,
     onPictureInPicture: () -> Unit,
-    // onToggleAspectRatio: () -> Unit, // Se mantiene aquí si la lógica de ChannelsScreen lo pasa, pero no se usa en la UI de TopControls
     onAnyInteraction: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 36.dp else 24.dp
@@ -234,12 +232,8 @@ private fun TopControls(
             modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // ¡CORRECCIÓN! El botón de AspectRatio se ha movido de aquí.
-            // IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
-            //     Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
-            // }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = { onPictureInPicture(); onAnyInteraction() }) {
+                IconButton(onClick = { onPictureInPicture() }) { // No reiniciar temporizador
                     Icon(Icons.Default.PictureInPictureAlt, "Modo Picture-in-Picture", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
             }
@@ -265,9 +259,10 @@ private fun CenterControls(
     onPrevious: () -> Unit,
     onAnyInteraction: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 48.dp else 40.dp
-    val centerIconSize = if (isFullScreen) 64.dp else 56.dp
-    val spacerWidth = 32.dp
+    // ¡CORRECCIÓN! Tamaños de iconos y espaciado duplicados para fullscreen
+    val iconSize = if (isFullScreen) 96.dp else 40.dp // Doble de 48dp
+    val centerIconSize = if (isFullScreen) 128.dp else 56.dp // Doble de 64dp
+    val spacerWidth = if (isFullScreen) 64.dp else 32.dp // Doble de 32dp
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -317,7 +312,7 @@ private fun BottomControls(
     onSeek: (Long) -> Unit,
     onAnyInteraction: () -> Unit,
     onToggleFullScreen: () -> Unit,
-    onToggleAspectRatio: () -> Unit // ¡CORRECCIÓN! Nuevo parámetro para el botón AspectRatio
+    onToggleAspectRatio: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 36.dp else 24.dp
     val formattedCurrentTime = formatTime(currentPosition)
@@ -360,26 +355,47 @@ private fun BottomControls(
             )
 
             if (!isFullScreen) { // Controles en Portrait
-                IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) { // ¡CORRECCIÓN! Botón de AspectRatio aquí
+                IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
                     Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
                 IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
                     Icon(Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
             } else { // Controles adicionales en Landscape/Fullscreen
-                if (audioTracks.size > 1) {
-                    TrackMenu(showMenu = showAudioMenu, onToggleMenu = { show -> onToggleAudioMenu(show); onAnyInteraction() }, tracks = audioTracks, onSelectTrack = { trackId -> onSelectAudioTrack(trackId); onAnyInteraction() }) {
-                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), // Espaciado entre iconos
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // ¡CORRECCIÓN! Orden de izquierda a derecha para la visualización
+                    // Subtítulos
+                    if (subtitleTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                        TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = { show -> onToggleSubtitleMenu(show); onAnyInteraction() }, tracks = subtitleTracks, onSelectTrack = { trackId -> onSelectSubtitleTrack(trackId); onAnyInteraction() }) {
+                            ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        }
                     }
-                }
-                if (subtitleTracks.isNotEmpty()) {
-                    TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = { show -> onToggleSubtitleMenu(show); onAnyInteraction() }, tracks = subtitleTracks, onSelectTrack = { trackId -> onSelectSubtitleTrack(trackId); onAnyInteraction() }) {
-                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+
+                    // Audio Tracks
+                    if (audioTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                        TrackMenu(showMenu = showAudioMenu, onToggleMenu = { show -> onToggleAudioMenu(show); onAnyInteraction() }, tracks = audioTracks, onSelectTrack = { trackId -> onSelectAudioTrack(trackId); onAnyInteraction() }) {
+                            ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        }
                     }
-                }
-                if (videoTracks.size > 1) {
-                    TrackMenu(showMenu = showVideoMenu, onToggleMenu = { show -> onToggleVideoMenu(show); onAnyInteraction() }, tracks = videoTracks, onSelectTrack = { trackId -> onSelectVideoTrack(trackId); onAnyInteraction() }) {
-                        ControlIconButton(icon = Icons.Default.Hd, text = "Calidad", onClick = { onToggleVideoMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+
+                    // Calidad (Video Tracks)
+                    if (videoTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                        TrackMenu(showMenu = showVideoMenu, onToggleMenu = { show -> onToggleVideoMenu(show); onAnyInteraction() }, tracks = videoTracks, onSelectTrack = { trackId -> onSelectVideoTrack(trackId); onAnyInteraction() }) {
+                            ControlIconButton(icon = Icons.Default.Hd, text = "Calidad", onClick = { onToggleVideoMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        }
+                    }
+
+                    // Relación de Aspecto
+                    IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
+                        Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+                    }
+
+                    // Salir de Pantalla Completa (Extremo derecho)
+                    IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
+                        Icon(Icons.Default.FullscreenExit, "Salir de Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                     }
                 }
             }

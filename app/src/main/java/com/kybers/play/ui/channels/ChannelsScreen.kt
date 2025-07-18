@@ -121,19 +121,21 @@ fun ChannelsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            // ¡CORRECCIÓN! Ocultar controles antes de entrar a PiP automático
-            if (event == Lifecycle.Event.ON_STOP && uiState.isPlayerVisible && !uiState.isFullScreen) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    // Asegurarse de que los controles estén ocultos antes de la transición a PiP
-                    // Esto se maneja en PlayerSection con el callback onPictureInPicture
-                    // que ahora establecerá controlsVisible = false.
-                    // Aquí solo se asegura que la actividad entre en PiP.
-                    val aspectRatio = Rational(16, 9)
-                    val pipParams = PictureInPictureParams.Builder()
-                        .setAspectRatio(aspectRatio)
-                        .build()
-                    activity?.enterPictureInPictureMode(pipParams)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val isInPip = activity?.isInPictureInPictureMode ?: false
+                viewModel.setInPipMode(isInPip) // Actualizar el estado PiP en el ViewModel
+
+                // ¡CORRECCIÓN! Lógica refinada para destruir el reproductor al salir de PiP.
+                // El reproductor solo se destruirá si:
+                // 1. El evento es ON_STOP (la app se va a segundo plano o se cierra).
+                // 2. NO estamos en modo PiP.
+                // 3. El reproductor estaba visible.
+                // Esto cubre el caso de cerrar PiP sin volver a la app.
+                if (event == Lifecycle.Event.ON_STOP && !isInPip && uiState.isPlayerVisible) {
+                    viewModel.hidePlayer()
                 }
+                // Si el evento es ON_RESUME y NO estamos en PiP (significa que volvimos de PiP),
+                // el reproductor DEBE seguir reproduciéndose. No llamamos a hidePlayer() aquí.
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -204,9 +206,8 @@ fun ChannelsScreen(
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
             if (uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
-                layoutParams.screenBrightness = 1.0f
+                layoutParams.screenBrightness = uiState.screenBrightness
                 window.attributes = layoutParams
-                viewModel.setScreenBrightness(1.0f)
             }
         } else {
             insetsController.show(WindowInsetsCompat.Type.systemBars())
@@ -265,9 +266,6 @@ fun ChannelsScreen(
                 viewModel = viewModel,
                 audioManager = audioManager,
                 onPictureInPicture = {
-                    // ¡CORRECCIÓN! Ocultar controles antes de entrar a PiP
-                    // Esto se hace estableciendo controlsVisible a false.
-                    // La llamada a enterPictureInPictureMode se mantiene aquí.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         val aspectRatio = Rational(16, 9)
                         val pipParams = PictureInPictureParams.Builder()
@@ -356,7 +354,7 @@ private fun PlayerSection(
             ) {
                 PlayerControls(
                     modifier = Modifier.fillMaxSize(),
-                    isVisible = true, // Siempre true aquí, la visibilidad la controla AnimatedVisibility
+                    isVisible = true,
                     isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
                     isMuted = uiState.isMuted,
                     isFavorite = uiState.currentlyPlaying?.let { it.streamId.toString() in uiState.favoriteChannelIds } ?: false,
@@ -443,9 +441,9 @@ private fun PlayerSection(
                         viewModel.selectVideoTrack(trackId)
                     },
                     onPictureInPicture = {
-                        // ¡CORRECCIÓN! Ocultar controles antes de la llamada a PiP
+                        // ¡CORRECCIÓN! Ocultar controles y notificar al ViewModel sobre el modo PiP
                         controlsVisible = false // Oculta los controles antes de la transición
-                        resetControlTimer() // Reinicia el temporizador después de la interacción
+                        viewModel.setInPipMode(true) // Notifica al ViewModel que estamos en PiP
                         onPictureInPicture() // Llama a la función PiP real
                     },
                     onToggleAspectRatio = {
@@ -662,18 +660,24 @@ fun ChannelListItem(
             .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(channel.streamIcon)
-                .crossfade(true)
-                .error(android.R.drawable.stat_notify_error)
-                .build(),
-            contentDescription = channel.name,
-            contentScale = ContentScale.Crop,
+        // ¡CORRECCIÓN! Iconos cuadrados con esquinas redondeadas y fondo blanco
+        Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
-        )
+                .clip(RoundedCornerShape(8.dp)) // Esquinas redondeadas
+                .background(Color.White) // Fondo blanco
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(channel.streamIcon)
+                    .crossfade(true)
+                    .error(android.R.drawable.stat_notify_error)
+                    .build(),
+                contentDescription = channel.name,
+                contentScale = ContentScale.Fit, // Ajustar la imagen dentro del cuadrado
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         Spacer(modifier = Modifier.width(12.dp))
 
         Text(
