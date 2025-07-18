@@ -12,8 +12,8 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
-import com.kybers.play.work.CacheWorker // <--- ¡NUEVA IMPORTACIÓN!
-import java.util.concurrent.TimeUnit // <--- ¡NUEVA IMPORTACIÓN!
+import com.kybers.play.work.CacheWorker
+import java.util.concurrent.TimeUnit
 
 class MainApplication : Application(), Configuration.Provider {
 
@@ -39,14 +39,14 @@ class MainApplication : Application(), Configuration.Provider {
      */
     private fun scheduleCacheWorker() {
         val syncRequest = PeriodicWorkRequestBuilder<CacheWorker>(
-            12, TimeUnit.HOURS // Ejecutar cada 12 horas
+            12, TimeUnit.HOURS
         )
-            .setInitialDelay(10, TimeUnit.MINUTES) // Retraso inicial para no sobrecargar al inicio
+            .setInitialDelay(10, TimeUnit.MINUTES)
             .build()
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "CacheSyncWorker", // Nombre único para la tarea
-            ExistingPeriodicWorkPolicy.KEEP, // Mantener la tarea existente si ya está programada
+            "CacheSyncWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
         )
         android.util.Log.d("MainApplication", "CacheWorker programado para ejecutarse cada 12 horas.")
@@ -68,6 +68,7 @@ class AppContainer(context: Context) {
     /**
      * Crea una instancia de ContentRepository para una URL base específica.
      * Esto permite conectarse a diferentes servidores IPTV.
+     * ¡MODIFICADO! Ahora inyecta el epgEventDao.
      */
     fun createContentRepository(baseUrl: String): ContentRepository {
         val apiService = RetrofitClient.create(baseUrl)
@@ -75,7 +76,8 @@ class AppContainer(context: Context) {
             apiService = apiService,
             liveStreamDao = database.liveStreamDao(),
             movieDao = database.movieDao(),
-            seriesDao = database.seriesDao()
+            seriesDao = database.seriesDao(),
+            epgEventDao = database.epgEventDao() // <--- ¡CORRECCIÓN CLAVE AQUÍ!
         )
     }
 }

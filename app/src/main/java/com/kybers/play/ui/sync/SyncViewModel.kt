@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import android.util.Log
-import kotlinx.coroutines.async // <--- ¡NUEVA IMPORTACIÓN! Para ejecución paralela
-import kotlinx.coroutines.awaitAll // <--- ¡NUEVA IMPORTACIÓN! Para esperar a todas las tareas paralelas
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /**
  * Representa los diferentes estados del proceso de sincronización de datos,
@@ -20,11 +20,10 @@ import kotlinx.coroutines.awaitAll // <--- ¡NUEVA IMPORTACIÓN! Para esperar a 
  */
 sealed class SyncState {
     object Idle : SyncState()
-    // ¡MODIFICADO! Los estados ahora indican qué tipo de contenido se está procesando.
-    // Aunque se lancen en paralelo, podemos actualizar el estado al iniciar cada uno.
     object SyncingChannels : SyncState()
     object SyncingMovies : SyncState()
     object SyncingSeries : SyncState()
+    object SyncingEpg : SyncState() // <--- ¡NUEVO ESTADO!
     object Success : SyncState()
     data class Error(val message: String) : SyncState()
 }
@@ -59,29 +58,35 @@ class SyncViewModel(
                 // Esto permite que se ejecuten en paralelo.
 
                 val channelsJob = async {
-                    _syncState.update { SyncState.SyncingChannels } // Actualiza el estado cuando empieza
+                    _syncState.update { SyncState.SyncingChannels }
                     Log.d("SyncViewModel", "Lanzando sincronización de canales para userId: ${user.id}")
                     contentRepository.cacheLiveStreams(user.username, user.password, user.id)
                     Log.d("SyncViewModel", "Canales sincronizados (tarea completada) para userId: ${user.id}")
                 }
 
                 val moviesJob = async {
-                    _syncState.update { SyncState.SyncingMovies } // Actualiza el estado cuando empieza
+                    _syncState.update { SyncState.SyncingMovies }
                     Log.d("SyncViewModel", "Lanzando sincronización de películas para userId: ${user.id}")
                     contentRepository.cacheMovies(user.username, user.password, user.id)
                     Log.d("SyncViewModel", "Películas sincronizadas (tarea completada) para userId: ${user.id}")
                 }
 
                 val seriesJob = async {
-                    _syncState.update { SyncState.SyncingSeries } // Actualiza el estado cuando empieza
+                    _syncState.update { SyncState.SyncingSeries }
                     Log.d("SyncViewModel", "Lanzando sincronización de series para userId: ${user.id}")
                     contentRepository.cacheSeries(user.username, user.password, user.id)
                     Log.d("SyncViewModel", "Series sincronizadas (tarea completada) para userId: ${user.id}")
                 }
 
+                val epgJob = async { // <--- ¡NUEVA TAREA ASÍNCRONA PARA EPG!
+                    _syncState.update { SyncState.SyncingEpg }
+                    Log.d("SyncViewModel", "Lanzando sincronización de EPG para userId: ${user.id}")
+                    contentRepository.cacheEpgEvents(user.username, user.password, user.id)
+                    Log.d("SyncViewModel", "EPG sincronizada (tarea completada) para userId: ${user.id}")
+                }
+
                 // 'awaitAll' espera a que todas las tareas asíncronas lanzadas anteriormente terminen.
-                // Si alguna falla, la excepción se propagará aquí.
-                awaitAll(channelsJob, moviesJob, seriesJob)
+                awaitAll(channelsJob, moviesJob, seriesJob, epgJob) // <--- ¡AÑADIR epgJob aquí!
 
                 // Después de que todas las operaciones paralelas se completen con éxito, actualizamos la marca de tiempo.
                 syncManager.saveLastSyncTimestamp(user.id)

@@ -2,8 +2,8 @@ package com.kybers.play.data.remote.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Ignore
 import com.squareup.moshi.Json
-// import com.squareup.moshi.Transient // <--- ¡ELIMINAR ESTA IMPORTACIÓN!
 
 /**
  * Representa la respuesta principal de la API al hacer login.
@@ -56,7 +56,7 @@ data class Category(
 /**
  * Representa un canal de TV en vivo. Ahora también es una entidad de Room.
  * 'userId' se mueve fuera del constructor principal y es 'var'.
- * ¡CORREGIDO! Se eliminó @Transient.
+ * ¡MODIFICADO! currentEpgEvent y nextEpgEvent usan @Ignore para Room.
  */
 @Entity(tableName = "live_streams", primaryKeys = ["streamId", "userId"])
 data class LiveStream(
@@ -72,15 +72,14 @@ data class LiveStream(
     @Json(name = "direct_source") val directSource: String,
     @Json(name = "tv_archive_duration") val tvArchiveDuration: Int
 ) {
-    // userId se declara fuera del constructor principal y es 'var'.
-    // Moshi lo ignora automáticamente aquí.
     var userId: Int = 0
+    @Ignore var currentEpgEvent: EpgEvent? = null
+    @Ignore var nextEpgEvent: EpgEvent? = null
 }
 
 /**
  * Representa una película (VOD - Video On Demand). Es una entidad de Room.
  * 'userId' se mueve fuera del constructor principal y es 'var'.
- * ¡CORREGIDO! Se eliminó @Transient.
  */
 @Entity(tableName = "movies", primaryKeys = ["streamId", "userId"])
 data class Movie(
@@ -95,15 +94,12 @@ data class Movie(
     @Json(name = "category_id") val categoryId: String,
     @Json(name = "container_extension") val containerExtension: String
 ) {
-    // userId se declara fuera del constructor principal y es 'var'.
-    // Moshi lo ignora automáticamente aquí.
     var userId: Int = 0
 }
 
 /**
  * Representa una serie. Es una entidad de Room.
  * 'userId' se mueve fuera del constructor principal y es 'var'.
- * ¡CORREGIDO! Se eliminó @Transient.
  */
 @Entity(tableName = "series", primaryKeys = ["seriesId", "userId"])
 data class Series(
@@ -124,7 +120,22 @@ data class Series(
     @Json(name = "episode_run_time") val episodeRunTime: String?,
     @Json(name = "category_id") val categoryId: String
 ) {
-    // userId se declara fuera del constructor principal y es 'var'.
-    // Moshi lo ignora automáticamente aquí.
     var userId: Int = 0
 }
+
+/**
+ * ¡NUEVO! Representa un evento de EPG (un programa de televisión).
+ * Será una entidad de Room para cachear los datos EPG.
+ * ¡CORREGIDO! Clave primaria ajustada.
+ * ¡CORREGIDO! userId y channelId son ahora 'var' para permitir su asignación.
+ */
+@Entity(tableName = "epg_events", primaryKeys = ["epgId", "userId"])
+data class EpgEvent(
+    var userId: Int, // <--- ¡CAMBIO CLAVE AQUÍ! Ahora es 'var'
+    @Json(name = "epg_id") val epgId: String,
+    @Json(name = "title") val title: String,
+    @Json(name = "start_timestamp") val startTimestamp: Long,
+    @Json(name = "end_timestamp") val endTimestamp: Long,
+    @Json(name = "description") val description: String?,
+    var channelId: Int // <--- ¡CAMBIO CLAVE AQUÍ! Ahora es 'var'
+)

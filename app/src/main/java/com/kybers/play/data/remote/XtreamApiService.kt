@@ -5,6 +5,7 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.XtreamResponse
+import com.kybers.play.data.remote.model.EpgEvent // Importar la nueva clase EpgEvent
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -20,8 +21,7 @@ interface XtreamApiService {
      * La URL final será: {baseUrl}/player_api.php?username=...&password=...
      * @param username El nombre de usuario.
      * @param password La contraseña.
-     * @return Un objeto XtreamResponse envuelto en un Response de Retrofit, lo que nos permite
-     * verificar el código de estado de la respuesta (ej. 200 OK, 404 Not Found).
+     * @return Un objeto XtreamResponse envuelto en un Response de Retrofit.
      */
     @GET("player_api.php")
     suspend fun authenticate(
@@ -89,5 +89,20 @@ interface XtreamApiService {
         @Query("category_id") categoryId: Int
     ): Response<List<Series>>
 
-    // Aquí podríamos añadir más llamadas en el futuro, como get_series_info, etc.
+    /**
+     * ¡NUEVO! Obtiene la Guía Electrónica de Programación (EPG) para un canal específico.
+     * La API de Xtream Codes suele tener un endpoint para esto, a menudo usando 'epg_channel_id'.
+     * @param username El nombre de usuario.
+     * @param password La contraseña.
+     * @param epgChannelId El ID del canal EPG para el cual obtener la guía.
+     * @return Una lista de eventos EPG para el canal especificado.
+     */
+    @GET("player_api.php?action=get_simple_xtream_codes_api&type=epg") // Este es un endpoint común para EPG
+    suspend fun getEpgForChannel(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("stream_id") epgChannelId: String // Usamos stream_id o epg_channel_id según la API real
+    ): Response<List<EpgEvent>>
+
+    // Podríamos añadir más llamadas en el futuro, como get_series_info, etc.
 }

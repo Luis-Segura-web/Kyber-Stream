@@ -70,6 +70,7 @@ fun SyncScreen(
                         is SyncState.SyncingChannels -> "Sincronizando canales..."
                         is SyncState.SyncingMovies -> "Sincronizando películas..."
                         is SyncState.SyncingSeries -> "Sincronizando series..."
+                        is SyncState.SyncingEpg -> "Sincronizando guía de programas (EPG)..." // <--- ¡NUEVO MENSAJE!
                         else -> "Preparando..."
                     },
                     style = MaterialTheme.typography.titleLarge,

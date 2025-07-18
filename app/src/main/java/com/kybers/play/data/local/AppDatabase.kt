@@ -9,39 +9,35 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.data.remote.model.EpgEvent // <--- ¡NUEVA IMPORTACIÓN!
 
 @Database(
-    // Las entidades LiveStream, Movie, Series ahora tienen claves primarias compuestas con userId.
-    // Room manejará esto automáticamente con la configuración actual.
-    entities = [User::class, Movie::class, Series::class, LiveStream::class],
-    version = 2, // La versión de la base de datos es correcta.
-    exportSchema = false // No exportamos el esquema JSON.
+    // ¡MODIFICADO! Añadimos EpgEvent a la lista de entidades
+    entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class],
+    version = 2, // La versión ya está incrementada, perfecto.
+    exportSchema = false
 )
-@TypeConverters(Converters::class) // Se usan convertidores para tipos complejos (ej. List<String>)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
-    // DAOs para acceder a los datos de cada entidad
     abstract fun userDao(): UserDao
     abstract fun movieDao(): MovieDao
     abstract fun seriesDao(): SeriesDao
     abstract fun liveStreamDao(): LiveStreamDao
+    abstract fun epgEventDao(): EpgEventDao // <--- ¡NUEVA FUNCIÓN ABSTRACTA!
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
         fun getDatabase(context: Context): AppDatabase {
-            // Patrón Singleton para asegurar una única instancia de la base de datos
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "iptv_app_database" // Nombre del archivo de la base de datos
+                    "iptv_app_database"
                 )
-                    // Si el esquema de la base de datos cambia y no hay una migración definida,
-                    // Room destruirá y recreará la base de datos.
-                    // Esto es útil en desarrollo, pero en producción se preferirían migraciones.
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration() // Esto recreará la base de datos si hay cambios de esquema
                     .build()
                 INSTANCE = instance
                 instance
