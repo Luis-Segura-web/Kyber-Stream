@@ -11,10 +11,10 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
+import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.ui.player.TrackInfo
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,11 +22,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -58,7 +56,8 @@ enum class AspectRatioMode {
 data class ExpandableCategory(
     val category: Category,
     val channels: List<LiveStream> = emptyList(),
-    val isExpanded: Boolean = false
+    val isExpanded: Boolean = false,
+    val epgLoaded: Boolean = false
 )
 
 // Data class que representa el estado completo de la UI de la pantalla de canales.
@@ -114,10 +113,12 @@ open class ChannelsViewModel(
     private val _originalCategories = MutableStateFlow<List<ExpandableCategory>>(emptyList())
     private val _favoriteChannelIds = MutableStateFlow<Set<String>>(emptySet())
 
+    // ¡NUEVO! Este mapa en memoria contendrá toda la EPG y será nuestra fuente de hipervelocidad.
+    private var epgCacheMap: Map<Int, List<EpgEvent>> = emptyMap()
+
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
-    // ¡NUEVO! Job para controlar la carga de la EPG en segundo plano.
     private var epgEnrichmentJob: Job? = null
 
     private val vlcOptions = arrayListOf(
@@ -169,8 +170,7 @@ open class ChannelsViewModel(
                 lastUpdatedTimestamp = lastSyncTime
             )
         }
-        // ¡CAMBIO CLAVE! Se llama a la nueva función de carga en dos fases.
-        loadInitialChannels()
+        loadInitialChannelsAndPreloadEpg()
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
@@ -310,6 +310,7 @@ open class ChannelsViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        epgEnrichmentJob?.cancel()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
         mediaPlayer.release()
@@ -349,6 +350,10 @@ open class ChannelsViewModel(
     }
 
     open fun hidePlayer() {
+        if (mediaPlayer.isPlaying) {
+            mediaPlayer.stop()
+        }
+
         _uiState.update {
             it.copy(
                 isPlayerVisible = false,
@@ -366,10 +371,8 @@ open class ChannelsViewModel(
             Log.d("ChannelsViewModel", "Iniciando refresco manual de canales...")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                withContext(Dispatchers.IO) {
-                    contentRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
-                }
-                loadInitialChannels() // Esto recargará la lista y disparará la carga de EPG en segundo plano
+                contentRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
+                loadInitialChannelsAndPreloadEpg()
                 syncManager.saveLastSyncTimestamp(currentUser.id)
                 _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
             } catch (e: Exception) {
@@ -422,17 +425,27 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             val currentOriginals = _originalCategories.value.toMutableList()
             val categoryIndex = currentOriginals.indexOfFirst { it.category.categoryId == categoryId }
+
             if (categoryIndex != -1) {
-                val oldCategory = currentOriginals[categoryIndex]
-                currentOriginals[categoryIndex] = oldCategory.copy(isExpanded = !oldCategory.isExpanded)
-                if (!oldCategory.isExpanded) {
-                    for (i in currentOriginals.indices) {
-                        if (i != categoryIndex) {
-                            currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
-                        }
-                    }
-                    _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
+                val category = currentOriginals[categoryIndex]
+                val isExpanding = !category.isExpanded
+
+                for (i in currentOriginals.indices) {
+                    currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
                 }
+                _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
+
+                if (isExpanding && !category.epgLoaded) {
+                    val enrichedChannels = contentRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
+                    currentOriginals[categoryIndex] = category.copy(
+                        channels = enrichedChannels,
+                        isExpanded = true,
+                        epgLoaded = true
+                    )
+                } else {
+                    currentOriginals[categoryIndex] = category.copy(isExpanded = isExpanding)
+                }
+
                 _originalCategories.value = currentOriginals
                 filterAndSortCategories()
                 _scrollToItemEvent.emit(categoryId)
@@ -441,14 +454,15 @@ open class ChannelsViewModel(
     }
 
     /**
-     * ¡FASE 1! Carga la lista de canales sin EPG para una visualización instantánea.
+     * ¡NUEVA LÓGICA DE CARGA!
+     * Carga los canales y luego precarga TODA la EPG en un mapa en memoria.
      */
-    private fun loadInitialChannels() {
+    private fun loadInitialChannelsAndPreloadEpg() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
+                // Fase 1: Carga rápida de canales y categorías (sin EPG)
                 val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                // Usamos la "vía rápida" para obtener los canales sin EPG
                 val allChannels = contentRepository.getRawLiveStreams(currentUser.id).first()
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
                 val expandableCategories = categories.map { category ->
@@ -458,38 +472,18 @@ open class ChannelsViewModel(
                     )
                 }
                 _originalCategories.value = expandableCategories
+                filterAndSortCategories() // Muestra la lista al usuario inmediatamente
                 _uiState.update { it.copy(isLoading = false) }
-                filterAndSortCategories()
 
-                // ¡FASE 2! Disparamos la carga de la EPG en segundo plano.
-                enrichChannelsWithEpg()
+                // Fase 2: Precarga masiva de EPG en segundo plano
+                Log.d("ChannelsViewModel", "Iniciando precarga de EPG en memoria...")
+                epgCacheMap = contentRepository.getAllEpgMapForUser(currentUser.id)
+                Log.d("ChannelsViewModel", "Precarga de EPG completada. ${epgCacheMap.size} canales tienen EPG en caché.")
+
             } catch (e: Exception) {
-                Log.e("ChannelsViewModel", "Error en loadInitialChannels(): ${e.message}", e)
+                Log.e("ChannelsViewModel", "Error en loadInitialChannelsAndPreloadEpg(): ${e.message}", e)
                 _uiState.update { it.copy(isLoading = false) }
             }
-        }
-    }
-
-    /**
-     * ¡FASE 2! Carga la EPG en segundo plano y actualiza la UI a medida que llega.
-     */
-    private fun enrichChannelsWithEpg() {
-        epgEnrichmentJob?.cancel() // Cancelar cualquier trabajo anterior
-        epgEnrichmentJob = viewModelScope.launch(Dispatchers.IO) {
-            Log.d("ChannelsViewModel", "Iniciando enriquecimiento de EPG en segundo plano...")
-            contentRepository.getAllLiveStreamsWithEpg(currentUser.id)
-                .collectLatest { channelsWithEpg ->
-                    val categories = _originalCategories.value
-                    val channelsByCategory = channelsWithEpg.groupBy { it.categoryId }
-                    val expandableCategories = categories.map { category ->
-                        category.copy(channels = channelsByCategory[category.category.categoryId] ?: category.channels)
-                    }
-                    _originalCategories.value = expandableCategories
-                    // Usamos withContext para asegurarnos de que el filtrado se haga en el hilo principal
-                    withContext(Dispatchers.Main) {
-                        filterAndSortCategories()
-                    }
-                }
         }
     }
 
@@ -527,7 +521,6 @@ open class ChannelsViewModel(
     }
 
     internal suspend fun getFavoriteChannels(): List<LiveStream> {
-        // Obtenemos los canales de la lista que ya tiene la EPG (si está disponible)
         val allChannels = _originalCategories.value.flatMap { it.channels }.distinctBy { it.streamId }
         val query = _uiState.value.searchQuery.trim()
         val currentChannelSortOrder = _uiState.value.channelSortOrder
@@ -550,11 +543,32 @@ open class ChannelsViewModel(
 
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
-            val isCurrentlyExpanded = _uiState.value.isFavoritesCategoryExpanded
+            val isExpanding = !_uiState.value.isFavoritesCategoryExpanded
+
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = !isCurrentlyExpanded) }
-            filterAndSortCategories()
+
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = isExpanding) }
+
+            if(isExpanding) {
+                val favoriteChannels = getFavoriteChannels()
+                val enrichedFavorites = contentRepository.enrichChannelsWithEpg(favoriteChannels, epgCacheMap)
+
+                val originals = _originalCategories.value.toMutableList()
+                enrichedFavorites.forEach { enrichedFav ->
+                    originals.forEachIndexed { catIndex, cat ->
+                        val channelIndex = cat.channels.indexOfFirst { it.streamId == enrichedFav.streamId }
+                        if (channelIndex != -1) {
+                            val mutableChannels = cat.channels.toMutableList()
+                            mutableChannels[channelIndex] = enrichedFav
+                            originals[catIndex] = cat.copy(channels = mutableChannels)
+                        }
+                    }
+                }
+                _originalCategories.value = originals
+                filterAndSortCategories()
+            }
+
             _scrollToItemEvent.emit("favorites")
         }
     }

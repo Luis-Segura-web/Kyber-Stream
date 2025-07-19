@@ -35,8 +35,8 @@ import androidx.navigation.compose.rememberNavController
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.home.HomeViewModel // ¡CORRECCIÓN! Importamos HomeViewModel
-import com.kybers.play.ui.home.HomeScreen // ¡CORRECCIÓN! Importamos HomeScreen
+import com.kybers.play.ui.home.HomeScreen
+import com.kybers.play.ui.home.HomeViewModel
 
 // Defines the routes, labels, and icons for each main screen of the app.
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {

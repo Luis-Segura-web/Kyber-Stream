@@ -40,25 +40,30 @@ class SyncViewModel(
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
     /**
-     * ¡LÓGICA CORREGIDA! Ahora la EPG espera a que los canales terminen de sincronizarse.
+     * ¡LÓGICA CORREGIDA Y ORDENADA!
+     * Inicia el proceso de sincronización completo para un usuario.
+     * Ahora se asegura de que la EPG se sincronice solo después de que los canales
+     * hayan terminado de guardarse.
      */
     fun startSync(user: User) {
         viewModelScope.launch {
             Log.d("SyncViewModel", "Iniciando sincronización completa para usuario: ${user.profileName}")
             try {
-                // Tareas que no tienen dependencias y pueden correr en paralelo.
+                // Tareas que no tienen dependencias y pueden correr en paralelo (películas y series).
                 val independentJobs = listOf(
                     async {
                         _syncState.update { SyncState.SyncingMovies }
                         contentRepository.cacheMovies(user.username, user.password, user.id)
+                        Log.d("SyncViewModel", "Sincronización de películas completada.")
                     },
                     async {
                         _syncState.update { SyncState.SyncingSeries }
                         contentRepository.cacheSeries(user.username, user.password, user.id)
+                        Log.d("SyncViewModel", "Sincronización de series completada.")
                     }
                 )
 
-                // Tarea principal que tiene una secuencia interna (Canales -> EPG)
+                // Tarea principal que tiene una secuencia interna (Canales -> EPG).
                 val dependentJob = async {
                     // Paso 1: Sincronizar canales y esperar a que termine. Esto es crucial.
                     _syncState.update { SyncState.SyncingChannels }
@@ -70,7 +75,7 @@ class SyncViewModel(
                         Log.d("SyncViewModel", "Se necesita sincronización de EPG. Iniciando descarga.")
                         _syncState.update { SyncState.SyncingEpg }
                         contentRepository.cacheEpgData(user.username, user.password, user.id)
-                        syncManager.saveEpgLastSyncTimestamp(user.id)
+                        syncManager.saveEpgLastSyncTimestamp(user.id) // Guardamos la marca de tiempo de la EPG
                         Log.d("SyncViewModel", "Sincronización de EPG completada.")
                     } else {
                         Log.d("SyncViewModel", "Saltando sincronización de EPG, caché aún válido.")
@@ -80,6 +85,7 @@ class SyncViewModel(
                 // Esperamos a que todas las tareas (independientes y la principal) terminen.
                 awaitAll(*independentJobs.toTypedArray(), dependentJob)
 
+                // Guardamos la marca de tiempo de la sincronización de contenido general.
                 syncManager.saveLastSyncTimestamp(user.id)
                 _syncState.update { SyncState.Success }
                 Log.d("SyncViewModel", "Sincronización completa y exitosa para userId: ${user.id}")

@@ -15,7 +15,6 @@ import com.kybers.play.util.XmlTvParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
 import java.io.IOException
 
 open class ContentRepository(
@@ -27,51 +26,30 @@ open class ContentRepository(
     private val baseUrl: String
 ) {
 
-    // --- Data Reading Functions ---
-
-    /**
-     * ¡NUEVO! Función de "vía rápida" que obtiene los canales sin procesar la EPG.
-     * Esto es para mostrar la lista de canales de forma instantánea.
-     */
     fun getRawLiveStreams(userId: Int): Flow<List<LiveStream>> {
         return liveStreamDao.getAllLiveStreams(userId)
     }
 
     /**
-     * Obtiene todos los canales y les añade la información de la EPG.
-     * Esta es la función "lenta" que ahora se llamará en segundo plano.
+     * ¡NUEVA FUNCIÓN DE ALTO RENDIMIENTO!
+     * Obtiene TODOS los eventos EPG para un usuario de la base de datos de una sola vez
+     * y los devuelve agrupados en un mapa por channelId. Esto es infinitamente más rápido
+     * que hacer una consulta por cada canal.
      */
-    fun getAllLiveStreamsWithEpg(userId: Int): Flow<List<LiveStream>> {
-        return liveStreamDao.getAllLiveStreams(userId)
-            .map { liveStreams ->
-                liveStreams.map { stream ->
-                    enrichLiveStreamWithEpg(stream)
-                }
-            }
+    suspend fun getAllEpgMapForUser(userId: Int): Map<Int, List<EpgEvent>> {
+        return epgEventDao.getAllEventsForUser(userId).groupBy { it.channelId }
     }
 
-    private suspend fun enrichLiveStreamWithEpg(stream: LiveStream): LiveStream {
-        val epgEvents = epgEventDao.getEpgEventsForChannel(stream.streamId, stream.userId).firstOrNull() ?: emptyList()
-
-        if (epgEvents.isEmpty()) {
-            return stream
+    suspend fun enrichChannelsWithEpg(channels: List<LiveStream>, epgMap: Map<Int, List<EpgEvent>>): List<LiveStream> {
+        return channels.map { stream ->
+            val epgEvents = epgMap[stream.streamId] ?: emptyList()
+            if (epgEvents.isNotEmpty()) {
+                val currentTime = System.currentTimeMillis() / 1000
+                stream.currentEpgEvent = epgEvents.find { it.startTimestamp <= currentTime && it.stopTimestamp > currentTime }
+                stream.nextEpgEvent = epgEvents.filter { it.startTimestamp > currentTime }.minByOrNull { it.startTimestamp }
+            }
+            stream
         }
-
-        val currentTime = System.currentTimeMillis() / 1000
-        var currentEvent: EpgEvent? = epgEvents.find { it.startTimestamp <= currentTime && it.stopTimestamp > currentTime }
-        var nextEvent: EpgEvent?
-
-        if (currentEvent == null) {
-            val futureEvents = epgEvents.filter { it.startTimestamp > currentTime }.sortedBy { it.startTimestamp }
-            currentEvent = futureEvents.getOrNull(0)
-            nextEvent = futureEvents.getOrNull(1)
-        } else {
-            nextEvent = epgEvents.filter { it.startTimestamp > currentTime }.minByOrNull { it.startTimestamp }
-        }
-
-        stream.currentEpgEvent = currentEvent
-        stream.nextEpgEvent = nextEvent
-        return stream
     }
 
     fun getAllMovies(userId: Int): Flow<List<Movie>> = movieDao.getAllMovies(userId)
@@ -85,8 +63,6 @@ open class ContentRepository(
             emptyList()
         }
     }
-
-    // --- Caching Functions ---
 
     suspend fun cacheLiveStreams(user: String, pass: String, userId: Int) {
         val liveCategories = getLiveCategories(user, pass)
@@ -102,6 +78,10 @@ open class ContentRepository(
                 Log.e("ContentRepository", "Error al obtener streams de categoría ${category.categoryId}: ${e.message}")
             }
         }
+
+        val channelsWithEpgId = allStreamsForUser.count { !it.epgChannelId.isNullOrBlank() }
+        Log.d("EPG_DIAGNOSTIC", "Total de canales a guardar: ${allStreamsForUser.size}. Canales CON EPG ID: $channelsWithEpgId. Canales SIN EPG ID: ${allStreamsForUser.size - channelsWithEpgId}")
+
         liveStreamDao.replaceAll(allStreamsForUser, userId)
     }
 
@@ -140,12 +120,9 @@ open class ContentRepository(
     }
 
     suspend fun cacheEpgData(user: String, pass: String, userId: Int) {
-        Log.d("ContentRepository", "Iniciando descarga de EPG (Solo XMLTV) para userId: $userId")
-        var allEpgEvents = mutableListOf<EpgEvent>()
-
+        Log.d("EPG_DEBUG", "Iniciando descarga de EPG (XMLTV) para userId: $userId")
         try {
             val allStreams = liveStreamDao.getAllLiveStreams(userId).first()
-
             val epgIdToStreamIdsMap = allStreams
                 .filter { !it.epgChannelId.isNullOrBlank() }
                 .groupBy(
@@ -153,21 +130,26 @@ open class ContentRepository(
                     { it.streamId }
                 )
 
+            Log.d("EPG_DEBUG", "Mapa de EPG IDs a Stream IDs creado. Total de EPG IDs únicos en nuestros canales: ${epgIdToStreamIdsMap.size}")
+            if (epgIdToStreamIdsMap.isNotEmpty()) {
+                Log.d("EPG_DEBUG", "Ejemplos de EPG IDs de nuestros canales: ${epgIdToStreamIdsMap.keys.take(5)}")
+            }
+
             val response = apiService.getXmlTvEpg(user, pass)
 
             if (response.isSuccessful && response.body() != null) {
                 val inputStream = response.body()!!.byteStream()
-                allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId).toMutableList()
-                Log.d("ContentRepository", "XMLTV parseado. ${allEpgEvents.size} eventos encontrados.")
+                val allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId)
+                Log.d("EPG_DEBUG", "Análisis de XMLTV completado. ${allEpgEvents.size} eventos de EPG generados.")
+
+                epgEventDao.replaceAll(allEpgEvents, userId)
+                Log.d("EPG_DEBUG", "Se han guardado ${allEpgEvents.size} eventos de EPG en la base de datos para userId: $userId.")
             } else {
-                Log.e("ContentRepository", "Falló la descarga de XMLTV: ${response.code()}.")
+                Log.e("EPG_DEBUG", "Falló la descarga de XMLTV. Código: ${response.code()}. Mensaje: ${response.message()}")
             }
 
-            Log.d("ContentRepository", "Guardando ${allEpgEvents.size} eventos de EPG.")
-            epgEventDao.replaceAll(allEpgEvents, userId)
-
         } catch (e: Exception) {
-            Log.e("ContentRepository", "Excepción mayor durante el proceso de EPG: ${e.message}")
+            Log.e("EPG_DEBUG", "Excepción mayor durante el proceso de caché de EPG: ${e.message}")
             e.printStackTrace()
         }
     }

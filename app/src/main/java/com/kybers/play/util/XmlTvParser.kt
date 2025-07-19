@@ -7,17 +7,29 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Un parser para procesar archivos XMLTV y extraer la información de la EPG.
  */
 object XmlTvParser {
 
-    private val xmlTvDateFormat = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
+    // ¡OPTIMIZACIÓN! Creamos las instancias de los parsers de fecha una sola vez.
+    // Esto es mucho más eficiente que crearlas miles de veces dentro de un bucle.
+    private val xmlTvDateFormatWithZone by lazy {
+        SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US).apply {
+            // Le decimos que sea estricto con el formato para evitar errores silenciosos.
+            isLenient = false
+        }
+    }
+    private val xmlTvDateFormatNoZone by lazy {
+        SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
+            // Usamos la zona horaria UTC como referencia si no viene especificada.
+            timeZone = TimeZone.getTimeZone("UTC")
+            isLenient = false
+        }
+    }
 
-    /**
-     * ¡LÓGICA MEJORADA! Ahora acepta un mapa de epg_id a una LISTA de stream_ids.
-     */
     fun parse(inputStream: InputStream, epgIdToStreamIdsMap: Map<String, List<Int>>, userId: Int): List<EpgEvent> {
         val events = mutableListOf<EpgEvent>()
         val xmlChannelIdsFound = mutableSetOf<String>()
@@ -52,13 +64,11 @@ object XmlTvParser {
                     }
                     XmlPullParser.END_TAG -> {
                         if (parser.name == "programme" && currentProgramme != null) {
-                            // Buscamos la lista de stream_ids que coinciden con el epg_id del XML.
                             epgIdToStreamIdsMap[currentProgramme.channel]?.forEach { streamId ->
-                                successfulMatches++
                                 val startTimestamp = parseXmlTvDate(currentProgramme.start)
                                 val stopTimestamp = parseXmlTvDate(currentProgramme.stop)
                                 if (startTimestamp != null && stopTimestamp != null) {
-                                    // Creamos un evento EPG para CADA stream_id en la lista.
+                                    successfulMatches++
                                     events.add(
                                         EpgEvent(
                                             apiEventId = "${streamId}_${startTimestamp}",
@@ -81,24 +91,40 @@ object XmlTvParser {
         } catch (e: Exception) {
             Log.e("EPG_DEBUG", "Error durante el parsing del XML: ${e.message}")
             e.printStackTrace()
+        } finally {
+            inputStream.close()
         }
 
         Log.d("EPG_DEBUG", "Análisis del XML completado. Total de IDs de canal únicos (limpios) en XML: ${xmlChannelIdsFound.size}")
         if (xmlChannelIdsFound.isNotEmpty()) {
             Log.d("EPG_DEBUG", "Ejemplos de IDs de canal (limpios) del archivo XML: ${xmlChannelIdsFound.take(5)}")
         }
-        Log.d("EPG_DEBUG", "Procesamiento finalizado. Número de eventos EPG creados (considerando duplicados): $successfulMatches")
+        Log.d("EPG_DEBUG", "Procesamiento finalizado. Número de eventos EPG creados (coincidencias exitosas): $successfulMatches")
 
         return events
     }
 
+    /**
+     * ¡VERSIÓN A PRUEBA DE BALAS Y OPTIMIZADA!
+     * Esta función ahora es mucho más resistente a formatos de fecha inesperados y más eficiente.
+     */
     private fun parseXmlTvDate(dateString: String): Long? {
-        return try {
-            val date = xmlTvDateFormat.parse(dateString)
-            date?.time?.div(1000)
+        // Intento 1: Formato con zona horaria (el más común y correcto).
+        try {
+            return xmlTvDateFormatWithZone.parse(dateString)?.time?.div(1000)
         } catch (e: Exception) {
-            null
+            // Ignoramos el error y probamos el siguiente formato.
         }
+
+        // Intento 2: Formato sin zona horaria.
+        try {
+            return xmlTvDateFormatNoZone.parse(dateString)?.time?.div(1000)
+        } catch (e: Exception) {
+            // Si ambos fallan, lo registramos pero no rompemos la app.
+            Log.w("XmlTvParser", "No se pudo parsear la fecha en ninguno de los formatos: '$dateString'")
+        }
+
+        return null
     }
 
     private data class TempProgramme(

@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
@@ -140,18 +141,38 @@ fun ChannelsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
+    LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds, uiState.isFavoritesCategoryExpanded, uiState.categories) {
+        favoriteChannels = viewModel.getFavoriteChannels()
+    }
+
+    LaunchedEffect(uiState.categories, uiState.isFavoritesCategoryExpanded, favoriteChannels) {
         viewModel.scrollToItemEvent.collectLatest { targetId ->
-            val index = when (targetId) {
-                "favorites" -> 0
-                else -> {
-                    val categoryIndex = uiState.categories.indexOfFirst { it.category.categoryId == targetId }
-                    if (categoryIndex != -1) categoryIndex + 1 else -1
+            var targetIndex = -1
+            var currentIndex = 0
+
+            if (targetId == "favorites") {
+                targetIndex = 0
+            } else {
+                currentIndex++
+                if (uiState.isFavoritesCategoryExpanded) {
+                    currentIndex += favoriteChannels.size
+                }
+
+                for (category in uiState.categories) {
+                    if (category.category.categoryId == targetId) {
+                        targetIndex = currentIndex
+                        break
+                    }
+                    currentIndex++
+                    if (category.isExpanded) {
+                        currentIndex += category.channels.size
+                    }
                 }
             }
 
-            if (index != -1) {
-                lazyListState.animateScrollToItem(index)
+            if (targetIndex != -1) {
+                lazyListState.animateScrollToItem(targetIndex)
             }
         }
     }
@@ -242,10 +263,33 @@ fun ChannelsScreen(
                     title = {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Canales", color = Color.White)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.LiveTv,
+                                    contentDescription = "TV en Vivo",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "TV en Vivo",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.End
@@ -256,17 +300,7 @@ fun ChannelsScreen(
                                         color = Color.White,
                                         strokeWidth = 2.dp
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
                                 }
-
-                                Text(
-                                    text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.align(Alignment.CenterVertically)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-
                                 IconButton(
                                     onClick = { viewModel.refreshChannelsManually() },
                                     enabled = !uiState.isRefreshing
@@ -280,8 +314,7 @@ fun ChannelsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary
                     )
                 )
             }
@@ -308,7 +341,7 @@ fun ChannelsScreen(
             )
 
             AnimatedVisibility(visible = !uiState.isFullScreen) {
-                ChannelListSection(viewModel = viewModel, lazyListState = lazyListState)
+                ChannelListSection(viewModel = viewModel, lazyListState = lazyListState, favoriteChannels = favoriteChannels)
             }
         }
     }
@@ -403,9 +436,7 @@ private fun PlayerSection(
                     showVideoMenu = uiState.showVideoMenu,
                     onClose = {
                         resetControlTimer()
-                        if (uiState.isFullScreen) {
-                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                        }
+                        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         viewModel.hidePlayer()
                     },
                     onPlayPause = {
@@ -533,13 +564,12 @@ private fun SystemVolumeReceiver(audioManager: AudioManager, onVolumeChange: (In
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: LazyListState) {
+private fun ChannelListSection(
+    viewModel: ChannelsViewModel,
+    lazyListState: LazyListState,
+    favoriteChannels: List<LiveStream>
+) {
     val uiState by viewModel.uiState.collectAsState()
-
-    var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
-    LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds) {
-        favoriteChannels = viewModel.getFavoriteChannels()
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBar(
@@ -560,7 +590,6 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
                     onHeaderClick = { viewModel.onFavoritesCategoryToggled() }
                 )
             }
-
             if (uiState.isFavoritesCategoryExpanded) {
                 if (favoriteChannels.isEmpty()) {
                     item {
@@ -578,9 +607,9 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
+                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
                             isFavorite = true,
-                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
@@ -595,13 +624,13 @@ private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: Lazy
                     )
                 }
                 if (expandableCategory.isExpanded) {
-                    items(expandableCategory.channels, key = { it.streamId }) { channel ->
+                    items(expandableCategory.channels, key = { "channel-${it.streamId}" }) { channel ->
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel) },
+                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel) },
                             isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
-                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
@@ -718,9 +747,10 @@ fun ChannelListItem(
             Text(
                 text = channel.name,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                maxLines = 3, // ¡CAMBIO! Se permiten hasta 3 líneas.
-                overflow = TextOverflow.Ellipsis
+                fontSize = 14.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 16.sp
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -742,31 +772,52 @@ fun ChannelListItem(
 
 @Composable
 fun EpgInfo(currentEvent: EpgEvent?, nextEvent: EpgEvent?) {
-    // ¡CAMBIO! Si no hay evento, simplemente no se muestra nada.
-    if (currentEvent != null) {
-        val progress = calculateEpgProgress(currentEvent.startTimestamp, currentEvent.stopTimestamp)
-        val nextEventTime = nextEvent?.let { formatTimestampToHour(it.startTimestamp) }
+    if (currentEvent == null) {
+        return
+    }
 
-        Column {
+    val progress = calculateEpgProgress(currentEvent.startTimestamp, currentEvent.stopTimestamp)
+    val startTime = formatTimestampToHour(currentEvent.startTimestamp)
+
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = startTime,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                modifier = Modifier.padding(end = 8.dp)
+            )
             Text(
                 text = currentEvent.title,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (nextEvent != null && nextEventTime != null) {
+        }
+
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+        )
+
+        if (nextEvent != null) {
+            val nextStartTime = formatTimestampToHour(nextEvent.startTimestamp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "A continuación: ${nextEvent.title} ($nextEventTime)",
+                    text = nextStartTime,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = nextEvent.title,
                     fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -793,7 +844,6 @@ private fun formatTimestampToHour(timestamp: Long): String {
     }
     return sdf.format(Date(timestamp * 1000))
 }
-
 
 @Composable
 fun SortOptionsDialog(

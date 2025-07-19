@@ -12,7 +12,7 @@ import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.player.PlayerViewModel
-import com.kybers.play.ui.sync.SyncViewModel // ¡CORRECCIÓN! Se añade la importación que faltaba.
+import com.kybers.play.ui.sync.SyncViewModel
 
 /**
  * Fábrica para el LoginViewModel, que solo necesita el UserRepository.
@@ -43,6 +43,7 @@ class ContentViewModelFactory(
             modelClass.isAssignableFrom(HomeViewModel::class.java) -> {
                 HomeViewModel(contentRepository, currentUser) as T
             }
+            // ¡CORRECCIÓN! Nos aseguramos de que pueda crear el ChannelsViewModel.
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
                 ChannelsViewModel(application, contentRepository, currentUser, preferenceManager, syncManager) as T
             }
@@ -73,7 +74,6 @@ class SyncViewModelFactory(
     private val syncManager: SyncManager
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        // ¡CORRECCIÓN! Se asegura de que la lógica para crear el SyncViewModel esté aquí.
         if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return SyncViewModel(contentRepository, syncManager) as T
