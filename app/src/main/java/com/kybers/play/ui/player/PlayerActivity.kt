@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import com.kybers.play.ui.PlayerViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
+import android.util.Log // Importación necesaria para Log
 
 class PlayerActivity : ComponentActivity() {
 
@@ -23,10 +24,14 @@ class PlayerActivity : ComponentActivity() {
 
         // Obtenemos la URL del stream desde el Intent que inició esta actividad
         val streamUrl = intent.getStringExtra("STREAM_URL")
-        val streamTitle = intent.getStringExtra("STREAM_TITLE") ?: "Stream"
+        val streamTitle = intent.getStringExtra("STREAM_TITLE") ?: "Stream Desconocido" // Valor por defecto mejorado
+
+        Log.d("PlayerActivity", "onCreate: Recibida STREAM_URL: $streamUrl")
+        Log.d("PlayerActivity", "onCreate: Recibida STREAM_TITLE: $streamTitle")
 
         // Si no hay URL, no podemos hacer nada, así que cerramos la actividad.
         if (streamUrl.isNullOrEmpty()) {
+            Log.e("PlayerActivity", "onCreate: STREAM_URL es nula o vacía. Terminando actividad.")
             finish()
             return
         }

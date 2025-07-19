@@ -64,6 +64,20 @@ open class ContentRepository(
         }
     }
 
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Obtiene las categorías de películas desde la API.
+     * La necesitamos para la nueva pantalla de películas.
+     */
+    open suspend fun getMovieCategories(user: String, pass: String): List<Category> {
+        return try {
+            apiService.getMovieCategories(user, pass).body() ?: emptyList()
+        } catch (e: IOException) {
+            Log.e("ContentRepository", "Error al obtener categorías de películas: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun cacheLiveStreams(user: String, pass: String, userId: Int) {
         val liveCategories = getLiveCategories(user, pass)
         val allStreamsForUser = mutableListOf<LiveStream>()

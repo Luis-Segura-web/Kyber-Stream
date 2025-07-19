@@ -14,11 +14,15 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.ui.player.AspectRatioMode
+import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
+import com.kybers.play.ui.player.toAspectRatioMode
+import com.kybers.play.ui.player.toSortOrder // ¡IMPORTACIÓN CLAVE AÑADIDA!
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,24 +36,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Enum para representar el estado actual del reproductor.
-enum class PlayerStatus {
-    IDLE, BUFFERING, PLAYING, ERROR, PAUSED
-}
-
 // Enum para las opciones de ordenamiento.
 enum class SortOrder {
     DEFAULT, // Orden original del servicio (por ID o el que venga por defecto de la API)
     AZ,      // Alfabético A-Z
     ZA       // Alfabético Z-A
-}
-
-// Enum para los modos de relación de aspecto.
-enum class AspectRatioMode {
-    FIT_SCREEN,   // Ajustar a la pantalla (por defecto de VLC, escala 0.0f)
-    FILL_SCREEN,  // Llenar la pantalla (puede recortar, escala 1.0f si no hay ratio específico)
-    ASPECT_16_9,  // Relación de aspecto 16:9
-    ASPECT_4_3    // Relación de aspecto 4:3
 }
 
 // Data class para representar una categoría de canales que puede expandirse o contraerse.
@@ -113,7 +104,6 @@ open class ChannelsViewModel(
     private val _originalCategories = MutableStateFlow<List<ExpandableCategory>>(emptyList())
     private val _favoriteChannelIds = MutableStateFlow<Set<String>>(emptySet())
 
-    // ¡NUEVO! Este mapa en memoria contendrá toda la EPG y será nuestra fuente de hipervelocidad.
     private var epgCacheMap: Map<Int, List<EpgEvent>> = emptyMap()
 
     private val _scrollToItemEvent = MutableSharedFlow<String>()
@@ -156,6 +146,7 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
+        // ¡CORREGIDO! Ahora la función toSortOrder se encuentra gracias a la nueva importación.
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
@@ -428,40 +419,39 @@ open class ChannelsViewModel(
 
             if (categoryIndex != -1) {
                 val category = currentOriginals[categoryIndex]
-                val isExpanding = !category.isExpanded
+                val isNowExpanding = !category.isExpanded
 
-                for (i in currentOriginals.indices) {
-                    currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
+                if (isNowExpanding) {
+                    for (i in currentOriginals.indices) {
+                        currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
+                    }
+                    _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
                 }
-                _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
 
-                if (isExpanding && !category.epgLoaded) {
+                val updatedCategory = if (isNowExpanding && !category.epgLoaded) {
                     val enrichedChannels = contentRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
-                    currentOriginals[categoryIndex] = category.copy(
+                    category.copy(
                         channels = enrichedChannels,
                         isExpanded = true,
                         epgLoaded = true
                     )
                 } else {
-                    currentOriginals[categoryIndex] = category.copy(isExpanded = isExpanding)
+                    category.copy(isExpanded = isNowExpanding)
                 }
+                currentOriginals[categoryIndex] = updatedCategory
 
                 _originalCategories.value = currentOriginals
                 filterAndSortCategories()
+
                 _scrollToItemEvent.emit(categoryId)
             }
         }
     }
 
-    /**
-     * ¡NUEVA LÓGICA DE CARGA!
-     * Carga los canales y luego precarga TODA la EPG en un mapa en memoria.
-     */
     private fun loadInitialChannelsAndPreloadEpg() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                // Fase 1: Carga rápida de canales y categorías (sin EPG)
                 val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
                 val allChannels = contentRepository.getRawLiveStreams(currentUser.id).first()
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
@@ -472,10 +462,9 @@ open class ChannelsViewModel(
                     )
                 }
                 _originalCategories.value = expandableCategories
-                filterAndSortCategories() // Muestra la lista al usuario inmediatamente
+                filterAndSortCategories()
                 _uiState.update { it.copy(isLoading = false) }
 
-                // Fase 2: Precarga masiva de EPG en segundo plano
                 Log.d("ChannelsViewModel", "Iniciando precarga de EPG en memoria...")
                 epgCacheMap = contentRepository.getAllEpgMapForUser(currentUser.id)
                 Log.d("ChannelsViewModel", "Precarga de EPG completada. ${epgCacheMap.size} canales tienen EPG en caché.")
@@ -543,14 +532,16 @@ open class ChannelsViewModel(
 
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
-            val isExpanding = !_uiState.value.isFavoritesCategoryExpanded
+            val isNowExpanding = !_uiState.value.isFavoritesCategoryExpanded
 
-            val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
-            _originalCategories.value = collapsedCategories
+            if (isNowExpanding) {
+                val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
+                _originalCategories.value = collapsedCategories
+            }
 
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = isExpanding) }
+            _uiState.update { it.copy(isFavoritesCategoryExpanded = isNowExpanding) }
 
-            if(isExpanding) {
+            if(isNowExpanding) {
                 val favoriteChannels = getFavoriteChannels()
                 val enrichedFavorites = contentRepository.enrichChannelsWithEpg(favoriteChannels, epgCacheMap)
 
@@ -597,21 +588,5 @@ open class ChannelsViewModel(
         if (timestamp == 0L) return "Nunca"
         val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
         return sdf.format(Date(timestamp))
-    }
-}
-
-fun String.toSortOrder(): SortOrder {
-    return try {
-        SortOrder.valueOf(this)
-    } catch (e: IllegalArgumentException) {
-        SortOrder.DEFAULT
-    }
-}
-
-fun String.toAspectRatioMode(): AspectRatioMode {
-    return try {
-        AspectRatioMode.valueOf(this)
-    } catch (e: IllegalArgumentException) {
-        AspectRatioMode.FIT_SCREEN
     }
 }

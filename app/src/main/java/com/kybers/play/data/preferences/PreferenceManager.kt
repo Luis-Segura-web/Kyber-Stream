@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 
 /**
  * Manages user preferences using SharedPreferences.
- * Currently handles the sorting order for channels and categories, and aspect ratio mode.
+ * Handles sorting orders, aspect ratio, and favorite IDs.
  *
  * @param context The application context.
  */
@@ -18,12 +18,12 @@ class PreferenceManager(context: Context) {
         private const val PREFS_NAME = "app_preferences"
         private const val KEY_SORT_ORDER_PREFIX = "sort_order_"
         private const val KEY_ASPECT_RATIO_MODE = "aspect_ratio_mode"
+        // ¡NUEVO! Clave para guardar los IDs de las películas favoritas.
+        private const val KEY_FAVORITE_MOVIE_IDS = "favorite_movie_ids"
     }
 
     /**
-     * Saves the selected sorting order for a specific key (e.g., "category" or "channel").
-     * @param key The key to identify the preference (e.g., "category", "channel").
-     * @param sortOrder The SortOrder enum value to save as a String.
+     * Saves the selected sorting order for a specific key.
      */
     fun saveSortOrder(key: String, sortOrder: String) {
         with(sharedPreferences.edit()) {
@@ -34,8 +34,6 @@ class PreferenceManager(context: Context) {
 
     /**
      * Retrieves the saved sorting order for a specific key.
-     * @param key The key to identify the preference.
-     * @return The saved SortOrder enum value as a String, or "DEFAULT" if not found.
      */
     fun getSortOrder(key: String): String {
         return sharedPreferences.getString(KEY_SORT_ORDER_PREFIX + key, "DEFAULT") ?: "DEFAULT"
@@ -43,7 +41,6 @@ class PreferenceManager(context: Context) {
 
     /**
      * Saves the selected aspect ratio mode.
-     * @param mode The AspectRatioMode enum value to save as a String.
      */
     fun saveAspectRatioMode(mode: String) {
         with(sharedPreferences.edit()) {
@@ -54,9 +51,29 @@ class PreferenceManager(context: Context) {
 
     /**
      * Retrieves the saved aspect ratio mode.
-     * @return The saved AspectRatioMode enum value as a String, or "FIT_SCREEN" if not found.
      */
     fun getAspectRatioMode(): String {
         return sharedPreferences.getString(KEY_ASPECT_RATIO_MODE, "FIT_SCREEN") ?: "FIT_SCREEN"
+    }
+
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Guarda el conjunto de IDs de películas favoritas.
+     * @param ids Un Set de Strings con los IDs de las películas.
+     */
+    fun saveFavoriteMovieIds(ids: Set<String>) {
+        with(sharedPreferences.edit()) {
+            putStringSet(KEY_FAVORITE_MOVIE_IDS, ids)
+            apply()
+        }
+    }
+
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Recupera el conjunto de IDs de películas favoritas.
+     * @return Un Set de Strings, o un conjunto vacío si no hay ninguno guardado.
+     */
+    fun getFavoriteMovieIds(): Set<String> {
+        return sharedPreferences.getStringSet(KEY_FAVORITE_MOVIE_IDS, emptySet()) ?: emptySet()
     }
 }

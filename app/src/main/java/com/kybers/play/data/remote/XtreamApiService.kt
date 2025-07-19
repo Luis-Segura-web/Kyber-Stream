@@ -35,6 +35,11 @@ interface XtreamApiService {
         @Query("category_id") categoryId: Int
     ): Response<List<LiveStream>>
 
+    /**
+     * ¡MODIFICADO!
+     * Confirmamos que este endpoint está definido. Es el que usa nuestro ContentRepository
+     * para obtener la lista de categorías de películas.
+     */
     @GET("player_api.php?action=get_vod_categories")
     suspend fun getMovieCategories(
         @Query("username") username: String,

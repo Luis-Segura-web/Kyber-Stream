@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
 import com.kybers.play.MainApplication
 import com.kybers.play.ui.ContentViewModelFactory
+import com.kybers.play.ui.MovieDetailsViewModelFactory // Importación necesaria
 import com.kybers.play.ui.theme.IPTVAppTheme
 import kotlinx.coroutines.launch
 
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // 1. Recuperamos el ID del usuario que fue pasado desde LoginActivity.
-        val userId = intent.getIntExtra("USER_ID", 1)
+        val userId = intent.getIntExtra("USER_ID", -1)
 
         // 2. Obtenemos acceso a nuestro contenedor de dependencias.
         val appContainer = (application as MainApplication).container
@@ -37,20 +38,31 @@ class MainActivity : ComponentActivity() {
                 return@launch
             }
 
-            // 6. Creamos la fábrica de ViewModels para el contenido.
-            // ¡CONFIRMADO! Aquí ya se está pasando el objeto 'user' completo.
+            // 6. Creamos las dependencias que se necesitarán en las diferentes pantallas.
+            val contentRepository = appContainer.createContentRepository(user.url)
+            val preferenceManager = appContainer.preferenceManager
+            val syncManager = appContainer.syncManager
+
+            // 7. Creamos la fábrica de ViewModels para el contenido principal.
             contentViewModelFactory = ContentViewModelFactory(
                 application = application,
-                contentRepository = appContainer.createContentRepository(user.url),
-                currentUser = user, // <-- ¡Aquí está el user, perfecto!
-                preferenceManager = appContainer.preferenceManager,
-                syncManager = appContainer.syncManager
+                contentRepository = contentRepository,
+                currentUser = user,
+                preferenceManager = preferenceManager,
+                syncManager = syncManager
             )
 
-            // 7. Establecemos el contenido de la actividad.
+            // 8. Establecemos el contenido de la actividad.
             setContent {
                 IPTVAppTheme {
-                    MainScreen(contentViewModelFactory = contentViewModelFactory)
+                    // ¡CAMBIO CLAVE! Pasamos todas las dependencias a MainScreen.
+                    MainScreen(
+                        contentViewModelFactory = contentViewModelFactory,
+                        contentRepository = contentRepository,
+                        preferenceManager = preferenceManager,
+                        currentUser = user,
+                        syncManager = syncManager
+                    )
                 }
             }
         }

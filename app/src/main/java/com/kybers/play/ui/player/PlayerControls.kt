@@ -57,20 +57,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.concurrent.TimeUnit
+import com.kybers.play.ui.player.TrackInfo // ¡IMPORTACIÓN AÑADIDA!
 
 /**
- * ¡NUEVO! Se define la clase de datos aquí para que sea accesible en todo el módulo de UI.
- * En un proyecto más grande, esto podría ir en su propio archivo (ej. `TrackInfo.kt`).
- *
- * @param id El identificador único de la pista.
- * @param name El nombre legible de la pista (ej. "Español", "720p").
- * @param isSelected Verdadero si esta es la pista actualmente activa.
+ * ¡Eliminada la definición de TrackInfo de aquí!
+ * Ahora se importa desde com.kybers.play.ui.player.PlayerEnums.kt
  */
-data class TrackInfo(
-    val id: Int,
-    val name: String,
-    val isSelected: Boolean
-)
+// data class TrackInfo(
+//     val id: Int,
+//     val name: String,
+//     val isSelected: Boolean
+// )
 
 @Composable
 fun PlayerControls(

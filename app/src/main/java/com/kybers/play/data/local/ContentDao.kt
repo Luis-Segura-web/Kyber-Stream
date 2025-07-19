@@ -43,6 +43,12 @@ interface MovieDao {
     @Query("SELECT * FROM movies WHERE categoryId = :categoryId AND userId = :userId")
     fun getMoviesByCategory(categoryId: String, userId: Int): Flow<List<Movie>>
 
+    /**
+     * ¡MODIFICADO!
+     * Nos aseguramos de que esta función exista y devuelva un Flow.
+     * Nuestro MoviesViewModel la usará para obtener todas las películas de una vez
+     * y manejarlas en memoria, lo cual es muy eficiente.
+     */
     @Query("SELECT * FROM movies WHERE userId = :userId")
     fun getAllMovies(userId: Int): Flow<List<Movie>>
 

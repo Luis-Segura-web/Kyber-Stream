@@ -103,9 +103,10 @@ import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.PlayerControls
+import com.kybers.play.ui.player.PlayerStatus // Importación crítica para PlayerStatus
 import com.kybers.play.ui.player.VLCPlayer
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collectLatest // ¡IMPORTACIÓN AÑADIDA/RECONFIRMADA!
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -142,29 +143,37 @@ fun ChannelsScreen(
     }
 
     var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
+    // Este LaunchedEffect ya estaba bien, solo la importación de collectLatest faltaba.
     LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds, uiState.isFavoritesCategoryExpanded, uiState.categories) {
         favoriteChannels = viewModel.getFavoriteChannels()
     }
 
-    LaunchedEffect(uiState.categories, uiState.isFavoritesCategoryExpanded, favoriteChannels) {
-        viewModel.scrollToItemEvent.collectLatest { targetId ->
+    // ¡CAMBIO CLAVE! Se ha modificado el LaunchedEffect para que sea igual al de la pantalla de películas.
+    LaunchedEffect(Unit) {
+        // collectLatest es una función de suspensión, por eso debe estar dentro de un coroutine scope como LaunchedEffect
+        viewModel.scrollToItemEvent.collectLatest { targetId -> // ¡collectLatest aquí!
             var targetIndex = -1
             var currentIndex = 0
 
             if (targetId == "favorites") {
                 targetIndex = 0
             } else {
+                // Contamos el encabezado de favoritos
                 currentIndex++
+                // Contamos los canales favoritos si la sección está expandida
                 if (uiState.isFavoritesCategoryExpanded) {
                     currentIndex += favoriteChannels.size
                 }
 
+                // Recorremos las categorías para encontrar la correcta
                 for (category in uiState.categories) {
                     if (category.category.categoryId == targetId) {
                         targetIndex = currentIndex
                         break
                     }
+                    // Contamos el encabezado de la categoría
                     currentIndex++
+                    // Contamos los canales si la categoría está expandida
                     if (category.isExpanded) {
                         currentIndex += category.channels.size
                     }
@@ -232,7 +241,7 @@ fun ChannelsScreen(
 
             if (!uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
                 layoutParams.screenBrightness = uiState.originalBrightness
-                window.attributes = layoutParams
+                window.attributes = layoutParams // ¡CORRECCIÓN RECONFIRMADA!
                 viewModel.setScreenBrightness(uiState.originalBrightness)
             }
         }
@@ -581,13 +590,14 @@ private fun ChannelListSection(
         LazyColumn(
             state = lazyListState,
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(vertical = 8.dp)
         ) {
             stickyHeader(key = "favorites") {
                 CategoryHeader(
                     categoryName = "Favoritos",
                     isExpanded = uiState.isFavoritesCategoryExpanded,
-                    onHeaderClick = { viewModel.onFavoritesCategoryToggled() }
+                    onHeaderClick = { viewModel.onFavoritesCategoryToggled() },
+                    itemCount = favoriteChannels.size
                 )
             }
             if (uiState.isFavoritesCategoryExpanded) {
@@ -620,7 +630,8 @@ private fun ChannelListSection(
                     CategoryHeader(
                         categoryName = expandableCategory.category.categoryName,
                         isExpanded = expandableCategory.isExpanded,
-                        onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) }
+                        onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
+                        itemCount = expandableCategory.channels.size
                     )
                 }
                 if (expandableCategory.isExpanded) {
@@ -678,7 +689,8 @@ fun SearchBar(
 fun CategoryHeader(
     categoryName: String,
     isExpanded: Boolean,
-    onHeaderClick: () -> Unit
+    onHeaderClick: () -> Unit,
+    itemCount: Int? = null
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -691,10 +703,13 @@ fun CategoryHeader(
                 .padding(vertical = 12.dp, horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val title = if (itemCount != null) "$categoryName ($itemCount)" else categoryName
             Text(
-                text = categoryName,
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Icon(
                 imageVector = Icons.Default.ArrowDropDown,
@@ -721,7 +736,7 @@ fun ChannelListItem(
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .clickable { onChannelClick(channel) }
-            .padding(vertical = 6.dp, horizontal = 8.dp),
+            .padding(vertical = 6.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
