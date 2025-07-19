@@ -43,16 +43,15 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -83,11 +82,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,12 +99,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.PlayerControls
 import com.kybers.play.ui.player.VLCPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -353,7 +356,9 @@ private fun PlayerSection(
     }
 
     val playerModifier = if (uiState.isPlayerVisible) {
-        if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+        if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f)
     } else {
         Modifier.height(0.dp)
     }
@@ -531,8 +536,6 @@ private fun SystemVolumeReceiver(audioManager: AudioManager, onVolumeChange: (In
 private fun ChannelListSection(viewModel: ChannelsViewModel, lazyListState: LazyListState) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Mueve la declaración y el LaunchedEffect para favoriteChannels aquí,
-    // fuera de cualquier bloque condicional directo, pero dentro del Composable.
     var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
     LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds) {
         favoriteChannels = viewModel.getFavoriteChannels()
@@ -689,12 +692,12 @@ fun ChannelListItem(
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .clickable { onChannelClick(channel) }
-            .padding(start = 8.dp, top = 6.dp, bottom = 6.dp),
+            .padding(vertical = 6.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(56.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.White)
         ) {
@@ -711,13 +714,21 @@ fun ChannelListItem(
         }
         Spacer(modifier = Modifier.width(12.dp))
 
-        Text(
-            text = channel.name,
-            fontSize = 15.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = channel.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                maxLines = 3, // ¡CAMBIO! Se permiten hasta 3 líneas.
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+            EpgInfo(
+                currentEvent = channel.currentEpgEvent,
+                nextEvent = channel.nextEpgEvent
+            )
+        }
 
         IconButton(onClick = { onToggleFavorite(channel) }) {
             Icon(
@@ -728,6 +739,61 @@ fun ChannelListItem(
         }
     }
 }
+
+@Composable
+fun EpgInfo(currentEvent: EpgEvent?, nextEvent: EpgEvent?) {
+    // ¡CAMBIO! Si no hay evento, simplemente no se muestra nada.
+    if (currentEvent != null) {
+        val progress = calculateEpgProgress(currentEvent.startTimestamp, currentEvent.stopTimestamp)
+        val nextEventTime = nextEvent?.let { formatTimestampToHour(it.startTimestamp) }
+
+        Column {
+            Text(
+                text = currentEvent.title,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            if (nextEvent != null && nextEventTime != null) {
+                Text(
+                    text = "A continuación: ${nextEvent.title} ($nextEventTime)",
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+private fun calculateEpgProgress(start: Long, end: Long): Float {
+    val now = System.currentTimeMillis() / 1000
+    if (now < start || start >= end) return 0f
+    if (now > end) return 1f
+
+    val totalDuration = (end - start).toFloat()
+    val elapsed = (now - start).toFloat()
+    return (elapsed / totalDuration).coerceIn(0f, 1f)
+}
+
+private fun formatTimestampToHour(timestamp: Long): String {
+    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+        timeZone = TimeZone.getDefault()
+    }
+    return sdf.format(Date(timestamp * 1000))
+}
+
 
 @Composable
 fun SortOptionsDialog(
@@ -743,7 +809,7 @@ fun SortOptionsDialog(
         text = {
             Column {
                 Text("Ordenar Categorías por:", style = MaterialTheme.typography.titleSmall)
-                SortOrder.entries.forEach { order ->
+                SortOrder.values().forEach { order ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -762,7 +828,7 @@ fun SortOptionsDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Ordenar Canales por:", style = MaterialTheme.typography.titleSmall)
-                SortOrder.entries.forEach { order ->
+                SortOrder.values().forEach { order ->
                     Row(
                         Modifier
                             .fillMaxWidth()

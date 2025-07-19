@@ -2,7 +2,7 @@ package com.kybers.play.ui.sync
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log // <-- ¡NUEVA IMPORTACIÓN!
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,7 +28,6 @@ class SyncActivity : ComponentActivity() {
     // El ViewModel se inicializa más tarde, una vez que currentUser esté disponible.
     private val syncViewModel: SyncViewModel by viewModels {
         // Asegurarse de que currentUser no sea nulo antes de usarlo.
-        // Si es nulo aquí, es un error de lógica que debe ser manejado antes.
         val user = currentUser ?: throw IllegalStateException("User must be set before accessing SyncViewModel.")
         val appContainer = (application as MainApplication).container
         val contentRepository = appContainer.createContentRepository(user.url)
@@ -70,7 +69,6 @@ class SyncActivity : ComponentActivity() {
                     }
                 }
                 // Iniciar el proceso de sincronización después de que la UI esté configurada.
-                // Asegurarse de que currentUser no sea nulo al pasarlo.
                 currentUser?.let { syncViewModel.startSync(it) } ?: Log.e("SyncActivity", "Error: currentUser es nulo al intentar iniciar la sincronización.")
             }
         }

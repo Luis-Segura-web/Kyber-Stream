@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,14 +51,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kybers.play.ui.channels.TrackInfo
 import java.util.concurrent.TimeUnit
+
+/**
+ * ¡NUEVO! Se define la clase de datos aquí para que sea accesible en todo el módulo de UI.
+ * En un proyecto más grande, esto podría ir en su propio archivo (ej. `TrackInfo.kt`).
+ *
+ * @param id El identificador único de la pista.
+ * @param name El nombre legible de la pista (ej. "Español", "720p").
+ * @param isSelected Verdadero si esta es la pista actualmente activa.
+ */
+data class TrackInfo(
+    val id: Int,
+    val name: String,
+    val isSelected: Boolean
+)
 
 @Composable
 fun PlayerControls(
@@ -229,7 +240,9 @@ private fun TopControls(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -339,7 +352,9 @@ private fun BottomControls(
                     onAnyInteraction()
                     onSeek((progress * duration).toLong())
                 },
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -439,7 +454,9 @@ private fun VerticalSlider(
             Slider(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.width(180.dp).rotate(-90f),
+                modifier = Modifier
+                    .width(180.dp)
+                    .rotate(-90f),
                 colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
             )
         }
@@ -468,7 +485,10 @@ private fun TrackMenu(
             tracks.forEach { track ->
                 DropdownMenuItem(
                     text = { Text(track.name, color = MaterialTheme.colorScheme.onSurface) },
-                    onClick = { onSelectTrack(track.id) },
+                    onClick = {
+                        onSelectTrack(track.id)
+                        onToggleMenu(false) // Ocultar el menú al seleccionar
+                    },
                     trailingIcon = { if (track.isSelected) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) } }
                 )
             }

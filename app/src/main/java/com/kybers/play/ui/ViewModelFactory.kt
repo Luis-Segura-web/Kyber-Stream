@@ -10,21 +10,20 @@ import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.home.HomeViewModel
-import com.kybers.play.ui.login.LoginViewModel // <--- ¡ASEGÚRATE DE QUE ESTA IMPORTACIÓN ESTÉ AQUÍ Y SEA CORRECTA!
+import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.player.PlayerViewModel
-import com.kybers.play.ui.sync.SyncViewModel
+import com.kybers.play.ui.sync.SyncViewModel // ¡CORRECCIÓN! Se añade la importación que faltaba.
 
 /**
  * Fábrica para el LoginViewModel, que solo necesita el UserRepository.
  */
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        // Verifica si la clase del modelo es asignable a LoginViewModel
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return LoginViewModel(userRepository) as T
         }
-        throw IllegalArgumentException("Clase de ViewModel desconocida: ${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
 
@@ -47,7 +46,7 @@ class ContentViewModelFactory(
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
                 ChannelsViewModel(application, contentRepository, currentUser, preferenceManager, syncManager) as T
             }
-            else -> throw IllegalArgumentException("Clase de ViewModel desconocida: ${modelClass.name}")
+            else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }
@@ -61,7 +60,7 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
             @Suppress("UNCHECKED_CAST")
             return PlayerViewModel(application) as T
         }
-        throw IllegalArgumentException("Clase de ViewModel desconocida: ${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
 
@@ -74,10 +73,11 @@ class SyncViewModelFactory(
     private val syncManager: SyncManager
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        // ¡CORRECCIÓN! Se asegura de que la lógica para crear el SyncViewModel esté aquí.
         if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return SyncViewModel(contentRepository, syncManager) as T
         }
-        throw IllegalArgumentException("Clase de ViewModel desconocida: ${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

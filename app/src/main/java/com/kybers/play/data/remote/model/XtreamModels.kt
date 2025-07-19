@@ -1,9 +1,9 @@
 package com.kybers.play.data.remote.model
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import androidx.room.Ignore
 import com.squareup.moshi.Json
+import android.util.Base64
 
 /**
  * Representa la respuesta principal de la API al hacer login.
@@ -123,19 +123,67 @@ data class Series(
     var userId: Int = 0
 }
 
+// --- ¡NUEVOS MODELOS PARA EPG! ---
+
 /**
- * ¡NUEVO! Representa un evento de EPG (un programa de televisión).
- * Será una entidad de Room para cachear los datos EPG.
- * ¡CORREGIDO! Clave primaria ajustada.
- * ¡CORREGIDO! userId y channelId son ahora 'var' para permitir su asignación.
+ * Clase contenedora para la respuesta de la API de EPG.
+ * La API devuelve un objeto JSON que contiene una lista llamada "epg_listings".
  */
-@Entity(tableName = "epg_events", primaryKeys = ["epgId", "userId"])
-data class EpgEvent(
-    var userId: Int, // <--- ¡CAMBIO CLAVE AQUÍ! Ahora es 'var'
-    @Json(name = "epg_id") val epgId: String,
-    @Json(name = "title") val title: String,
+data class EpgListingsResponse(
+    @Json(name = "epg_listings") val epgListings: List<ApiEpgEvent>?
+)
+
+/**
+ * Representa un evento EPG tal como viene de la API.
+ * No se guarda directamente en la base de datos, es un modelo intermedio.
+ * Contiene los campos codificados en Base64.
+ */
+data class ApiEpgEvent(
+    @Json(name = "id") val id: String,
     @Json(name = "start_timestamp") val startTimestamp: Long,
-    @Json(name = "end_timestamp") val endTimestamp: Long,
-    @Json(name = "description") val description: String?,
-    var channelId: Int // <--- ¡CAMBIO CLAVE AQUÍ! Ahora es 'var'
+    @Json(name = "stop_timestamp") val stopTimestamp: Long,
+    @Json(name = "title") private val base64Title: String,
+    @Json(name = "description") private val base64Description: String
+) {
+    /**
+     * Convierte este objeto de API a un objeto EpgEvent para la base de datos.
+     * Aquí es donde ocurre la magia de la decodificación.
+     */
+    fun toEpgEvent(streamId: Int, currentUserId: Int): EpgEvent {
+        return EpgEvent(
+            apiEventId = this.id,
+            channelId = streamId,
+            userId = currentUserId,
+            title = decodeBase64(this.base64Title),
+            description = decodeBase64(this.base64Description),
+            startTimestamp = this.startTimestamp,
+            stopTimestamp = this.stopTimestamp
+        )
+    }
+
+    private fun decodeBase64(input: String): String {
+        return try {
+            Base64.decode(input, Base64.DEFAULT).toString(Charsets.UTF_8).trim()
+        } catch (e: Exception) {
+            // Si la decodificación falla, devuelve el texto original.
+            input
+        }
+    }
+}
+
+/**
+ * ¡REDEFINIDO! Representa un evento EPG en nuestra base de datos Room.
+ * Almacena los datos ya decodificados y limpios.
+ * La clave primaria ahora es una combinación del ID del evento, el ID del canal y el ID del usuario
+ * para garantizar que cada entrada sea única.
+ */
+@Entity(tableName = "epg_events", primaryKeys = ["apiEventId", "channelId", "userId"])
+data class EpgEvent(
+    val apiEventId: String,
+    val channelId: Int,
+    val userId: Int,
+    val title: String,
+    val description: String,
+    val startTimestamp: Long,
+    val stopTimestamp: Long
 )

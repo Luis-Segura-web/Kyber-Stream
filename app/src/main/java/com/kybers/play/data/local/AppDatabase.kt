@@ -9,12 +9,12 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
-import com.kybers.play.data.remote.model.EpgEvent // <--- ¡NUEVA IMPORTACIÓN!
+import com.kybers.play.data.remote.model.EpgEvent
 
 @Database(
     // ¡MODIFICADO! Añadimos EpgEvent a la lista de entidades
     entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class],
-    version = 2, // La versión ya está incrementada, perfecto.
+    version = 3, // ¡CORRECCIÓN CLAVE! Se incrementa la versión de 2 a 3 para reflejar los cambios en el esquema.
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,7 +37,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    .fallbackToDestructiveMigration() // Esto recreará la base de datos si hay cambios de esquema
+                    // Esta línea es nuestra salvación en desarrollo.
+                    // Le dice a Room que si la versión cambia, simplemente borre la base de datos
+                    // anterior y cree una nueva. Evita tener que escribir migraciones complejas.
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

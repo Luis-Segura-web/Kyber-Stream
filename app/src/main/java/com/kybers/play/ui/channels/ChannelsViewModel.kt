@@ -2,6 +2,7 @@ package com.kybers.play.ui.channels
 
 import android.app.Application
 import android.media.AudioManager
+import android.os.Build
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -12,13 +13,16 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.ui.player.TrackInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -54,15 +58,7 @@ enum class AspectRatioMode {
 data class ExpandableCategory(
     val category: Category,
     val channels: List<LiveStream> = emptyList(),
-    val isExpanded: Boolean = false,
-    val isLoading: Boolean = false
-)
-
-// Data class para la información de las pistas de audio, subtítulos o video.
-data class TrackInfo(
-    val id: Int,
-    val name: String,
-    val isSelected: Boolean
+    val isExpanded: Boolean = false
 )
 
 // Data class que representa el estado completo de la UI de la pantalla de canales.
@@ -121,6 +117,9 @@ open class ChannelsViewModel(
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
+    // ¡NUEVO! Job para controlar la carga de la EPG en segundo plano.
+    private var epgEnrichmentJob: Job? = null
+
     private val vlcOptions = arrayListOf(
         "--network-caching=3000",
         "--file-caching=3000",
@@ -156,12 +155,11 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
-        // Las preferencias de ordenación y aspecto son globales, no por usuario.
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
-        // La última sincronización SÍ es por usuario.
-        val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
+        val lastSyncTime = syncManager.isSyncNeeded(currentUser.id).let { if (it) 0L else System.currentTimeMillis() }
+
 
         _uiState.update {
             it.copy(
@@ -171,7 +169,8 @@ open class ChannelsViewModel(
                 lastUpdatedTimestamp = lastSyncTime
             )
         }
-        loadInitialCategories()
+        // ¡CAMBIO CLAVE! Se llama a la nueva función de carga en dos fases.
+        loadInitialChannels()
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
@@ -189,8 +188,6 @@ open class ChannelsViewModel(
 
     open fun onChannelSelected(channel: LiveStream) {
         viewModelScope.launch {
-            // Asegurarse de que 'channel' es accesible aquí.
-            // Si el error persiste, la estructura de la función onChannelSelected podría estar dañada.
             val allVisibleChannels = (if (_uiState.value.isFavoritesCategoryExpanded) getFavoriteChannels() else emptyList()) +
                     _uiState.value.categories.flatMap { it.channels }
             val index = allVisibleChannels.indexOfFirst { it.streamId == channel.streamId }
@@ -211,7 +208,6 @@ open class ChannelsViewModel(
             }
 
             val streamUrl = buildStreamUrl(channel)
-
             val media = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }
@@ -219,7 +215,6 @@ open class ChannelsViewModel(
             mediaPlayer.media = media
             mediaPlayer.play()
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
-
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
         }
     }
@@ -228,8 +223,6 @@ open class ChannelsViewModel(
         mediaPlayer.time = position
         _uiState.update { it.copy(currentPosition = position) }
     }
-
-    // --- System Controls State Management ---
 
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
         _uiState.update {
@@ -252,25 +245,26 @@ open class ChannelsViewModel(
 
     fun onToggleMute(audioManager: AudioManager) {
         val isMuted = !_uiState.value.isMuted
-        audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMuted)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val adjustDirection = if (isMuted) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustDirection, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMuted)
+        }
         _uiState.update { it.copy(isMuted = isMuted) }
     }
-
-    // --- Track Selection ---
 
     private fun updateTrackInfo() {
         val audioTracks = mediaPlayer.audioTracks?.map {
             TrackInfo(it.id, it.name, it.id == mediaPlayer.audioTrack)
         } ?: emptyList()
-
         val subtitleTracks = mediaPlayer.spuTracks?.map {
             TrackInfo(it.id, it.name, it.id == mediaPlayer.spuTrack)
         } ?: emptyList()
-
         val videoTracks = mediaPlayer.videoTracks?.map {
             TrackInfo(it.id, it.name, it.id == mediaPlayer.videoTrack)
         } ?: emptyList()
-
         _uiState.update {
             it.copy(
                 availableAudioTracks = audioTracks,
@@ -301,8 +295,6 @@ open class ChannelsViewModel(
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
     fun toggleVideoMenu(show: Boolean) = _uiState.update { it.copy(showVideoMenu = show) }
-
-    // --- Playback and Navigation ---
 
     fun retryPlayback() {
         uiState.value.currentlyPlaying?.let { onChannelSelected(it) }
@@ -357,7 +349,6 @@ open class ChannelsViewModel(
     }
 
     open fun hidePlayer() {
-        mediaPlayer.stop()
         _uiState.update {
             it.copy(
                 isPlayerVisible = false,
@@ -370,46 +361,17 @@ open class ChannelsViewModel(
         }
     }
 
-    /**
-     * Función para actualizar manualmente los canales.
-     * Muestra un indicador de carga, realiza la sincronización de datos
-     * y actualiza la marca de tiempo de la última actualización.
-     * Los datos siempre se cargarán desde el servidor, luego se guardarán en caché y finalmente
-     * se mostrarán desde esa caché actualizada.
-     */
     fun refreshChannelsManually() {
         viewModelScope.launch {
-            Log.d("ChannelsViewModel", "Iniciando refreshChannelsManually()...")
+            Log.d("ChannelsViewModel", "Iniciando refresco manual de canales...")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
                 withContext(Dispatchers.IO) {
-                    Log.d("ChannelsViewModel", "Caché de LiveStreams para userId: ${currentUser.id}")
                     contentRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
                 }
-
-                val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first()
-                Log.d("ChannelsViewModel", "Canales obtenidos de la DB para userId ${currentUser.id} después del refresh: ${allChannels.size}")
-
-
-                val channelsByCategory = allChannels.groupBy { it.categoryId }
-
-                val expandableCategories = categories.map { category ->
-                    ExpandableCategory(
-                        category = category,
-                        channels = channelsByCategory[category.categoryId] ?: emptyList(),
-                        isExpanded = false,
-                        isLoading = false
-                    )
-                }
-                _originalCategories.value = expandableCategories
-                Log.d("ChannelsViewModel", "Categorías originales actualizadas después del refresh: ${_originalCategories.value.size}")
-                filterAndSortCategories()
-
+                loadInitialChannels() // Esto recargará la lista y disparará la carga de EPG en segundo plano
                 syncManager.saveLastSyncTimestamp(currentUser.id)
-                _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)) }
-                Log.d("ChannelsViewModel", "Sincronización manual completada. Última actualización: ${formatTimestamp(syncManager.getLastSyncTimestamp(currentUser.id))}")
-
+                _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
             } catch (e: Exception) {
                 Log.e("ChannelsViewModel", "Error en refreshChannelsManually(): ${e.message}", e)
             } finally {
@@ -418,7 +380,6 @@ open class ChannelsViewModel(
         }
     }
 
-    // --- Aspect Ratio Control ---
     open fun toggleAspectRatio() {
         val nextMode = when (_uiState.value.currentAspectRatioMode) {
             AspectRatioMode.FIT_SCREEN -> AspectRatioMode.FILL_SCREEN
@@ -452,8 +413,6 @@ open class ChannelsViewModel(
         }
     }
 
-    // --- Category and List Management ---
-
     open fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         filterAndSortCategories()
@@ -461,63 +420,76 @@ open class ChannelsViewModel(
 
     open fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
-            Log.d("ChannelsViewModel", "onCategoryToggled() para categoryId: $categoryId, userId: ${currentUser.id}")
-            val currentOriginals = _originalCategories.value
+            val currentOriginals = _originalCategories.value.toMutableList()
             val categoryIndex = currentOriginals.indexOfFirst { it.category.categoryId == categoryId }
-            if (categoryIndex == -1) {
-                Log.w("ChannelsViewModel", "Categoría no encontrada: $categoryId")
-                return@launch
-            }
-
-            val clickedCategory = currentOriginals[categoryIndex]
-            val isCurrentlyExpanded = clickedCategory.isExpanded
-
-            val newOriginals = currentOriginals.toMutableList()
-
-            for (i in newOriginals.indices) {
-                if (newOriginals[i].category.categoryId != categoryId) {
-                    newOriginals[i] = newOriginals[i].copy(isExpanded = false)
+            if (categoryIndex != -1) {
+                val oldCategory = currentOriginals[categoryIndex]
+                currentOriginals[categoryIndex] = oldCategory.copy(isExpanded = !oldCategory.isExpanded)
+                if (!oldCategory.isExpanded) {
+                    for (i in currentOriginals.indices) {
+                        if (i != categoryIndex) {
+                            currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
+                        }
+                    }
+                    _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
                 }
+                _originalCategories.value = currentOriginals
+                filterAndSortCategories()
+                _scrollToItemEvent.emit(categoryId)
             }
-            _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
-
-            newOriginals[categoryIndex] = clickedCategory.copy(isExpanded = !isCurrentlyExpanded)
-            _originalCategories.value = newOriginals
-            Log.d("ChannelsViewModel", "Estado de expansión de categorías actualizado.")
-
-            filterAndSortCategories()
-            _scrollToItemEvent.emit(categoryId)
         }
     }
 
-
-    private fun loadInitialCategories() {
+    /**
+     * ¡FASE 1! Carga la lista de canales sin EPG para una visualización instantánea.
+     */
+    private fun loadInitialChannels() {
         viewModelScope.launch {
-            Log.d("ChannelsViewModel", "Iniciando loadInitialCategories() para userId: ${currentUser.id}")
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first()
-                Log.d("ChannelsViewModel", "Categorías obtenidas: ${categories.size}, Todos los canales de DB para userId ${currentUser.id}: ${allChannels.size}")
-
+                // Usamos la "vía rápida" para obtener los canales sin EPG
+                val allChannels = contentRepository.getRawLiveStreams(currentUser.id).first()
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
-
                 val expandableCategories = categories.map { category ->
                     ExpandableCategory(
                         category = category,
-                        channels = channelsByCategory[category.categoryId] ?: emptyList(),
-                        isExpanded = false,
-                        isLoading = false
+                        channels = channelsByCategory[category.categoryId] ?: emptyList()
                     )
                 }
                 _originalCategories.value = expandableCategories
-                _uiState.update { it.copy(isLoading = false, categories = expandableCategories) }
+                _uiState.update { it.copy(isLoading = false) }
                 filterAndSortCategories()
-                Log.d("ChannelsViewModel", "Carga inicial de categorías y canales completada.")
+
+                // ¡FASE 2! Disparamos la carga de la EPG en segundo plano.
+                enrichChannelsWithEpg()
             } catch (e: Exception) {
-                Log.e("ChannelsViewModel", "Error en loadInitialCategories(): ${e.message}", e)
+                Log.e("ChannelsViewModel", "Error en loadInitialChannels(): ${e.message}", e)
                 _uiState.update { it.copy(isLoading = false) }
             }
+        }
+    }
+
+    /**
+     * ¡FASE 2! Carga la EPG en segundo plano y actualiza la UI a medida que llega.
+     */
+    private fun enrichChannelsWithEpg() {
+        epgEnrichmentJob?.cancel() // Cancelar cualquier trabajo anterior
+        epgEnrichmentJob = viewModelScope.launch(Dispatchers.IO) {
+            Log.d("ChannelsViewModel", "Iniciando enriquecimiento de EPG en segundo plano...")
+            contentRepository.getAllLiveStreamsWithEpg(currentUser.id)
+                .collectLatest { channelsWithEpg ->
+                    val categories = _originalCategories.value
+                    val channelsByCategory = channelsWithEpg.groupBy { it.categoryId }
+                    val expandableCategories = categories.map { category ->
+                        category.copy(channels = channelsByCategory[category.category.categoryId] ?: category.channels)
+                    }
+                    _originalCategories.value = expandableCategories
+                    // Usamos withContext para asegurarnos de que el filtrado se haga en el hilo principal
+                    withContext(Dispatchers.Main) {
+                        filterAndSortCategories()
+                    }
+                }
         }
     }
 
@@ -551,21 +523,12 @@ open class ChannelsViewModel(
             SortOrder.DEFAULT -> sortedChannelsInCategories
         }
 
-        val categoriesWithCorrectExpansion = finalSortedCategories.map { category ->
-            val shouldBeExpanded = if (query.isNotBlank()) {
-                category.category.categoryName.contains(query, ignoreCase = true) || category.channels.isNotEmpty()
-            } else {
-                masterList.find { it.category.categoryId == category.category.categoryId }?.isExpanded ?: false
-            }
-            category.copy(isExpanded = shouldBeExpanded)
-        }
-
-        _uiState.update { it.copy(categories = categoriesWithCorrectExpansion) }
-        Log.d("ChannelsViewModel", "filterAndSortCategories() ejecutado. Categorías UI: ${_uiState.value.categories.size}")
+        _uiState.update { it.copy(categories = finalSortedCategories) }
     }
 
     internal suspend fun getFavoriteChannels(): List<LiveStream> {
-        val allChannels = contentRepository.getAllLiveStreams(currentUser.id).first().distinctBy { it.streamId }
+        // Obtenemos los canales de la lista que ya tiene la EPG (si está disponible)
+        val allChannels = _originalCategories.value.flatMap { it.channels }.distinctBy { it.streamId }
         val query = _uiState.value.searchQuery.trim()
         val currentChannelSortOrder = _uiState.value.channelSortOrder
 
@@ -573,7 +536,6 @@ open class ChannelsViewModel(
             it.streamId.toString() in _uiState.value.favoriteChannelIds &&
                     it.name.contains(query, ignoreCase = true)
         }
-        Log.d("ChannelsViewModel", "Canales favoritos obtenidos: ${favoriteChannels.size}")
         return when (currentChannelSortOrder) {
             SortOrder.AZ -> favoriteChannels.sortedBy { it.name }
             SortOrder.ZA -> favoriteChannels.sortedByDescending { it.name }
@@ -588,20 +550,14 @@ open class ChannelsViewModel(
 
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
-            Log.d("ChannelsViewModel", "onFavoritesCategoryToggled()")
             val isCurrentlyExpanded = _uiState.value.isFavoritesCategoryExpanded
-
             val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
             _originalCategories.value = collapsedCategories
-
             _uiState.update { it.copy(isFavoritesCategoryExpanded = !isCurrentlyExpanded) }
-
             filterAndSortCategories()
             _scrollToItemEvent.emit("favorites")
         }
     }
-
-    // --- Funciones para el menú de ordenación ---
 
     fun toggleSortMenu(show: Boolean) {
         _uiState.update { it.copy(showSortMenu = show) }
@@ -623,7 +579,6 @@ open class ChannelsViewModel(
         }
     }
 
-    // Función auxiliar para formatear la marca de tiempo a una cadena legible
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
         val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
@@ -631,7 +586,6 @@ open class ChannelsViewModel(
     }
 }
 
-// Extensión para convertir String a SortOrder
 fun String.toSortOrder(): SortOrder {
     return try {
         SortOrder.valueOf(this)
@@ -640,7 +594,6 @@ fun String.toSortOrder(): SortOrder {
     }
 }
 
-// Extensión para convertir String a AspectRatioMode
 fun String.toAspectRatioMode(): AspectRatioMode {
     return try {
         AspectRatioMode.valueOf(this)

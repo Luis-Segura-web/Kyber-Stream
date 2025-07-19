@@ -2,71 +2,74 @@ package com.kybers.play.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log // <-- ¡IMPORTACIÓN NECESARIA!
+import android.util.Log
 import java.util.concurrent.TimeUnit
 
 /**
- * Manages the logic for determining if a data sync is needed.
- * It uses SharedPreferences to persist the timestamp of the last successful sync.
- * ¡MODIFICADO! Ahora gestiona la marca de tiempo por usuario.
- *
- * @param context The application context to access SharedPreferences.
+ * ¡MODIFICADO! Vuelve a gestionar una única marca de tiempo para la EPG por usuario.
  */
 class SyncManager(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "sync_prefs"
-        private const val KEY_LAST_SYNC_TIMESTAMP_PREFIX = "last_sync_timestamp_" // ¡CAMBIO! Prefijo para almacenar por usuario
-        // The sync interval is set to 12 hours.
-        private val SYNC_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(12)
+        // Clave para la sincronización de contenido (canales, películas, series)
+        private const val KEY_CONTENT_LAST_SYNC_TIMESTAMP_PREFIX = "content_last_sync_timestamp_"
+        private val CONTENT_SYNC_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(12)
+
+        // ¡NUEVO! Clave y duración para el caché global de EPG.
+        private const val KEY_EPG_LAST_SYNC_TIMESTAMP_PREFIX = "epg_last_sync_timestamp_"
+        private val EPG_SYNC_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(12)
     }
 
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /**
-     * Checks if a new data sync is required for a specific user.
-     *
-     * @param userId The ID of the user to check.
-     * @return `true` if the last sync for this user was more than 12 hours ago or if it has never been synced.
-     * `false` otherwise.
-     */
-    fun isSyncNeeded(userId: Int): Boolean { // ¡ESTA ES LA FUNCIÓN QUE DEBE ACEPTAR userId!
-        val lastSyncTimestamp = sharedPreferences.getLong(KEY_LAST_SYNC_TIMESTAMP_PREFIX + userId, 0L)
-        Log.d("SyncManager", "isSyncNeeded para userId $userId: última sincronización = ${lastSyncTimestamp}")
+    // --- Sincronización de Contenido (Canales/Películas/Series) ---
 
-        if (lastSyncTimestamp == 0L) {
-            Log.d("SyncManager", "isSyncNeeded para userId $userId: Nunca se ha sincronizado. Necesita sincronización.")
-            return true // Never synced for this user
+    fun isSyncNeeded(userId: Int): Boolean {
+        val lastSyncTimestamp = sharedPreferences.getLong(KEY_CONTENT_LAST_SYNC_TIMESTAMP_PREFIX + userId, 0L)
+        if (lastSyncTimestamp == 0L) return true
+        return (System.currentTimeMillis() - lastSyncTimestamp) > CONTENT_SYNC_INTERVAL_MILLIS
+    }
+
+    fun saveLastSyncTimestamp(userId: Int) {
+        val currentTimestamp = System.currentTimeMillis()
+        with(sharedPreferences.edit()) {
+            putLong(KEY_CONTENT_LAST_SYNC_TIMESTAMP_PREFIX + userId, currentTimestamp)
+            apply()
         }
-        val timeSinceLastSync = System.currentTimeMillis() - lastSyncTimestamp
-        val needed = timeSinceLastSync > SYNC_INTERVAL_MILLIS
-        Log.d("SyncManager", "isSyncNeeded para userId $userId: Tiempo desde última sync = ${timeSinceLastSync / 1000 / 60} minutos. Necesita sincronización: $needed")
+        Log.d("SyncManager", "saveLastSyncTimestamp para userId $userId guardado.")
+    }
+
+    // --- Sincronización de EPG ---
+
+    /**
+     * ¡NUEVO! Comprueba si se necesita una nueva sincronización de EPG para un usuario.
+     * @param userId El ID del usuario.
+     * @return `true` si la última sincronización de EPG fue hace más de 12 horas.
+     */
+    fun isEpgSyncNeeded(userId: Int): Boolean {
+        val key = KEY_EPG_LAST_SYNC_TIMESTAMP_PREFIX + userId
+        val lastSyncTimestamp = sharedPreferences.getLong(key, 0L)
+        if (lastSyncTimestamp == 0L) {
+            Log.d("SyncManager", "isEpgSyncNeeded para userId $userId: Nunca se ha sincronizado. Se necesita sync.")
+            return true
+        }
+        val needed = (System.currentTimeMillis() - lastSyncTimestamp) > EPG_SYNC_INTERVAL_MILLIS
+        Log.d("SyncManager", "isEpgSyncNeeded para userId $userId: Necesita sync: $needed")
         return needed
     }
 
     /**
-     * Saves the current timestamp as the last successful sync time for a specific user.
-     * This should be called after a data sync operation is completed successfully.
-     *
-     * @param userId The ID of the user for whom to save the timestamp.
+     * ¡NUEVO! Guarda la marca de tiempo actual como la última sincronización de EPG exitosa para un usuario.
+     * @param userId El ID del usuario.
      */
-    fun saveLastSyncTimestamp(userId: Int) { // También debe aceptar userId
-        val currentTimestamp = System.currentTimeMillis()
+    fun saveEpgLastSyncTimestamp(userId: Int) {
+        val key = KEY_EPG_LAST_SYNC_TIMESTAMP_PREFIX + userId
         with(sharedPreferences.edit()) {
-            putLong(KEY_LAST_SYNC_TIMESTAMP_PREFIX + userId, currentTimestamp)
+            putLong(key, System.currentTimeMillis())
             apply()
         }
-        Log.d("SyncManager", "saveLastSyncTimestamp para userId $userId: Guardado timestamp = $currentTimestamp")
-    }
-
-    /**
-     * Retrieves the timestamp of the last successful sync for a specific user.
-     *
-     * @param userId The ID of the user for whom to retrieve the timestamp.
-     * @return The timestamp in milliseconds, or 0L if no sync has occurred yet for this user.
-     */
-    fun getLastSyncTimestamp(userId: Int): Long { // También debe aceptar userId
-        return sharedPreferences.getLong(KEY_LAST_SYNC_TIMESTAMP_PREFIX + userId, 0L)
+        Log.d("SyncManager", "saveEpgLastSyncTimestamp para userId $userId guardado.")
     }
 }
