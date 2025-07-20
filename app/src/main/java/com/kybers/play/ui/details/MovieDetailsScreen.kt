@@ -1,17 +1,24 @@
 package com.kybers.play.ui.details
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.media.AudioManager
+import android.os.Build
+import android.util.Rational
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,35 +26,30 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.kybers.play.data.remote.model.Movie
-import com.kybers.play.ui.player.PlayerControls
+import com.kybers.play.data.model.MovieWithDetails
+import com.kybers.play.ui.player.MoviePlayerControls
+import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
-import com.kybers.play.ui.player.VLCPlayer
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,8 +59,50 @@ fun MovieDetailsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context as? ComponentActivity
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        DisposableEffect(activity) {
+            val onPipModeChanged = Consumer<PictureInPictureModeChangedInfo> { info ->
+                viewModel.setInPipMode(inPip = info.isInPictureInPictureMode)
+            }
+            activity?.addOnPictureInPictureModeChangedListener(onPipModeChanged)
+            onDispose {
+                activity?.removeOnPictureInPictureModeChangedListener(onPipModeChanged)
+            }
+        }
+    }
+
+    DisposableEffect(uiState.isPlayerVisible) {
+        val window = activity?.window
+        if (uiState.isPlayerVisible) {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val currentWindowBrightness = window?.attributes?.screenBrightness ?: -1f
+            viewModel.setInitialSystemValues(
+                volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC),
+                maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+                brightness = currentWindowBrightness
+            )
+        }
+        onDispose {
+            window?.attributes?.let {
+                it.screenBrightness = uiState.originalBrightness
+                window.attributes = it
+            }
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    DisposableEffect(uiState.screenBrightness) {
+        val window = activity?.window
+        if (uiState.isPlayerVisible) {
+            val layoutParams = window?.attributes
+            layoutParams?.screenBrightness = uiState.screenBrightness
+            window?.attributes = layoutParams
+        }
+        onDispose {}
+    }
 
     val configuration = LocalConfiguration.current
     LaunchedEffect(configuration.orientation) {
@@ -81,106 +125,42 @@ fun MovieDetailsScreen(
         }
     }
 
-    DisposableEffect(uiState.screenBrightness, uiState.isFullScreen) {
-        val window = activity?.window
-        val layoutParams = window?.attributes
-        val originalBrightness = layoutParams?.screenBrightness ?: -1f
-
-        if (uiState.isFullScreen) {
-            layoutParams?.screenBrightness = uiState.screenBrightness
-            window?.attributes = layoutParams
-        }
-
-        onDispose {
-            if (uiState.isFullScreen) {
-                layoutParams?.screenBrightness = originalBrightness
-                window?.attributes = layoutParams
-            }
-        }
-    }
-
     BackHandler(enabled = uiState.isPlayerVisible) {
         if (uiState.isFullScreen) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        } else {
-            viewModel.hidePlayer()
         }
+        viewModel.hidePlayer()
     }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && uiState.isPlayerVisible) {
-                viewModel.hidePlayer()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            AnimatedVisibility(visible = !uiState.isFullScreen) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = uiState.movie?.name ?: "Detalles",
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateUp) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Regresar")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White
-                    )
-                )
-            }
-        }
-    ) { paddingValues ->
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (!uiState.isFullScreen) paddingValues else PaddingValues(0.dp))
+            modifier = Modifier.fillMaxSize()
         ) {
             MoviePlayerSection(
                 viewModel = viewModel,
-                audioManager = audioManager,
+                onPlay = { viewModel.startPlayback() },
                 onToggleFullScreen = {
                     activity?.requestedOrientation = if (uiState.isFullScreen) {
                         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     } else {
                         ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     }
-                }
+                },
+                onNavigateUp = onNavigateUp
             )
 
             AnimatedVisibility(visible = !uiState.isFullScreen) {
-                when {
-                    uiState.isLoading -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
-                    uiState.movie != null -> {
-                        MovieDetailsContent(
-                            movie = uiState.movie!!,
-                            isFavorite = uiState.isFavorite,
-                            onToggleFavorite = { viewModel.toggleFavorite() },
-                            onPlay = { viewModel.startPlayback(uiState.movie!!) }
-                        )
-                    }
-                    else -> {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No se encontraron detalles de la película.")
-                        }
+                uiState.movieWithDetails?.let { movieWithDetails ->
+                    MovieDetailsInfoSection(
+                        movieWithDetails = movieWithDetails,
+                        isLoadingDetails = uiState.isLoadingDetails,
+                        isFavorite = uiState.isFavorite,
+                        onToggleFavorite = viewModel::toggleFavorite,
+                        onPlay = { viewModel.startPlayback() }
+                    )
+                } ?: run {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
                     }
                 }
             }
@@ -191,196 +171,200 @@ fun MovieDetailsScreen(
 @Composable
 fun MoviePlayerSection(
     viewModel: MovieDetailsViewModel,
-    audioManager: AudioManager,
-    onToggleFullScreen: () -> Unit
+    onPlay: () -> Unit,
+    onToggleFullScreen: () -> Unit,
+    onNavigateUp: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var controlsVisible by remember { mutableStateOf(true) }
-    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
-
-    // ¡LA CORRECCIÓN! Obtenemos el contexto y la actividad aquí, en el ámbito Composable.
     val context = LocalContext.current
-    val activity = context as? Activity
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    val controlTimeoutMillis = 5000L
-
-    LaunchedEffect(controlsVisible, uiState.playerStatus, lastInteractionTime) {
-        if (controlsVisible && uiState.playerStatus == PlayerStatus.PLAYING) {
-            delay(controlTimeoutMillis)
-            if (System.currentTimeMillis() - lastInteractionTime >= controlTimeoutMillis) {
-                controlsVisible = false
+    Box {
+        AnimatedContent(
+            targetState = uiState.isPlayerVisible,
+            label = "PlayerOrPoster",
+            transitionSpec = {
+                fadeIn() togetherWith fadeOut()
+            },
+            modifier = if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+        ) { isPlayerVisible ->
+            if (isPlayerVisible) {
+                PlayerHost(
+                    mediaPlayer = viewModel.mediaPlayer,
+                    modifier = Modifier.fillMaxSize(),
+                    playerStatus = uiState.playerStatus,
+                    onEnterPipMode = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            (context as? Activity)?.enterPictureInPictureMode(
+                                PictureInPictureParams.Builder()
+                                    .setAspectRatio(Rational(16, 9))
+                                    .build()
+                            )
+                        }
+                    },
+                    controls = { isVisible, onAnyInteraction, onRequestPipMode ->
+                        MoviePlayerControls(
+                            isVisible = isVisible,
+                            onAnyInteraction = onAnyInteraction,
+                            onRequestPipMode = onRequestPipMode,
+                            isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
+                            isMuted = uiState.isMuted,
+                            isFavorite = uiState.isFavorite,
+                            isFullScreen = uiState.isFullScreen,
+                            streamTitle = uiState.movieWithDetails?.movie?.name ?: "Película",
+                            systemVolume = uiState.systemVolume,
+                            maxSystemVolume = uiState.maxSystemVolume,
+                            screenBrightness = uiState.screenBrightness,
+                            audioTracks = uiState.availableAudioTracks,
+                            subtitleTracks = uiState.availableSubtitleTracks,
+                            videoTracks = uiState.availableVideoTracks,
+                            showAudioMenu = uiState.showAudioMenu,
+                            showSubtitleMenu = uiState.showSubtitleMenu,
+                            showVideoMenu = uiState.showVideoMenu,
+                            currentPosition = uiState.currentPosition,
+                            duration = uiState.duration,
+                            onClose = {
+                                if (uiState.isFullScreen) {
+                                    (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                }
+                                viewModel.hidePlayer()
+                            },
+                            onPlayPause = viewModel::togglePlayPause,
+                            onToggleMute = { viewModel.onToggleMute(audioManager) },
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onToggleFullScreen = onToggleFullScreen,
+                            onSetVolume = { vol -> viewModel.setSystemVolume(vol, audioManager) },
+                            onSetBrightness = viewModel::setScreenBrightness,
+                            onToggleAudioMenu = viewModel::toggleAudioMenu,
+                            onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                            onToggleVideoMenu = viewModel::toggleVideoMenu,
+                            onSelectAudioTrack = viewModel::selectAudioTrack,
+                            onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
+                            onSelectVideoTrack = viewModel::selectVideoTrack,
+                            onToggleAspectRatio = viewModel::toggleAspectRatio,
+                            onSeek = viewModel::seekTo
+                        )
+                    }
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                        .clickable(onClick = onPlay),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // ¡CORRECCIÓN COIL! Verificamos que la URL no sea nula antes de llamar a AsyncImage.
+                    val imageUrl = uiState.movieWithDetails?.details?.backdropUrl ?: uiState.movieWithDetails?.movie?.streamIcon
+                    if (imageUrl != null) {
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = "Portada de la película",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.PlayCircleOutline,
+                        contentDescription = "Reproducir",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(80.dp)
+                    )
+                }
             }
         }
-    }
 
-    val resetControlTimer: () -> Unit = {
-        if (!controlsVisible) controlsVisible = true
-        lastInteractionTime = System.currentTimeMillis()
-    }
-
-    val playerModifier = if (uiState.isPlayerVisible) {
-        if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
-    } else {
-        Modifier.height(0.dp)
-    }
-
-    Box(
-        modifier = playerModifier
-            .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = {
-                    controlsVisible = !controlsVisible
-                    lastInteractionTime = System.currentTimeMillis()
-                })
-            }
-    ) {
-        if (uiState.isPlayerVisible) {
-            VLCPlayer(
-                mediaPlayer = viewModel.mediaPlayer,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            AnimatedVisibility(
-                visible = controlsVisible,
-                enter = fadeIn(),
-                exit = fadeOut()
+        AnimatedVisibility(visible = !uiState.isFullScreen) {
+            IconButton(
+                onClick = onNavigateUp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(8.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
-                PlayerControls(
-                    modifier = Modifier.fillMaxSize(),
-                    isVisible = true,
-                    isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
-                    isMuted = uiState.isMuted,
-                    isFavorite = uiState.isFavorite,
-                    isFullScreen = uiState.isFullScreen,
-                    streamTitle = uiState.movie?.name ?: "Película",
-                    systemVolume = uiState.systemVolume,
-                    maxSystemVolume = uiState.maxSystemVolume,
-                    screenBrightness = uiState.screenBrightness,
-                    audioTracks = uiState.availableAudioTracks,
-                    subtitleTracks = uiState.availableSubtitleTracks,
-                    videoTracks = uiState.availableVideoTracks,
-                    showAudioMenu = uiState.showAudioMenu,
-                    showSubtitleMenu = uiState.showSubtitleMenu,
-                    showVideoMenu = uiState.showVideoMenu,
-                    onClose = {
-                        resetControlTimer()
-                        if (uiState.isFullScreen) {
-                            // Usamos la variable 'activity' que ya capturamos.
-                            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                        }
-                        viewModel.hidePlayer()
-                    },
-                    onPlayPause = { resetControlTimer(); viewModel.togglePlayPause() },
-                    onNext = { resetControlTimer() },
-                    onPrevious = { resetControlTimer() },
-                    onToggleMute = { resetControlTimer(); viewModel.onToggleMute(audioManager) },
-                    onToggleFavorite = { resetControlTimer(); viewModel.toggleFavorite() },
-                    onToggleFullScreen = { resetControlTimer(); onToggleFullScreen() },
-                    onSetVolume = { vol -> resetControlTimer(); viewModel.setSystemVolume(vol, audioManager) },
-                    onSetBrightness = { br -> resetControlTimer(); viewModel.setScreenBrightness(br) },
-                    onToggleAudioMenu = { show -> resetControlTimer(); viewModel.toggleAudioMenu(show) },
-                    onToggleSubtitleMenu = { show -> resetControlTimer(); viewModel.toggleSubtitleMenu(show) },
-                    onToggleVideoMenu = { show -> resetControlTimer(); viewModel.toggleVideoMenu(show) },
-                    onSelectAudioTrack = { id -> resetControlTimer(); viewModel.selectAudioTrack(id) },
-                    onSelectSubtitleTrack = { id -> resetControlTimer(); viewModel.selectSubtitleTrack(id) },
-                    onSelectVideoTrack = { id -> resetControlTimer(); viewModel.selectVideoTrack(id) },
-                    onPictureInPicture = { },
-                    onToggleAspectRatio = { resetControlTimer(); viewModel.toggleAspectRatio() },
-                    currentPosition = uiState.currentPosition,
-                    duration = uiState.duration,
-                    onSeek = { pos -> viewModel.seekTo(pos) },
-                    onAnyInteraction = resetControlTimer
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Regresar",
+                    tint = Color.White
                 )
-            }
-
-            if (uiState.playerStatus == PlayerStatus.BUFFERING) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
-            } else if (uiState.playerStatus == PlayerStatus.ERROR) {
-                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Error al cargar la película", color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = { uiState.movie?.let { viewModel.startPlayback(it) } }) {
-                        Text("Reintentar")
-                    }
-                }
             }
         }
     }
 }
 
 @Composable
-fun MovieDetailsContent(
-    movie: Movie,
+fun MovieDetailsInfoSection(
+    movieWithDetails: MovieWithDetails,
+    isLoadingDetails: Boolean,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPlay: () -> Unit
 ) {
+    val movie = movieWithDetails.movie
+    val details = movieWithDetails.details
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
+        Text(
+            text = movie.name,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(movie.streamIcon)
-                    .crossfade(true)
-                    .error(android.R.drawable.stat_notify_error)
-                    .build(),
-                contentDescription = "Póster de ${movie.name}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .width(140.dp)
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(8.dp))
-            )
-
-            Column {
-                Text(
-                    text = movie.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+            Button(
+                onClick = onPlay,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                Text("Reproducir")
+            }
+            OutlinedButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(50.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = "Añadir a favoritos",
+                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Button(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.PlayArrow, null, Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Reproducir")
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "Añadir a favoritos",
-                        tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text("Descripción", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
         Text(
-            text = "La información detallada de la película no está disponible a través de esta API.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            "Descripción",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold
         )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        if (isLoadingDetails) {
+            Text(
+                text = "Cargando descripción...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                text = details?.plot ?: "No hay descripción disponible.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

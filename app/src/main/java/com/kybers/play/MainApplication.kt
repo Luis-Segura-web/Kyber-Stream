@@ -6,16 +6,23 @@ import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import coil.util.DebugLogger
 import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
+import com.kybers.play.data.remote.ExternalApiRetrofitClient
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.work.CacheWorker
 import java.util.concurrent.TimeUnit
 
-class MainApplication : Application(), Configuration.Provider {
+// ¡CAMBIO CLAVE! Hacemos que nuestra Application implemente ImageLoaderFactory.
+class MainApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
     lateinit var container: AppContainer
         private set
@@ -30,6 +37,25 @@ class MainApplication : Application(), Configuration.Provider {
         get() = Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
+
+    // ¡CAMBIO CLAVE! Creamos una instancia única y optimizada de ImageLoader para toda la app.
+    override fun newImageLoader(): ImageLoader {
+        return ImageLoader.Builder(this)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25) // Usa hasta el 25% de la memoria RAM disponible
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(this.cacheDir.resolve("image_cache"))
+                    .maxSizePercent(0.02) // Usa hasta el 2% del espacio de almacenamiento
+                    .build()
+            }
+            .respectCacheHeaders(false)
+            .logger(DebugLogger())
+            .build()
+    }
 
     private fun scheduleCacheWorker() {
         val syncRequest = PeriodicWorkRequestBuilder<CacheWorker>(
@@ -47,30 +73,28 @@ class MainApplication : Application(), Configuration.Provider {
     }
 }
 
-/**
- * Contenedor de Inyección de Dependencias a nivel de aplicación.
- */
 class AppContainer(context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
+    private val tmdbApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
+    private val omdbApiService by lazy { ExternalApiRetrofitClient.createOMDbService() }
 
     val userRepository by lazy { UserRepository(database.userDao()) }
     val syncManager by lazy { SyncManager(context) }
     val preferenceManager by lazy { PreferenceManager(context) }
 
-    /**
-     * ¡CORREGIDO! Se pasa el parámetro `baseUrl` que ahora es requerido por el constructor
-     * de ContentRepository, solucionando el error de compilación.
-     */
     fun createContentRepository(baseUrl: String): ContentRepository {
-        val apiService = RetrofitClient.create(baseUrl)
+        val xtreamApiService = RetrofitClient.create(baseUrl)
         return ContentRepository(
-            apiService = apiService,
+            xtreamApiService = xtreamApiService,
+            tmdbApiService = tmdbApiService,
+            omdbApiService = omdbApiService,
             liveStreamDao = database.liveStreamDao(),
             movieDao = database.movieDao(),
             seriesDao = database.seriesDao(),
             epgEventDao = database.epgEventDao(),
-            baseUrl = baseUrl // <-- ¡LA LÍNEA QUE FALTABA!
+            movieDetailsCacheDao = database.movieDetailsCacheDao(),
+            baseUrl = baseUrl
         )
     }
 }

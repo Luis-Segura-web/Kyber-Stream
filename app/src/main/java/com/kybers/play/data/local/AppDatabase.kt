@@ -6,15 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.kybers.play.data.local.model.User
+import com.kybers.play.data.local.model.MovieDetailsCache
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.EpgEvent
 
 @Database(
-    // ¡MODIFICADO! Añadimos EpgEvent a la lista de entidades
-    entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class],
-    version = 3, // ¡CORRECCIÓN CLAVE! Se incrementa la versión de 2 a 3 para reflejar los cambios en el esquema.
+    entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class, MovieDetailsCache::class],
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -24,7 +24,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun movieDao(): MovieDao
     abstract fun seriesDao(): SeriesDao
     abstract fun liveStreamDao(): LiveStreamDao
-    abstract fun epgEventDao(): EpgEventDao // <--- ¡NUEVA FUNCIÓN ABSTRACTA!
+    abstract fun epgEventDao(): EpgEventDao
+    abstract fun movieDetailsCacheDao(): MovieDetailsCacheDao
 
     companion object {
         @Volatile
@@ -37,10 +38,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // Esta línea es nuestra salvación en desarrollo.
-                    // Le dice a Room que si la versión cambia, simplemente borre la base de datos
-                    // anterior y cree una nueva. Evita tener que escribir migraciones complejas.
-                    .fallbackToDestructiveMigration()
+                    // ¡CORRECCIÓN! Usamos la versión moderna de la función.
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

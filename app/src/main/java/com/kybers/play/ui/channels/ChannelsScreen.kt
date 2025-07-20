@@ -12,77 +12,31 @@ import android.media.AudioManager
 import android.os.Build
 import android.util.Rational
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
@@ -102,11 +56,10 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
-import com.kybers.play.ui.player.PlayerControls
-import com.kybers.play.ui.player.PlayerStatus // Importación crítica para PlayerStatus
-import com.kybers.play.ui.player.VLCPlayer
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest // ¡IMPORTACIÓN AÑADIDA/RECONFIRMADA!
+import com.kybers.play.ui.player.ChannelPlayerControls
+import com.kybers.play.ui.player.PlayerHost
+import com.kybers.play.ui.player.PlayerStatus
+import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,13 +69,19 @@ import java.util.TimeZone
 @Composable
 fun ChannelsScreen(
     viewModel: ChannelsViewModel,
-    onFullScreenToggled: (Boolean) -> Unit
+    // ¡CAMBIO CLAVE! El callback ahora informa del estado completo del reproductor.
+    onPlayerUiStateChanged: (isFullScreen: Boolean, isInPipMode: Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val activity = context as? Activity
+    val activity = context as? ComponentActivity
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val lazyListState = rememberLazyListState()
+
+    // ¡CAMBIO CLAVE! Este LaunchedEffect ahora informa a MainScreen de ambos estados.
+    LaunchedEffect(uiState.isFullScreen, uiState.isInPipMode) {
+        onPlayerUiStateChanged(uiState.isFullScreen, uiState.isInPipMode)
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -143,43 +102,33 @@ fun ChannelsScreen(
     }
 
     var favoriteChannels by remember { mutableStateOf(emptyList<LiveStream>()) }
-    // Este LaunchedEffect ya estaba bien, solo la importación de collectLatest faltaba.
     LaunchedEffect(uiState.searchQuery, uiState.channelSortOrder, uiState.favoriteChannelIds, uiState.isFavoritesCategoryExpanded, uiState.categories) {
         favoriteChannels = viewModel.getFavoriteChannels()
     }
 
-    // ¡CAMBIO CLAVE! Se ha modificado el LaunchedEffect para que sea igual al de la pantalla de películas.
     LaunchedEffect(Unit) {
-        // collectLatest es una función de suspensión, por eso debe estar dentro de un coroutine scope como LaunchedEffect
-        viewModel.scrollToItemEvent.collectLatest { targetId -> // ¡collectLatest aquí!
+        viewModel.scrollToItemEvent.collectLatest { targetId ->
             var targetIndex = -1
             var currentIndex = 0
 
             if (targetId == "favorites") {
                 targetIndex = 0
             } else {
-                // Contamos el encabezado de favoritos
                 currentIndex++
-                // Contamos los canales favoritos si la sección está expandida
                 if (uiState.isFavoritesCategoryExpanded) {
                     currentIndex += favoriteChannels.size
                 }
-
-                // Recorremos las categorías para encontrar la correcta
                 for (category in uiState.categories) {
                     if (category.category.categoryId == targetId) {
                         targetIndex = currentIndex
                         break
                     }
-                    // Contamos el encabezado de la categoría
                     currentIndex++
-                    // Contamos los canales si la categoría está expandida
                     if (category.isExpanded) {
                         currentIndex += category.channels.size
                     }
                 }
             }
-
             if (targetIndex != -1) {
                 lazyListState.animateScrollToItem(targetIndex)
             }
@@ -195,7 +144,6 @@ fun ChannelsScreen(
         if (uiState.isPlayerVisible) {
             window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             val currentWindowBrightness = window?.attributes?.screenBrightness ?: -1f
-
             viewModel.setInitialSystemValues(
                 volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC),
                 maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
@@ -219,42 +167,18 @@ fun ChannelsScreen(
         }
     }
 
-    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu, uiState.showSortMenu) {
-        onFullScreenToggled(uiState.isFullScreen)
+    // ¡CORRECCIÓN CLAVE! La lógica del modo inmersivo ahora también depende de los menús.
+    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu) {
         val window = activity?.window ?: return@LaunchedEffect
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        val layoutParams = window.attributes
-
-        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu || uiState.showVideoMenu || uiState.showSortMenu
+        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu || uiState.showVideoMenu
 
         if (shouldBeImmersive) {
             insetsController.hide(WindowInsetsCompat.Type.systemBars())
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-
-            if (uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
-                layoutParams.screenBrightness = uiState.screenBrightness
-                window.attributes = layoutParams
-            }
         } else {
             insetsController.show(WindowInsetsCompat.Type.systemBars())
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-
-            if (!uiState.isFullScreen && !uiState.showAudioMenu && !uiState.showSubtitleMenu && !uiState.showVideoMenu) {
-                layoutParams.screenBrightness = uiState.originalBrightness
-                window.attributes = layoutParams // ¡CORRECCIÓN RECONFIRMADA!
-                viewModel.setScreenBrightness(uiState.originalBrightness)
-            }
         }
-    }
-
-    DisposableEffect(uiState.screenBrightness) {
-        val window = activity?.window
-        if (uiState.isPlayerVisible && uiState.isFullScreen) {
-            val layoutParams = window?.attributes
-            layoutParams?.screenBrightness = uiState.screenBrightness
-            window?.attributes = layoutParams
-        }
-        onDispose {}
     }
 
     BackHandler(enabled = uiState.isPlayerVisible) {
@@ -267,53 +191,23 @@ fun ChannelsScreen(
 
     Scaffold(
         topBar = {
-            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isPlayerVisible) {
+            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isPlayerVisible && !uiState.isInPipMode) {
                 TopAppBar(
                     title = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.LiveTv,
-                                    contentDescription = "TV en Vivo",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(imageVector = Icons.Filled.LiveTv, contentDescription = "TV en Vivo", tint = Color.White, modifier = Modifier.size(28.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
-                                    Text(
-                                        text = "TV en Vivo",
-                                        color = Color.White,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White.copy(alpha = 0.8f)
-                                    )
+                                    Text(text = "TV en Vivo", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
                                 }
                             }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
                                 if (uiState.isRefreshing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                                 }
-                                IconButton(
-                                    onClick = { viewModel.refreshChannelsManually() },
-                                    enabled = !uiState.isRefreshing
-                                ) {
+                                IconButton(onClick = { viewModel.refreshChannelsManually() }, enabled = !uiState.isRefreshing) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Actualizar canales", tint = Color.White)
                                 }
                                 IconButton(onClick = { viewModel.toggleSortMenu(true) }) {
@@ -322,9 +216,7 @@ fun ChannelsScreen(
                             }
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
                 )
             }
         }
@@ -332,24 +224,20 @@ fun ChannelsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (!uiState.isFullScreen) Modifier.padding(paddingValues) else Modifier)
+                .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
         ) {
             PlayerSection(
                 viewModel = viewModel,
-                audioManager = audioManager,
                 onPictureInPicture = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         val aspectRatio = Rational(16, 9)
-                        val pipParams = PictureInPictureParams.Builder()
-                            .setAspectRatio(aspectRatio)
-                            .build()
+                        val pipParams = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
                         activity?.enterPictureInPictureMode(pipParams)
                     }
-                },
-                onToggleAspectRatio = { viewModel.toggleAspectRatio() }
+                }
             )
 
-            AnimatedVisibility(visible = !uiState.isFullScreen) {
+            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
                 ChannelListSection(viewModel = viewModel, lazyListState = lazyListState, favoriteChannels = favoriteChannels)
             }
         }
@@ -366,36 +254,16 @@ fun ChannelsScreen(
     }
 }
 
-
+// ... El resto del archivo no necesita cambios ...
 @Composable
 private fun PlayerSection(
     viewModel: ChannelsViewModel,
-    audioManager: AudioManager,
     onPictureInPicture: () -> Unit,
-    onToggleAspectRatio: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var controlsVisible by rememberSaveable { mutableStateOf(true) }
-    var lastInteractionTime by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
-
     val context = LocalContext.current
     val activity = context as? Activity
-
-    val CONTROL_TIMEOUT_MILLIS = 5000L
-
-    LaunchedEffect(controlsVisible, uiState.playerStatus, lastInteractionTime) {
-        if (controlsVisible && uiState.playerStatus == PlayerStatus.PLAYING) {
-            delay(CONTROL_TIMEOUT_MILLIS)
-            if (System.currentTimeMillis() - lastInteractionTime >= CONTROL_TIMEOUT_MILLIS) {
-                controlsVisible = false
-            }
-        }
-    }
-
-    val resetControlTimer: () -> Unit = {
-        if (!controlsVisible) controlsVisible = true
-        lastInteractionTime = System.currentTimeMillis()
-    }
+    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     val playerModifier = if (uiState.isPlayerVisible) {
         if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
@@ -405,30 +273,17 @@ private fun PlayerSection(
         Modifier.height(0.dp)
     }
 
-    Box(
-        modifier = playerModifier
-            .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = {
-                    controlsVisible = !controlsVisible
-                    lastInteractionTime = System.currentTimeMillis()
-                })
-            }
-    ) {
-        if (uiState.isPlayerVisible) {
-            VLCPlayer(
-                mediaPlayer = viewModel.mediaPlayer,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            AnimatedVisibility(
-                visible = controlsVisible,
-                enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(durationMillis = 200)),
-                exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(durationMillis = 200))
-            ) {
-                PlayerControls(
-                    modifier = Modifier.fillMaxSize(),
-                    isVisible = true,
+    if (uiState.isPlayerVisible) {
+        PlayerHost(
+            mediaPlayer = viewModel.mediaPlayer,
+            modifier = playerModifier,
+            playerStatus = uiState.playerStatus,
+            onEnterPipMode = onPictureInPicture,
+            controls = { isVisible, onAnyInteraction, onRequestPipMode ->
+                ChannelPlayerControls(
+                    isVisible = isVisible,
+                    onAnyInteraction = onAnyInteraction,
+                    onRequestPipMode = onRequestPipMode,
                     isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
                     isMuted = uiState.isMuted,
                     isFavorite = uiState.currentlyPlaying?.let { it.streamId.toString() in uiState.favoriteChannelIds } ?: false,
@@ -443,110 +298,35 @@ private fun PlayerSection(
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
                     showVideoMenu = uiState.showVideoMenu,
+                    currentPosition = uiState.currentPosition,
+                    duration = uiState.duration,
                     onClose = {
-                        resetControlTimer()
                         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         viewModel.hidePlayer()
                     },
                     onPlayPause = {
-                        resetControlTimer()
-                        if (uiState.playerStatus == PlayerStatus.PLAYING) {
-                            viewModel.mediaPlayer.pause()
-                        } else {
-                            viewModel.mediaPlayer.play()
-                        }
+                        if (uiState.playerStatus == PlayerStatus.PLAYING) viewModel.mediaPlayer.pause() else viewModel.mediaPlayer.play()
                     },
-                    onNext = {
-                        resetControlTimer()
-                        viewModel.playNextChannel()
-                    },
-                    onPrevious = {
-                        resetControlTimer()
-                        viewModel.playPreviousChannel()
-                    },
-                    onToggleMute = {
-                        resetControlTimer()
-                        viewModel.onToggleMute(audioManager)
-                    },
-                    onToggleFavorite = {
-                        resetControlTimer()
-                        uiState.currentlyPlaying?.let { viewModel.toggleFavorite(it.streamId.toString()) }
-                    },
+                    onNext = viewModel::playNextChannel,
+                    onPrevious = viewModel::playPreviousChannel,
+                    onToggleMute = { viewModel.onToggleMute(audioManager) },
+                    onToggleFavorite = { uiState.currentlyPlaying?.let { viewModel.toggleFavorite(it.streamId.toString()) } },
                     onToggleFullScreen = {
-                        resetControlTimer()
-                        activity?.requestedOrientation = if (uiState.isFullScreen) {
-                            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                        } else {
-                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                        }
+                        activity?.requestedOrientation = if (uiState.isFullScreen) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     },
-                    onSetVolume = { vol: Int ->
-                        resetControlTimer()
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0)
-                    },
-                    onSetBrightness = { br: Float ->
-                        resetControlTimer()
-                        viewModel.setScreenBrightness(br)
-                    },
-                    onToggleAudioMenu = { show: Boolean ->
-                        resetControlTimer()
-                        viewModel.toggleAudioMenu(show)
-                    },
-                    onToggleSubtitleMenu = { show: Boolean ->
-                        resetControlTimer()
-                        viewModel.toggleSubtitleMenu(show)
-                    },
-                    onToggleVideoMenu = { show: Boolean ->
-                        resetControlTimer()
-                        viewModel.toggleVideoMenu(show)
-                    },
-                    onSelectAudioTrack = { trackId: Int ->
-                        resetControlTimer()
-                        viewModel.selectAudioTrack(trackId)
-                    },
-                    onSelectSubtitleTrack = { trackId: Int ->
-                        resetControlTimer()
-                        viewModel.selectSubtitleTrack(trackId)
-                    },
-                    onSelectVideoTrack = { trackId: Int ->
-                        resetControlTimer()
-                        viewModel.selectVideoTrack(trackId)
-                    },
-                    onPictureInPicture = {
-                        controlsVisible = false
-                        viewModel.setInPipMode(true)
-                        onPictureInPicture()
-                    },
-                    onToggleAspectRatio = {
-                        resetControlTimer()
-                        viewModel.toggleAspectRatio()
-                    },
-                    currentPosition = uiState.currentPosition,
-                    duration = uiState.duration,
-                    onSeek = { position: Long -> viewModel.seekTo(position) },
-                    onAnyInteraction = resetControlTimer
+                    onSetVolume = { vol -> audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0) },
+                    onSetBrightness = viewModel::setScreenBrightness,
+                    onToggleAudioMenu = viewModel::toggleAudioMenu,
+                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                    onToggleVideoMenu = viewModel::toggleVideoMenu,
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
+                    onSelectVideoTrack = viewModel::selectVideoTrack,
+                    onToggleAspectRatio = viewModel::toggleAspectRatio,
+                    onSeek = viewModel::seekTo
                 )
             }
-
-
-            if (uiState.playerStatus == PlayerStatus.BUFFERING) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.White
-                )
-            } else if (uiState.playerStatus == PlayerStatus.ERROR) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Error al cargar el canal", color = Color.White)
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = { viewModel.retryPlayback() }) {
-                        Text("Reintentar")
-                    }
-                }
-            }
-        }
+        )
     }
 }
 

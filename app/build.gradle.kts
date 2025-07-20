@@ -1,6 +1,8 @@
 // build.gradle.kts para la app Kyber-Play con Kotlin, KSP y Jetpack Compose
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -12,9 +14,15 @@ plugins {
 // Configuración global del compilador Kotlin
 kotlin {
     compilerOptions {
-        // Migrado al nuevo compilerOptions DSL
         jvmTarget.set(JvmTarget.fromTarget("1.8"))
     }
+}
+
+// ¡CAMBIO CLAVE! Leemos el archivo local.properties
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
 }
 
 android {
@@ -34,6 +42,7 @@ android {
         }
     }
 
+    // ¡CAMBIO CLAVE! Hacemos las claves accesibles en el código de la app.
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -41,8 +50,17 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Hacemos las claves disponibles también en la versión de lanzamiento
+            buildConfigField("String", "TMDB_API_KEY", "\"${localProperties.getProperty("tmdb.api.key")}\"")
+            buildConfigField("String", "OMDB_API_KEY", "\"${localProperties.getProperty("omdb.api.key")}\"")
+        }
+        debug {
+            // Hacemos las claves disponibles en la versión de depuración
+            buildConfigField("String", "TMDB_API_KEY", "\"${localProperties.getProperty("tmdb.api.key")}\"")
+            buildConfigField("String", "OMDB_API_KEY", "\"${localProperties.getProperty("omdb.api.key")}\"")
         }
     }
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -50,18 +68,17 @@ android {
     }
 
     buildFeatures {
-        // Activamos Jetpack Compose
         compose = true
+        // ¡CAMBIO CLAVE! Necesitamos activar buildConfig para que se genere el archivo.
+        buildConfig = true
     }
 
     composeOptions {
-        // Asegúrate de que esta versión exista en tu catálogo
         kotlinCompilerExtensionVersion = libs.versions.kotlin.get()
     }
 
     packaging {
         resources {
-            // Excluimos licencias duplicadas
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
@@ -91,7 +108,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.compose.foundation) // ¡NUEVO! Añadimos la dependencia de foundation
+    implementation(libs.androidx.compose.foundation)
 
     // --- ASÍNCRONIA ---
     implementation(libs.kotlinx.coroutines.core)
@@ -110,7 +127,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp         (libs.androidx.room.compiler)
 
-    // --- REPRODUCTOR DE VIDEO (Media3) ---
+    // --- REPRODUCTOR DE VIDEO (VLC) ---
     implementation(libs.libvlc.all)
 
     // --- CARGA DE IMÁGENES ---

@@ -57,17 +57,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.concurrent.TimeUnit
-import com.kybers.play.ui.player.TrackInfo // ¡IMPORTACIÓN AÑADIDA!
-
-/**
- * ¡Eliminada la definición de TrackInfo de aquí!
- * Ahora se importa desde com.kybers.play.ui.player.PlayerEnums.kt
- */
-// data class TrackInfo(
-//     val id: Int,
-//     val name: String,
-//     val isSelected: Boolean
-// )
+import com.kybers.play.ui.player.TrackInfo
 
 @Composable
 fun PlayerControls(
@@ -378,34 +368,24 @@ private fun BottomControls(
                     horizontalArrangement = Arrangement.spacedBy(8.dp), // Espaciado entre iconos
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Orden de izquierda a derecha para la visualización
-                    // Subtítulos
-                    if (subtitleTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                    if (subtitleTracks.size > 1) {
                         TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = { show -> onToggleSubtitleMenu(show); onAnyInteraction() }, tracks = subtitleTracks, onSelectTrack = { trackId -> onSelectSubtitleTrack(trackId); onAnyInteraction() }) {
                             ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
                         }
                     }
-
-                    // Audio Tracks
-                    if (audioTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                    if (audioTracks.size > 1) {
                         TrackMenu(showMenu = showAudioMenu, onToggleMenu = { show -> onToggleAudioMenu(show); onAnyInteraction() }, tracks = audioTracks, onSelectTrack = { trackId -> onSelectAudioTrack(trackId); onAnyInteraction() }) {
                             ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
                         }
                     }
-
-                    // Calidad (Video Tracks)
-                    if (videoTracks.size > 1) { // Muestra si hay más de 1 pista (incluyendo "none" o "deshabilitada")
+                    if (videoTracks.size > 1) {
                         TrackMenu(showMenu = showVideoMenu, onToggleMenu = { show -> onToggleVideoMenu(show); onAnyInteraction() }, tracks = videoTracks, onSelectTrack = { trackId -> onSelectVideoTrack(trackId); onAnyInteraction() }) {
                             ControlIconButton(icon = Icons.Default.Hd, text = "Calidad", onClick = { onToggleVideoMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
                         }
                     }
-
-                    // Relación de Aspecto
                     IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
                         Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
                     }
-
-                    // Salir de Pantalla Completa (Extremo derecho)
                     IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
                         Icon(Icons.Default.FullscreenExit, "Salir de Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                     }
@@ -493,7 +473,8 @@ private fun TrackMenu(
     }
 }
 
-fun formatTime(millis: Long): String {
+// ¡CORRECCIÓN! Se añade 'private' para resolver el conflicto.
+private fun formatTime(millis: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(millis)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % TimeUnit.HOURS.toMinutes(1)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % TimeUnit.MINUTES.toSeconds(1)

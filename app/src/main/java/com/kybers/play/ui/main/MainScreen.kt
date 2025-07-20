@@ -15,7 +15,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,9 +36,8 @@ import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.ui.ContentViewModelFactory
-import com.kybers.play.ui.MovieDetailsViewModelFactory // ¡IMPORTACIÓN CLAVE!
+import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
-import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsScreen
 import com.kybers.play.ui.details.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeScreen
@@ -81,21 +79,18 @@ fun MainScreen(
     syncManager: SyncManager
 ) {
     val navController = rememberNavController()
-    var isBottomBarVisible by remember { mutableStateOf(true) }
-    val context = LocalContext.current
-    val application = context.applicationContext as Application // Obtenemos la instancia de Application
-
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    isBottomBarVisible = items.any { it.route == currentDestination?.route }
+    // ¡CAMBIO CLAVE! Estados para controlar la visibilidad de la barra de navegación.
+    var isPlayerFullScreen by remember { mutableStateOf(false) }
+    var isPlayerInPipMode by remember { mutableStateOf(false) }
 
-    val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
-    LaunchedEffect(currentDestination) {
-        if (currentDestination?.route != Screen.Channels.route) {
-            channelsViewModel.hidePlayer()
-        }
-    }
+    // La barra solo es visible si estamos en una ruta principal Y el reproductor no está en pantalla completa o PiP.
+    val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
+
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
 
     Scaffold(
         bottomBar = {
@@ -129,10 +124,12 @@ fun MainScreen(
                 HomeScreen(homeViewModel)
             }
             composable(Screen.Channels.route) {
+                // ¡CAMBIO CLAVE! Pasamos el nuevo callback a ChannelsScreen.
                 ChannelsScreen(
-                    viewModel = channelsViewModel,
-                    onFullScreenToggled = { isFullScreen ->
-                        isBottomBarVisible = !isFullScreen
+                    viewModel = viewModel(factory = contentViewModelFactory),
+                    onPlayerUiStateChanged = { isFull, isPip ->
+                        isPlayerFullScreen = isFull
+                        isPlayerInPipMode = isPip
                     }
                 )
             }
@@ -153,9 +150,6 @@ fun MainScreen(
                 arguments = listOf(navArgument("movieId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val movieId = backStackEntry.arguments?.getInt("movieId") ?: 0
-                // ¡LA CORRECCIÓN MÁGICA!
-                // Usamos la fábrica correcta (MovieDetailsViewModelFactory) para crear el ViewModel.
-                // Le pasamos todas las dependencias que necesita, incluyendo el 'movieId'.
                 val detailsViewModel: MovieDetailsViewModel = viewModel(
                     factory = MovieDetailsViewModelFactory(
                         application = application,
