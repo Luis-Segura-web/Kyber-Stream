@@ -51,15 +51,9 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     object Channels : Screen("channels", "Canales", Icons.Default.Tv)
     object Movies : Screen("movies", "Películas", Icons.Default.Movie)
     object Series : Screen("series", "Series", Icons.Default.Movie)
-    object MovieDetails : Screen("movie_details/{movieId}")
-
-    fun withArgs(vararg args: Any): String {
-        return buildString {
-            append(route.split("/")[0])
-            args.forEach { arg ->
-                append("/$arg")
-            }
-        }
+    // ¡CAMBIO! La ruta ahora distingue el argumento para que la navegación funcione correctamente.
+    object MovieDetails : Screen("movie_details/{movieId}") {
+        fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
 }
 
@@ -82,11 +76,9 @@ fun MainScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // ¡CAMBIO CLAVE! Estados para controlar la visibilidad de la barra de navegación.
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
-    // La barra solo es visible si estamos en una ruta principal Y el reproductor no está en pantalla completa o PiP.
     val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
     val context = LocalContext.current
@@ -124,7 +116,6 @@ fun MainScreen(
                 HomeScreen(homeViewModel)
             }
             composable(Screen.Channels.route) {
-                // ¡CAMBIO CLAVE! Pasamos el nuevo callback a ChannelsScreen.
                 ChannelsScreen(
                     viewModel = viewModel(factory = contentViewModelFactory),
                     onPlayerUiStateChanged = { isFull, isPip ->
@@ -138,7 +129,8 @@ fun MainScreen(
                 MoviesScreen(
                     viewModel = moviesViewModel,
                     onNavigateToDetails = { movieId ->
-                        navController.navigate(Screen.MovieDetails.withArgs(movieId))
+                        // Usamos la nueva función para crear la ruta
+                        navController.navigate(Screen.MovieDetails.createRoute(movieId))
                     }
                 )
             }
@@ -161,7 +153,11 @@ fun MainScreen(
                 )
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
-                    onNavigateUp = { navController.navigateUp() }
+                    onNavigateUp = { navController.navigateUp() },
+                    // ¡NUEVO! Pasamos la función para navegar a otra película.
+                    onNavigateToMovie = { newMovieId ->
+                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId))
+                    }
                 )
             }
         }

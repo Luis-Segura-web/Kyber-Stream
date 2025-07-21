@@ -3,32 +3,59 @@ package com.kybers.play.ui.details
 import android.app.Application
 import android.media.AudioManager
 import android.os.Build
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
-import com.kybers.play.data.model.MovieWithDetails
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.remote.model.Movie
+import com.kybers.play.data.remote.model.TMDbCastMember
+import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
 import com.kybers.play.ui.player.toAspectRatioMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
 data class MovieDetailsUiState(
     val isLoadingDetails: Boolean = true,
-    val movieWithDetails: MovieWithDetails? = null,
+    val movie: Movie? = null,
+    val title: String = "",
+    val posterUrl: String? = null,
+    val backdropUrl: String? = null,
+    val releaseYear: String? = null,
+    val rating: Double? = null,
+    val plot: String? = null,
+    val cast: List<TMDbCastMember> = emptyList(),
+    val availableRecommendations: List<Movie> = emptyList(),
     val isFavorite: Boolean = false,
+    val playbackPosition: Long = 0L,
+
+    // Estado del diálogo del actor
+    val showActorMoviesDialog: Boolean = false,
+    val selectedActorName: String = "",
+    val selectedActorBio: String? = null,
+    val availableActorMovies: List<Movie> = emptyList(),
+    val unavailableActorMovies: List<TMDbMovieResult> = emptyList(),
+    val isActorMoviesLoading: Boolean = false,
+
+    // Estado del reproductor
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
@@ -60,6 +87,9 @@ class MovieDetailsViewModel(
     private val _uiState = MutableStateFlow(MovieDetailsUiState())
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
 
+    private val _navigationEvent = MutableSharedFlow<Int>()
+    val navigationEvent: SharedFlow<Int> = _navigationEvent.asSharedFlow()
+
     private val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
 
@@ -72,15 +102,20 @@ class MovieDetailsViewModel(
 
     private fun loadInitialData() {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingDetails = true) }
             val movie = contentRepository.getAllMovies(currentUser.id).firstOrNull()
                 ?.find { it.streamId == movieId }
 
             if (movie != null) {
                 val favoriteIds = preferenceManager.getFavoriteMovieIds()
+                val savedPosition = preferenceManager.getPlaybackPosition(movieId.toString())
+
                 _uiState.update {
                     it.copy(
-                        movieWithDetails = MovieWithDetails(movie, null),
-                        isFavorite = favoriteIds.contains(movie.streamId.toString())
+                        movie = movie,
+                        title = movie.name,
+                        isFavorite = favoriteIds.contains(movie.streamId.toString()),
+                        playbackPosition = savedPosition
                     )
                 }
                 fetchEnrichedDetails(movie)
@@ -91,15 +126,83 @@ class MovieDetailsViewModel(
     }
 
     private fun fetchEnrichedDetails(movie: Movie) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingDetails = true) }
-            val details = contentRepository.getMovieDetails(movie)
+        viewModelScope.launch(Dispatchers.IO) {
+            val detailsWrapper = contentRepository.getMovieDetails(movie)
+
+            // Actualizamos la UI con la información principal primero
             _uiState.update {
                 it.copy(
                     isLoadingDetails = false,
-                    movieWithDetails = details
+                    title = detailsWrapper.details?.releaseYear?.let { year ->
+                        "${movie.name} ($year)"
+                    } ?: movie.name,
+                    posterUrl = detailsWrapper.details?.posterUrl ?: movie.streamIcon,
+                    backdropUrl = detailsWrapper.details?.backdropUrl,
+                    releaseYear = detailsWrapper.details?.releaseYear,
+                    rating = detailsWrapper.details?.rating,
+                    plot = detailsWrapper.details?.plot,
+                    cast = detailsWrapper.getCastList()
                 )
             }
+
+            // Lanzamos una nueva coroutina para las recomendaciones, para no bloquear
+            launch {
+                val allLocalMovies = contentRepository.getAllMovies(currentUser.id).first()
+                val availableRecs = contentRepository.findMoviesByTMDbResults(
+                    detailsWrapper.getRecommendationList(),
+                    allLocalMovies
+                )
+                _uiState.update {
+                    it.copy(availableRecommendations = availableRecs.distinctBy { it.streamId })
+                }
+            }
+        }
+    }
+
+    fun onActorSelected(actor: TMDbCastMember) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update {
+                it.copy(
+                    isActorMoviesLoading = true,
+                    showActorMoviesDialog = true,
+                    selectedActorName = actor.name
+                )
+            }
+
+            val allMovies = contentRepository.getAllMovies(currentUser.id).first()
+            val filmography = contentRepository.getActorFilmography(actor.id, allMovies)
+
+            // ¡NUEVO! Ordenamos las películas disponibles por año descendente.
+            val sortedAvailableMovies = filmography.availableMovies.sortedByDescending { movie ->
+                contentRepository.cleanMovieTitle(movie.name).year?.toIntOrNull() ?: 0
+            }
+
+            _uiState.update {
+                it.copy(
+                    isActorMoviesLoading = false,
+                    selectedActorBio = filmography.biography,
+                    availableActorMovies = sortedAvailableMovies, // Usamos la lista ordenada
+                    unavailableActorMovies = filmography.unavailableMovies
+                )
+            }
+        }
+    }
+
+    fun onRecommendationSelected(movie: Movie) {
+        viewModelScope.launch {
+            _navigationEvent.emit(movie.streamId)
+        }
+    }
+
+    fun onDismissActorMoviesDialog() {
+        _uiState.update {
+            it.copy(
+                showActorMoviesDialog = false,
+                selectedActorName = "",
+                selectedActorBio = null,
+                availableActorMovies = emptyList(),
+                unavailableActorMovies = emptyList()
+            )
         }
     }
 
@@ -126,7 +229,6 @@ class MovieDetailsViewModel(
             }
         }
     }
-
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
         _uiState.update {
             it.copy(
@@ -137,65 +239,53 @@ class MovieDetailsViewModel(
             )
         }
     }
-
     fun toggleFavorite() {
-        val movie = _uiState.value.movieWithDetails?.movie ?: return
+        val movie = _uiState.value.movie ?: return
         val currentFavorites = preferenceManager.getFavoriteMovieIds().toMutableSet()
         val isCurrentlyFavorite = currentFavorites.contains(movie.streamId.toString())
-
         if (isCurrentlyFavorite) {
             currentFavorites.remove(movie.streamId.toString())
         } else {
             currentFavorites.add(movie.streamId.toString())
         }
-
         preferenceManager.saveFavoriteMovieIds(currentFavorites)
         _uiState.update { it.copy(isFavorite = !isCurrentlyFavorite) }
     }
-
-    fun startPlayback() {
-        val movie = _uiState.value.movieWithDetails?.movie ?: return
+    fun startPlayback(continueFromLastPosition: Boolean) {
+        val movie = _uiState.value.movie ?: return
         val streamUrl = buildStreamUrl(movie)
         val newMedia = Media(libVLC, streamUrl.toUri()).apply {
             vlcOptions.forEach { addOption(it) }
         }
-
-        // ¡CORRECCIÓN VLC! Liberamos el objeto Media anterior antes de asignar uno nuevo.
         mediaPlayer.media?.release()
         mediaPlayer.media = newMedia
-
         mediaPlayer.play()
+        if (continueFromLastPosition && _uiState.value.playbackPosition > 0) {
+            mediaPlayer.time = _uiState.value.playbackPosition
+        }
         _uiState.update { it.copy(isPlayerVisible = true, playerStatus = PlayerStatus.BUFFERING) }
     }
-
     fun hidePlayer() {
         if (mediaPlayer.isPlaying) {
+            preferenceManager.savePlaybackPosition(movieId.toString(), mediaPlayer.time)
             mediaPlayer.stop()
         }
-        // ¡CORRECCIÓN VLC! También liberamos el media al ocultar el reproductor.
         mediaPlayer.media?.release()
         mediaPlayer.media = null
-
         _uiState.update {
             it.copy(
-                isPlayerVisible = false,
-                isFullScreen = false,
-                playerStatus = PlayerStatus.IDLE,
-                currentPosition = 0L,
-                duration = 0L,
-                isInPipMode = false
+                isPlayerVisible = false, isFullScreen = false, playerStatus = PlayerStatus.IDLE,
+                currentPosition = 0L, duration = 0L, isInPipMode = false,
+                playbackPosition = preferenceManager.getPlaybackPosition(movieId.toString())
             )
         }
     }
-
     fun togglePlayPause() {
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
-
     fun setInPipMode(inPip: Boolean) {
         _uiState.update { it.copy(isInPipMode = inPip) }
     }
-
     fun onToggleMute(audioManager: AudioManager) {
         val newMuteState = !_uiState.value.isMuted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -207,24 +297,19 @@ class MovieDetailsViewModel(
         }
         _uiState.update { it.copy(isMuted = newMuteState) }
     }
-
     fun setSystemVolume(volume: Int, audioManager: AudioManager) {
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0)
         _uiState.update { it.copy(systemVolume = volume, isMuted = volume == 0) }
     }
-
     fun setScreenBrightness(brightness: Float) {
         _uiState.update { it.copy(screenBrightness = brightness.coerceIn(0f, 1f)) }
     }
-
     fun onToggleFullScreen() {
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
     }
-
     fun seekTo(position: Long) {
         mediaPlayer.time = position
     }
-
     fun toggleAspectRatio() {
         val nextMode = when (_uiState.value.currentAspectRatioMode) {
             AspectRatioMode.FIT_SCREEN -> AspectRatioMode.FILL_SCREEN
@@ -235,7 +320,6 @@ class MovieDetailsViewModel(
         applyAspectRatio(nextMode)
         _uiState.update { it.copy(currentAspectRatioMode = nextMode) }
     }
-
     private fun applyAspectRatio(mode: AspectRatioMode) {
         when (mode) {
             AspectRatioMode.FIT_SCREEN -> { mediaPlayer.setAspectRatio(null); mediaPlayer.setScale(0.0f) }
@@ -244,30 +328,28 @@ class MovieDetailsViewModel(
             AspectRatioMode.ASPECT_4_3 -> { mediaPlayer.setAspectRatio("4:3"); mediaPlayer.setScale(0.0f) }
         }
     }
-
     private fun updateTrackInfo() {
         val audioTracks = mediaPlayer.audioTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.audioTrack) } ?: emptyList()
         val subtitleTracks = mediaPlayer.spuTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.spuTrack) } ?: emptyList()
         val videoTracks = mediaPlayer.videoTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.videoTrack) } ?: emptyList()
         _uiState.update { it.copy(availableAudioTracks = audioTracks, availableSubtitleTracks = subtitleTracks, availableVideoTracks = videoTracks) }
     }
-
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
     fun toggleVideoMenu(show: Boolean) = _uiState.update { it.copy(showVideoMenu = show) }
     fun selectAudioTrack(trackId: Int) { mediaPlayer.setAudioTrack(trackId); updateTrackInfo() }
     fun selectSubtitleTrack(trackId: Int) { mediaPlayer.setSpuTrack(trackId); updateTrackInfo() }
     fun selectVideoTrack(trackId: Int) { mediaPlayer.setVideoTrack(trackId); updateTrackInfo() }
-
     private fun buildStreamUrl(movie: Movie): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"
         return "${baseUrl}movie/${currentUser.username}/${currentUser.password}/${movie.streamId}.${movie.containerExtension}"
     }
-
     override fun onCleared() {
         super.onCleared()
+        if (mediaPlayer.isPlaying) {
+            preferenceManager.savePlaybackPosition(movieId.toString(), mediaPlayer.time)
+        }
         mediaPlayer.stop()
-        // ¡CORRECCIÓN VLC! Nos aseguramos de liberar el media antes de liberar el reproductor.
         mediaPlayer.media?.release()
         mediaPlayer.release()
         libVLC.release()

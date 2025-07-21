@@ -5,9 +5,7 @@ import android.content.SharedPreferences
 
 /**
  * Manages user preferences using SharedPreferences.
- * Handles sorting orders, aspect ratio, and favorite IDs.
- *
- * @param context The application context.
+ * Handles sorting orders, aspect ratio, favorite IDs, and playback positions.
  */
 class PreferenceManager(context: Context) {
 
@@ -18,13 +16,11 @@ class PreferenceManager(context: Context) {
         private const val PREFS_NAME = "app_preferences"
         private const val KEY_SORT_ORDER_PREFIX = "sort_order_"
         private const val KEY_ASPECT_RATIO_MODE = "aspect_ratio_mode"
-        // ¡NUEVO! Clave para guardar los IDs de las películas favoritas.
         private const val KEY_FAVORITE_MOVIE_IDS = "favorite_movie_ids"
+        // ¡NUEVO! Prefijo para guardar la posición de reproducción.
+        private const val KEY_PLAYBACK_POSITION_PREFIX = "playback_position_"
     }
 
-    /**
-     * Saves the selected sorting order for a specific key.
-     */
     fun saveSortOrder(key: String, sortOrder: String) {
         with(sharedPreferences.edit()) {
             putString(KEY_SORT_ORDER_PREFIX + key, sortOrder)
@@ -32,16 +28,10 @@ class PreferenceManager(context: Context) {
         }
     }
 
-    /**
-     * Retrieves the saved sorting order for a specific key.
-     */
     fun getSortOrder(key: String): String {
         return sharedPreferences.getString(KEY_SORT_ORDER_PREFIX + key, "DEFAULT") ?: "DEFAULT"
     }
 
-    /**
-     * Saves the selected aspect ratio mode.
-     */
     fun saveAspectRatioMode(mode: String) {
         with(sharedPreferences.edit()) {
             putString(KEY_ASPECT_RATIO_MODE, mode)
@@ -49,18 +39,10 @@ class PreferenceManager(context: Context) {
         }
     }
 
-    /**
-     * Retrieves the saved aspect ratio mode.
-     */
     fun getAspectRatioMode(): String {
         return sharedPreferences.getString(KEY_ASPECT_RATIO_MODE, "FIT_SCREEN") ?: "FIT_SCREEN"
     }
 
-    /**
-     * ¡NUEVA FUNCIÓN!
-     * Guarda el conjunto de IDs de películas favoritas.
-     * @param ids Un Set de Strings con los IDs de las películas.
-     */
     fun saveFavoriteMovieIds(ids: Set<String>) {
         with(sharedPreferences.edit()) {
             putStringSet(KEY_FAVORITE_MOVIE_IDS, ids)
@@ -68,12 +50,30 @@ class PreferenceManager(context: Context) {
         }
     }
 
-    /**
-     * ¡NUEVA FUNCIÓN!
-     * Recupera el conjunto de IDs de películas favoritas.
-     * @return Un Set de Strings, o un conjunto vacío si no hay ninguno guardado.
-     */
     fun getFavoriteMovieIds(): Set<String> {
         return sharedPreferences.getStringSet(KEY_FAVORITE_MOVIE_IDS, emptySet()) ?: emptySet()
+    }
+
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Guarda la última posición de reproducción conocida para un contenido.
+     * @param contentId El ID único del contenido (ej. streamId de la película).
+     * @param position La posición en milisegundos.
+     */
+    fun savePlaybackPosition(contentId: String, position: Long) {
+        with(sharedPreferences.edit()) {
+            putLong(KEY_PLAYBACK_POSITION_PREFIX + contentId, position)
+            apply()
+        }
+    }
+
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Recupera la última posición de reproducción guardada para un contenido.
+     * @param contentId El ID único del contenido.
+     * @return La posición en milisegundos, o 0L si no hay ninguna guardada.
+     */
+    fun getPlaybackPosition(contentId: String): Long {
+        return sharedPreferences.getLong(KEY_PLAYBACK_POSITION_PREFIX + contentId, 0L)
     }
 }

@@ -14,7 +14,7 @@ import com.kybers.play.data.remote.model.EpgEvent
 
 @Database(
     entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class, MovieDetailsCache::class],
-    version = 4,
+    version = 5, // ¡VERSIÓN INCREMENTADA! Esto le dice a Room que el esquema ha cambiado.
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -38,8 +38,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // ¡CORRECCIÓN! Usamos la versión moderna de la función.
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // Esta estrategia destruirá y reconstruirá la base de datos si no
+                    // proveemos una migración. Es perfecta para la fase de desarrollo.
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

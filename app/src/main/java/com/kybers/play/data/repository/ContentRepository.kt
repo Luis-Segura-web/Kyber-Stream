@@ -1,6 +1,7 @@
 package com.kybers.play.data.repository
 
 import android.util.Log
+import com.google.gson.Gson
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.local.EpgEventDao
 import com.kybers.play.data.local.LiveStreamDao
@@ -16,11 +17,31 @@ import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.data.remote.model.TMDbCastMember
+import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.util.XmlTvParser
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+
+data class CleanedTitle(val title: String, val year: String?)
+
+data class ActorFilmography(
+    val biography: String?,
+    val availableMovies: List<Movie>,
+    val unavailableMovies: List<TMDbMovieResult>
+)
+
+// Regex mejoradas para una limpieza más precisa
+private val yearRegex = """\b((19|20)\d{2})\b""".toRegex()
+private val parensRegex = """\s*\(.*?\)""".toRegex()
+private val bracketsRegex = """\s*\[.*?]""".toRegex()
+private val tagsRegex = """\b(HD|4K|FHD|HDTS|1080p|720p|DUAL|LAT(INO)?|SUB(TITULADO)?|VOS|ES|ENG|HEVC|X265|X264)\b""".toRegex(RegexOption.IGNORE_CASE)
+private val spacesRegex = """\s+""".toRegex()
 
 open class ContentRepository(
     private val xtreamApiService: XtreamApiService,
@@ -33,99 +54,166 @@ open class ContentRepository(
     private val movieDetailsCacheDao: MovieDetailsCacheDao,
     private val baseUrl: String
 ) {
-
-    // --- LÓGICA PARA DETALLES DE PELÍCULAS ---
+    private val gson = Gson()
 
     suspend fun getMovieDetails(movie: Movie): MovieWithDetails {
         val cacheExpiry = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
         val cachedDetails = movieDetailsCacheDao.getByStreamId(movie.streamId)
 
         if (cachedDetails != null && cachedDetails.lastUpdated > cacheExpiry) {
-            Log.d("ContentRepository", "Detalles de Película para '${movie.name}': Encontrado caché válido.")
             return MovieWithDetails(movie, cachedDetails)
         }
 
-        Log.d("ContentRepository", "Detalles de Película para '${movie.name}': Sin caché válido. Buscando en la red...")
-        // ¡CAMBIO CLAVE! Limpiamos el título antes de buscar.
-        val cleanedTitle = cleanMovieTitle(movie.name)
-        val newDetails = fetchFromTMDb(movie.streamId, cleanedTitle) ?: fetchFromOMDb(movie.streamId, cleanedTitle)
+        val cleaned = cleanMovieTitle(movie.name)
+        val tmdbId = findTMDbId(cleaned.title, cleaned.year)
 
-        newDetails?.let {
-            movieDetailsCacheDao.insertOrUpdate(it)
-            Log.d("ContentRepository", "Detalles de Película para '${movie.name}': Nuevos detalles guardados en caché.")
+        val newDetails = if (tmdbId != null) {
+            fetchFromTMDbById(movie.streamId, tmdbId)
+        } else {
+            null
         }
 
+        newDetails?.let { movieDetailsCacheDao.insertOrUpdate(it) }
         return MovieWithDetails(movie, newDetails)
     }
 
-    /**
-     * ¡NUEVA FUNCIÓN! Limpia el título de una película para mejorar las coincidencias en las APIs.
-     * Elimina etiquetas de calidad, información entre paréntesis y caracteres especiales.
-     */
-    private fun cleanMovieTitle(title: String): String {
-        // Regex para eliminar etiquetas comunes como (Dual), HD, 4K, etc. y espacios extra.
-        return title
-            .replace(Regex("""\s*\(.*?\)"""), "") // Elimina todo dentro de paréntesis
-            .replace(Regex("""\s*\[.*?]"""), "") // Elimina todo dentro de corchetes
-            .replace(Regex("""\b(HD|4K|FHD|1080p|720p|DUAL|LATINO|SUB|VOS|ES|ENG)\b""", RegexOption.IGNORE_CASE), "")
-            .trim()
+    fun cleanMovieTitle(title: String): CleanedTitle {
+        val yearMatch = yearRegex.find(title)
+        val year = yearMatch?.value
+
+        var tempTitle = title
+
+        if (year != null) {
+            tempTitle = tempTitle.replace(year, "")
+        }
+
+        var cleanedTitle = tempTitle
+            .replace(parensRegex, "")
+            .replace(bracketsRegex, "")
+            .replace(tagsRegex, "")
+
+        if (cleanedTitle.contains(": ")) {
+            cleanedTitle = cleanedTitle.substringBefore(": ")
+        }
+
+        cleanedTitle = cleanedTitle.trim().replace(spacesRegex, " ")
+
+        return CleanedTitle(cleanedTitle, year)
     }
 
-    private suspend fun fetchFromTMDb(streamId: Int, cleanedTitle: String): MovieDetailsCache? {
+
+    private suspend fun findTMDbId(cleanedTitle: String, year: String?): Int? {
         try {
             val response = tmdbApiService.searchMovieTMDb(
                 apiKey = BuildConfig.TMDB_API_KEY,
-                movieTitle = cleanedTitle
+                movieTitle = cleanedTitle,
+                year = year
             )
             if (response.isSuccessful) {
-                val tmdbMovie = response.body()?.results?.firstOrNull()
-                if (tmdbMovie != null) {
-                    Log.d("ContentRepository", "TMDb encontró: '${tmdbMovie.title}' para '$cleanedTitle'")
-                    return MovieDetailsCache(
-                        streamId = streamId,
-                        plot = tmdbMovie.overview,
-                        backdropUrl = tmdbMovie.getFullBackdropUrl(),
-                        rating = tmdbMovie.voteAverage,
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                }
-            } else {
-                Log.e("ContentRepository", "Error de TMDb: ${response.code()} - ${response.errorBody()?.string()}")
+                return response.body()?.results?.firstOrNull()?.id
             }
         } catch (e: Exception) {
             Log.e("ContentRepository", "Fallo en la búsqueda de TMDb para '$cleanedTitle': ${e.message}")
         }
-        Log.w("ContentRepository", "TMDb no encontró resultados para '$cleanedTitle'.")
         return null
     }
 
-    private suspend fun fetchFromOMDb(streamId: Int, cleanedTitle: String): MovieDetailsCache? {
+    private suspend fun fetchFromTMDbById(streamId: Int, tmdbId: Int): MovieDetailsCache? {
         try {
-            val response = omdbApiService.getMovieOMDb(
-                apiKey = BuildConfig.OMDB_API_KEY,
-                movieTitle = cleanedTitle
+            val response = tmdbApiService.getMovieDetailsTMDb(
+                movieId = tmdbId,
+                apiKey = BuildConfig.TMDB_API_KEY
             )
             if (response.isSuccessful) {
-                val omdbMovie = response.body()
-                if (omdbMovie != null && omdbMovie.hasSucceeded()) {
-                    Log.d("ContentRepository", "OMDb (respaldo) encontró: '${omdbMovie.title}' para '$cleanedTitle'")
+                val details = response.body()
+                if (details != null) {
+                    val castList: List<TMDbCastMember> = details.credits?.cast?.take(10) ?: emptyList()
+                    val recommendations: List<TMDbMovieResult> = details.recommendations?.results?.take(10) ?: emptyList()
+
                     return MovieDetailsCache(
-                        streamId = streamId,
-                        plot = omdbMovie.plot,
-                        backdropUrl = null,
-                        rating = omdbMovie.imdbRating?.toDoubleOrNull(),
+                        streamId = streamId, tmdbId = tmdbId, plot = details.overview,
+                        posterUrl = details.getFullPosterUrl(), backdropUrl = details.getFullBackdropUrl(),
+                        releaseYear = details.releaseDate?.substringBefore("-"), rating = details.voteAverage,
+                        castJson = gson.toJson(castList), recommendationsJson = gson.toJson(recommendations),
                         lastUpdated = System.currentTimeMillis()
                     )
                 }
             }
         } catch (e: Exception) {
-            Log.e("ContentRepository", "Fallo en la búsqueda de OMDb para '$cleanedTitle': ${e.message}")
+            Log.e("ContentRepository", "Fallo al obtener detalles de TMDb para ID $tmdbId: ${e.message}")
         }
-        Log.e("ContentRepository", "Ambos TMDb y OMDb fallaron para encontrar '$cleanedTitle'.")
         return null
     }
 
-    // --- El resto de las funciones del repositorio permanecen igual ---
+    suspend fun findMoviesByTMDbResults(tmdbMovies: List<TMDbMovieResult>, allLocalMovies: List<Movie>): List<Movie> = coroutineScope {
+        val localMoviesCleaned = allLocalMovies.map { it to cleanMovieTitle(it.name) }
+        val matchJobs = tmdbMovies.map { tmdbMovie ->
+            async {
+                findLocalMovieMatches(tmdbMovie, localMoviesCleaned)
+            }
+        }
+        // ¡NUEVO! Filtramos por link único (streamId + extension)
+        matchJobs.awaitAll().flatten().distinctBy { "${it.streamId}.${it.containerExtension}" }
+    }
+
+    private suspend fun findLocalMovieMatches(tmdbMovie: TMDbMovieResult, localMoviesCleaned: List<Pair<Movie, CleanedTitle>>): List<Movie> {
+        try {
+            val detailsResponse = tmdbApiService.getMovieDetailsTMDb(
+                movieId = tmdbMovie.id,
+                apiKey = BuildConfig.TMDB_API_KEY
+            )
+            if (detailsResponse.isSuccessful) {
+                val details = detailsResponse.body() ?: return emptyList()
+                val allPossibleTitles = mutableSetOf<String>()
+                details.title?.let { allPossibleTitles.add(cleanMovieTitle(it).title) }
+                details.alternativeTitles?.titles?.forEach { altTitle ->
+                    allPossibleTitles.add(cleanMovieTitle(altTitle.title).title)
+                }
+                val tmdbYear = details.releaseDate?.substringBefore("-")
+                return localMoviesCleaned.filter { (_, cleanedLocal) ->
+                    val titleMatch = allPossibleTitles.any { it.equals(cleanedLocal.title, ignoreCase = true) }
+                    val yearMatch = (tmdbYear == null || cleanedLocal.year == null || cleanedLocal.year == tmdbYear)
+                    titleMatch && yearMatch
+                }.map { it.first }
+            }
+        } catch (e: Exception) {
+            Log.e("ContentRepository", "Error buscando coincidencias para TMDb ID ${tmdbMovie.id}: ${e.message}")
+        }
+        return emptyList()
+    }
+
+    suspend fun getActorFilmography(actorId: Int, allLocalMovies: List<Movie>): ActorFilmography = coroutineScope {
+        val biography = try {
+            tmdbApiService.getPersonDetails(actorId, BuildConfig.TMDB_API_KEY).body()?.biography
+        } catch (e: Exception) { null }
+
+        val filmographyResponse = try {
+            tmdbApiService.getPersonMovieCredits(actorId, BuildConfig.TMDB_API_KEY)
+        } catch (e: Exception) { null }
+
+        if (filmographyResponse?.isSuccessful == true) {
+            val filmography = filmographyResponse.body()?.cast ?: emptyList()
+            val localMoviesCleaned = allLocalMovies.map { it to cleanMovieTitle(it.name) }
+
+            val matchJobs = filmography.map { tmdbMovie ->
+                async {
+                    findLocalMovieMatches(tmdbMovie, localMoviesCleaned) to tmdbMovie
+                }
+            }
+            val results = matchJobs.awaitAll()
+
+            val available = results.flatMap { it.first }
+            val matchedTmdbMovies = results.filter { it.first.isNotEmpty() }.map { it.second }
+            val unavailable = filmography.filterNot { tmdbMovie -> matchedTmdbMovies.any { it.id == tmdbMovie.id } }
+
+            // ¡NUEVO! Filtramos por link único (streamId + extension)
+            val uniqueAvailable = available.distinctBy { "${it.streamId}.${it.containerExtension}" }
+
+            return@coroutineScope ActorFilmography(biography, uniqueAvailable, unavailable)
+        }
+        return@coroutineScope ActorFilmography(biography, emptyList(), emptyList())
+    }
+
     fun getRawLiveStreams(userId: Int): Flow<List<LiveStream>> = liveStreamDao.getAllLiveStreams(userId)
     suspend fun getAllEpgMapForUser(userId: Int): Map<Int, List<EpgEvent>> = epgEventDao.getAllEventsForUser(userId).groupBy { it.channelId }
     suspend fun enrichChannelsWithEpg(channels: List<LiveStream>, epgMap: Map<Int, List<EpgEvent>>): List<LiveStream> {
@@ -144,18 +232,12 @@ open class ContentRepository(
     open suspend fun getLiveCategories(user: String, pass: String): List<Category> {
         return try {
             xtreamApiService.getLiveCategories(user, pass).body() ?: emptyList()
-        } catch (e: IOException) {
-            Log.e("ContentRepository", "Error al obtener categorías en vivo: ${e.message}")
-            emptyList()
-        }
+        } catch (e: IOException) { emptyList() }
     }
     open suspend fun getMovieCategories(user: String, pass: String): List<Category> {
         return try {
             xtreamApiService.getMovieCategories(user, pass).body() ?: emptyList()
-        } catch (e: IOException) {
-            Log.e("ContentRepository", "Error al obtener categorías de películas: ${e.message}")
-            emptyList()
-        }
+        } catch (e: IOException) { emptyList() }
     }
     suspend fun cacheLiveStreams(user: String, pass: String, userId: Int) {
         val liveCategories = getLiveCategories(user, pass)
@@ -167,9 +249,7 @@ open class ContentRepository(
                     streams.forEach { it.userId = userId }
                     allStreamsForUser.addAll(streams)
                 }
-            } catch (e: Exception) {
-                Log.e("ContentRepository", "Error al obtener streams de categoría ${category.categoryId}: ${e.message}")
-            }
+            } catch (e: Exception) { /* Log error */ }
         }
         liveStreamDao.replaceAll(allStreamsForUser, userId)
     }
@@ -183,9 +263,7 @@ open class ContentRepository(
                     movies.forEach { it.userId = userId }
                     allMoviesForUser.addAll(movies)
                 }
-            } catch (e: Exception) {
-                Log.e("ContentRepository", "Error al obtener películas de categoría ${category.categoryId}: ${e.message}")
-            }
+            } catch (e: Exception) { /* Log error */ }
         }
         movieDao.replaceAll(allMoviesForUser, userId)
     }
@@ -199,33 +277,22 @@ open class ContentRepository(
                     series.forEach { it.userId = userId }
                     allSeriesForUser.addAll(series)
                 }
-            } catch (e: Exception) {
-                Log.e("ContentRepository", "Error al obtener series de categoría ${category.categoryId}: ${e.message}")
-            }
+            } catch (e: Exception) { /* Log error */ }
         }
         seriesDao.replaceAll(allSeriesForUser, userId)
     }
     suspend fun cacheEpgData(user: String, pass: String, userId: Int) {
-        Log.d("EPG_DEBUG", "Iniciando descarga de EPG (XMLTV) para userId: $userId")
         try {
             val allStreams = liveStreamDao.getAllLiveStreams(userId).first()
             val epgIdToStreamIdsMap = allStreams
                 .filter { !it.epgChannelId.isNullOrBlank() }
-                .groupBy(
-                    { it.epgChannelId!!.lowercase().trim() },
-                    { it.streamId }
-                )
+                .groupBy({ it.epgChannelId!!.lowercase().trim() }, { it.streamId })
             val response = xtreamApiService.getXmlTvEpg(user, pass)
             if (response.isSuccessful && response.body() != null) {
                 val inputStream = response.body()!!.byteStream()
                 val allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId)
                 epgEventDao.replaceAll(allEpgEvents, userId)
-            } else {
-                Log.e("EPG_DEBUG", "Falló la descarga de XMLTV. Código: ${response.code()}. Mensaje: ${response.message()}")
             }
-        } catch (e: Exception) {
-            Log.e("EPG_DEBUG", "Excepción mayor durante el proceso de caché de EPG: ${e.message}")
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { /* Log error */ }
     }
 }
