@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.* // Importa todo de Material3 para incluir ExperimentalMaterial3Api
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,30 +32,26 @@ import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.SearchBar
-import com.kybers.play.ui.channels.SortOrder
+import com.kybers.play.ui.player.SortOrder
 import kotlinx.coroutines.flow.collectLatest
 
-// Anotación necesaria para usar APIs experimentales de Material3 (como TopAppBarDefaults)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MoviesScreen(
     viewModel: MoviesViewModel,
-    onNavigateToDetails: (movieId: Int) -> Unit // Callback de navegación a detalles de película
+    onNavigateToDetails: (movieId: Int) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = rememberLazyListState()
 
-    // Efecto para desplazar la lista a una categoría específica
     LaunchedEffect(Unit) {
         viewModel.scrollToItemEvent.collectLatest { categoryId ->
             val categoryIndex = uiState.categories.indexOfFirst { it.category.categoryId == categoryId }
             if (categoryIndex != -1) {
                 var targetIndex = 0
-                // Calcula el índice real en la LazyColumn, considerando encabezados y elementos expandidos
                 for (i in 0 until categoryIndex) {
-                    targetIndex++ // Por el encabezado de la categoría
+                    targetIndex++
                     if (uiState.categories[i].isExpanded) {
-                        // Suma el número de filas de películas (cada fila tiene 3 películas)
                         targetIndex += uiState.categories[i].movies.chunked(3).size
                     }
                 }
@@ -124,7 +120,6 @@ fun MoviesScreen(
                         }
                     }
                 },
-                // Uso de TopAppBarDefaults.topAppBarColors que requiere @OptIn(ExperimentalMaterial3Api::class)
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
@@ -156,7 +151,6 @@ fun MoviesScreen(
                     contentPadding = PaddingValues(vertical = 8.dp)
                 ) {
                     uiState.categories.forEach { expandableCategory ->
-                        // Encabezado de categoría pegajoso
                         stickyHeader(key = expandableCategory.category.categoryId) {
                             Surface(modifier = Modifier.fillParentMaxWidth()) {
                                 CategoryHeader(
@@ -169,26 +163,25 @@ fun MoviesScreen(
                         }
 
                         if (expandableCategory.isExpanded) {
-                            val movieRows = expandableCategory.movies.chunked(3) // Divide las películas en filas de 3
+                            val movieRows = expandableCategory.movies.chunked(3)
                             items(
                                 items = movieRows,
-                                key = { row -> row.joinToString { it.streamId.toString() } } // Clave única para cada fila
+                                key = { row -> row.joinToString { it.streamId.toString() } }
                             ) { rowMovies ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp) // Espaciado entre películas
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     rowMovies.forEach { movie ->
                                         Box(modifier = Modifier.weight(1f)) {
                                             MoviePosterItem(
                                                 movie = movie,
-                                                onClick = { onNavigateToDetails(movie.streamId) } // Navega a los detalles
+                                                onClick = { onNavigateToDetails(movie.streamId) }
                                             )
                                         }
                                     }
-                                    // Rellena los espacios si la última fila tiene menos de 3 películas
                                     repeat(3 - rowMovies.size) {
                                         Spacer(Modifier.weight(1f))
                                     }
@@ -201,7 +194,6 @@ fun MoviesScreen(
         }
     }
 
-    // Diálogo de opciones de ordenación
     if (uiState.showSortMenu) {
         SortOptionsDialog(
             currentCategorySortOrder = uiState.categorySortOrder,
@@ -222,7 +214,7 @@ fun MoviePosterItem(
 ) {
     Card(
         modifier = Modifier
-            .aspectRatio(2f / 3f) // Relación de aspecto de póster
+            .aspectRatio(2f / 3f)
             .clickable(onClick = onClick)
             .padding(top = 8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -235,13 +227,12 @@ fun MoviePosterItem(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(movie.streamIcon)
                     .crossfade(true)
-                    .error(android.R.drawable.stat_notify_error) // Imagen de error si no carga
+                    .error(android.R.drawable.stat_notify_error)
                     .build(),
                 contentDescription = movie.name,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            // Gradiente para mejorar la legibilidad del título
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -275,7 +266,6 @@ fun MoviePosterItem(
     }
 }
 
-// Diálogo de opciones de ordenación (reutilizado de ChannelsScreen pero con etiquetas personalizables)
 @Composable
 fun SortOptionsDialog(
     currentCategorySortOrder: SortOrder,
@@ -336,7 +326,6 @@ fun SortOptionsDialog(
     )
 }
 
-// Extensión para obtener el nombre localizado de la opción de ordenación
 @Composable
 fun SortOrder.toLocalizedName(): String {
     return when (this) {

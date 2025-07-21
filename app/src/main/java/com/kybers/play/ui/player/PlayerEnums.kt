@@ -1,7 +1,18 @@
 package com.kybers.play.ui.player
 
-import com.kybers.play.ui.channels.SortOrder
 import java.lang.IllegalArgumentException
+
+/**
+ * Enum para las opciones de ordenamiento.
+ * ¡MOVIMOS ESTE ENUM AQUÍ!
+ * Ahora está en una ubicación central para que tanto la pantalla de Canales como la de Películas
+ * puedan usarlo sin crear dependencias extrañas entre ellas.
+ */
+enum class SortOrder {
+    DEFAULT, // Orden original del servicio
+    AZ,      // Alfabético A-Z
+    ZA       // Alfabético Z-A
+}
 
 /**
  * Enum para representar el estado actual del reproductor.
@@ -34,10 +45,8 @@ data class TrackInfo(
 )
 
 /**
- * ¡NUEVA FUNCIÓN DE EXTENSIÓN!
- * Convierte un String (guardado en las preferencias) a un valor del enum SortOrder.
+ * Función de extensión para convertir un String (guardado en las preferencias) a un valor del enum SortOrder.
  * Si el String no es válido, devuelve SortOrder.DEFAULT para evitar crashes.
- * Esto resuelve todos los errores 'unresolved reference toSortOrder'.
  */
 fun String?.toSortOrder(): SortOrder {
     return when (this) {

@@ -3,7 +3,6 @@ package com.kybers.play.ui.details
 import android.app.Application
 import android.media.AudioManager
 import android.os.Build
-import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,7 +27,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -129,7 +127,6 @@ class MovieDetailsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val detailsWrapper = contentRepository.getMovieDetails(movie)
 
-            // Actualizamos la UI con la información principal primero
             _uiState.update {
                 it.copy(
                     isLoadingDetails = false,
@@ -145,7 +142,6 @@ class MovieDetailsViewModel(
                 )
             }
 
-            // Lanzamos una nueva coroutina para las recomendaciones, para no bloquear
             launch {
                 val allLocalMovies = contentRepository.getAllMovies(currentUser.id).first()
                 val availableRecs = contentRepository.findMoviesByTMDbResults(
@@ -172,7 +168,6 @@ class MovieDetailsViewModel(
             val allMovies = contentRepository.getAllMovies(currentUser.id).first()
             val filmography = contentRepository.getActorFilmography(actor.id, allMovies)
 
-            // ¡NUEVO! Ordenamos las películas disponibles por año descendente.
             val sortedAvailableMovies = filmography.availableMovies.sortedByDescending { movie ->
                 contentRepository.cleanMovieTitle(movie.name).year?.toIntOrNull() ?: 0
             }
@@ -181,7 +176,7 @@ class MovieDetailsViewModel(
                 it.copy(
                     isActorMoviesLoading = false,
                     selectedActorBio = filmography.biography,
-                    availableActorMovies = sortedAvailableMovies, // Usamos la lista ordenada
+                    availableActorMovies = sortedAvailableMovies,
                     unavailableActorMovies = filmography.unavailableMovies
                 )
             }

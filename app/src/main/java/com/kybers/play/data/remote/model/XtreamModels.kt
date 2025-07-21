@@ -69,7 +69,6 @@ data class LiveStream(
     @Json(name = "tv_archive") val tvArchive: Int,
     @Json(name = "direct_source") val directSource: String,
     @Json(name = "tv_archive_duration") val tvArchiveDuration: Int,
-    // ¡NUEVO! Añadimos el campo 'is_adult' que vimos en los logs para evitar errores de parseo.
     @Json(name = "is_adult") val isAdult: String? = "0"
 ) {
     var userId: Int = 0
@@ -80,9 +79,15 @@ data class LiveStream(
 /**
  * Representa una película (VOD - Video On Demand). Es una entidad de Room.
  */
-@Entity(tableName = "movies", primaryKeys = ["streamId", "userId"])
+// --- ¡CAMBIO CLAVE! ---
+// Cambiamos la clave primaria. Ahora, una película es única por la combinación
+// de su ID, su ID de categoría y el ID del usuario. Esto permite que la misma
+// película (mismo streamId) exista en la base de datos varias veces, siempre y
+// cuando esté en diferentes categorías.
+@Entity(tableName = "movies", primaryKeys = ["streamId", "categoryId", "num", "userId"])
 data class Movie(
     @Json(name = "stream_id") val streamId: Int,
+    @Json(name = "tmdb_id") val tmdbId: Int?,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
     @Json(name = "stream_type") val streamType: String,

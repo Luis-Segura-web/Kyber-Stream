@@ -9,7 +9,10 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.details.MovieDetailsViewModel // ¡IMPORTACIÓN CORREGIDA! Apunta al paquete 'details'.
+// --- ¡CORRECCIÓN! ---
+// Añadimos la importación que faltaba para que la fábrica sepa dónde encontrar
+// el MovieDetailsViewModel.
+import com.kybers.play.ui.details.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.movies.MoviesViewModel
@@ -32,8 +35,6 @@ class LoginViewModelFactory(private val userRepository: UserRepository) : ViewMo
 
 /**
  * Fábrica para los ViewModels que dependen del contenido principal.
- * ¡IMPORTANTE! Hemos quitado la responsabilidad de crear MovieDetailsViewModel de aquí.
- * Cada ViewModel complejo debe tener su propia fábrica para mayor claridad.
  */
 class ContentViewModelFactory(
     private val application: Application,
@@ -54,24 +55,20 @@ class ContentViewModelFactory(
             modelClass.isAssignableFrom(MoviesViewModel::class.java) -> {
                 MoviesViewModel(contentRepository, syncManager, preferenceManager, currentUser) as T
             }
-            // El caso de MovieDetailsViewModel se ha movido a su propia fábrica.
             else -> throw IllegalArgumentException("Unknown ViewModel class in ContentViewModelFactory: ${modelClass.name}")
         }
     }
 }
 
 /**
- * ¡NUEVA FÁBRICA!
- * Esta es una fábrica dedicada exclusivamente para crear el MovieDetailsViewModel.
- * Es la forma correcta de hacerlo, ya que nos permite pasarle dependencias específicas
- * como el 'movieId' que necesita para saber qué película mostrar.
+ * Fábrica dedicada exclusivamente para crear el MovieDetailsViewModel.
  */
 class MovieDetailsViewModelFactory(
     private val application: Application,
     private val contentRepository: ContentRepository,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
-    private val movieId: Int // Dependencia específica para este ViewModel
+    private val movieId: Int
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

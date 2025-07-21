@@ -8,8 +8,8 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.ContentRepository
-import com.kybers.play.ui.channels.SortOrder
-import com.kybers.play.ui.player.toSortOrder // ¡IMPORTACIÓN CLAVE AÑADIDA!
+import com.kybers.play.ui.player.SortOrder
+import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -63,7 +63,6 @@ class MoviesViewModel(
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
     init {
-        // ¡CORREGIDO! Ahora la función toSortOrder se encuentra sin problemas.
         val savedCategorySortOrder = preferenceManager.getSortOrder("movie_category").toSortOrder()
         val savedMovieSortOrder = preferenceManager.getSortOrder("movie_item").toSortOrder()
         _uiState.update {
@@ -119,7 +118,6 @@ class MoviesViewModel(
             val updatedOriginals = currentOriginals.map {
                 when {
                     it.category.categoryId == categoryId -> it.copy(isExpanded = isNowExpanding)
-                    // Contrae las otras categorías si estamos expandiendo una nueva
                     isNowExpanding -> it.copy(isExpanded = false)
                     else -> it
                 }
@@ -144,6 +142,7 @@ class MoviesViewModel(
         _uiState.update { it.copy(categories = filteredList) }
     }
 
+    // --- ¡LÓGICA CLAVE MEJORADA! ---
     private fun filterAndSort(
         categories: List<ExpandableMovieCategory>,
         allMovies: List<Movie>,
@@ -151,28 +150,59 @@ class MoviesViewModel(
         categorySortOrder: SortOrder,
         movieSortOrder: SortOrder
     ): List<ExpandableMovieCategory> {
-        val moviesByCat = allMovies.groupBy { it.categoryId }
         val lowercasedQuery = query.lowercase()
+        val officialCategoryIds = categories.map { it.category.categoryId }.toSet()
 
-        val filteredAndSortedMovies = moviesByCat.mapValues { (_, movies) ->
-            val filtered = if (query.isBlank()) movies else movies.filter { it.name.lowercase().contains(lowercasedQuery) }
-            when (movieSortOrder) {
-                SortOrder.AZ -> filtered.sortedBy { it.name }
-                SortOrder.ZA -> filtered.sortedByDescending { it.name }
-                SortOrder.DEFAULT -> filtered
-            }
+        // 1. Filtra todas las películas primero según la búsqueda.
+        val searchedMovies = if (query.isBlank()) {
+            allMovies
+        } else {
+            allMovies.filter { it.name.lowercase().contains(lowercasedQuery) }
         }
 
-        val filteredCategories = categories
-            .map { it.copy(movies = filteredAndSortedMovies[it.category.categoryId] ?: emptyList()) }
-            .filter {
-                query.isBlank() || it.category.categoryName.lowercase().contains(lowercasedQuery) || it.movies.isNotEmpty()
-            }
+        // 2. Agrupa las películas filtradas por su ID de categoría.
+        val moviesByCat = searchedMovies.groupBy { it.categoryId }
 
+        // 3. Crea la lista de categorías oficiales, asignando las películas filtradas y ordenadas.
+        var finalCategories = categories.map { expandableCategory ->
+            val moviesForThisCategory = moviesByCat[expandableCategory.category.categoryId] ?: emptyList()
+            val sortedMovies = when (movieSortOrder) {
+                SortOrder.AZ -> moviesForThisCategory.sortedBy { it.name }
+                SortOrder.ZA -> moviesForThisCategory.sortedByDescending { it.name }
+                SortOrder.DEFAULT -> moviesForThisCategory
+            }
+            expandableCategory.copy(movies = sortedMovies)
+        }
+
+        // 4. Busca películas "huérfanas" (sin categoría o con una ID no oficial).
+        val orphanMovies = searchedMovies.filter { it.categoryId.isBlank() || !officialCategoryIds.contains(it.categoryId) }
+
+        // 5. Si hay películas huérfanas, crea una categoría "Varios" para ellas.
+        if (orphanMovies.isNotEmpty()) {
+            val sortedOrphans = when (movieSortOrder) {
+                SortOrder.AZ -> orphanMovies.sortedBy { it.name }
+                SortOrder.ZA -> orphanMovies.sortedByDescending { it.name }
+                SortOrder.DEFAULT -> orphanMovies
+            }
+            val miscCategory = ExpandableMovieCategory(
+                category = Category(categoryId = "misc", categoryName = "Varios", parentId = 0),
+                movies = sortedOrphans,
+                // Mantenemos el estado de expansión si ya existía.
+                isExpanded = categories.find { it.category.categoryId == "misc" }?.isExpanded ?: false
+            )
+            finalCategories = finalCategories + miscCategory
+        }
+
+        // 6. Si hay una búsqueda, filtra las categorías que se quedaron vacías.
+        if (query.isNotBlank()) {
+            finalCategories = finalCategories.filter { it.movies.isNotEmpty() }
+        }
+
+        // 7. Finalmente, ordena la lista de categorías.
         return when (categorySortOrder) {
-            SortOrder.AZ -> filteredCategories.sortedBy { it.category.categoryName }
-            SortOrder.ZA -> filteredCategories.sortedByDescending { it.category.categoryName }
-            SortOrder.DEFAULT -> filteredCategories
+            SortOrder.AZ -> finalCategories.sortedBy { it.category.categoryName }
+            SortOrder.ZA -> finalCategories.sortedByDescending { it.category.categoryName }
+            SortOrder.DEFAULT -> finalCategories
         }
     }
 

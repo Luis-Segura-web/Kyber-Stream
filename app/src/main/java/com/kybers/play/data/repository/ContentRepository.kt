@@ -56,24 +56,42 @@ open class ContentRepository(
 ) {
     private val gson = Gson()
 
+    // --- ¡FUNCIÓN CLAVE MODIFICADA! ---
     suspend fun getMovieDetails(movie: Movie): MovieWithDetails {
         val cacheExpiry = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
         val cachedDetails = movieDetailsCacheDao.getByStreamId(movie.streamId)
 
         if (cachedDetails != null && cachedDetails.lastUpdated > cacheExpiry) {
+            Log.d("ContentRepository", "Detalles para '${movie.name}' encontrados en caché y válidos.")
             return MovieWithDetails(movie, cachedDetails)
         }
 
-        val cleaned = cleanMovieTitle(movie.name)
-        val tmdbId = findTMDbId(cleaned.title, cleaned.year)
+        // --- INICIO DE LA NUEVA LÓGICA INTELIGENTE ---
+        var tmdbId: Int? = null
+
+        // 1. PRIMER INTENTO: Usar el tmdbId del proveedor si es válido.
+        if (movie.tmdbId != null && movie.tmdbId > 0) {
+            Log.d("ContentRepository", "Usando tmdbId (${movie.tmdbId}) directamente del proveedor para '${movie.name}'.")
+            tmdbId = movie.tmdbId
+        } else {
+            // 2. PLAN B: Si no hay tmdbId, usamos el método antiguo de "detective".
+            Log.d("ContentRepository", "No se encontró tmdbId para '${movie.name}'. Usando método de búsqueda por título.")
+            val cleaned = cleanMovieTitle(movie.name)
+            tmdbId = findTMDbId(cleaned.title, cleaned.year)
+        }
+        // --- FIN DE LA NUEVA LÓGICA INTELIGENTE ---
 
         val newDetails = if (tmdbId != null) {
             fetchFromTMDbById(movie.streamId, tmdbId)
         } else {
+            Log.w("ContentRepository", "No se pudo encontrar un tmdbId para '${movie.name}' después de todos los intentos.")
             null
         }
 
-        newDetails?.let { movieDetailsCacheDao.insertOrUpdate(it) }
+        newDetails?.let {
+            Log.d("ContentRepository", "Guardando nuevos detalles en caché para '${movie.name}'.")
+            movieDetailsCacheDao.insertOrUpdate(it)
+        }
         return MovieWithDetails(movie, newDetails)
     }
 

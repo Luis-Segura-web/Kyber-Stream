@@ -59,6 +59,7 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.ChannelPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
+import com.kybers.play.ui.player.SortOrder // --- ¡CORRECCIÓN! --- Añadimos la importación que faltaba.
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -69,7 +70,6 @@ import java.util.TimeZone
 @Composable
 fun ChannelsScreen(
     viewModel: ChannelsViewModel,
-    // ¡CAMBIO CLAVE! El callback ahora informa del estado completo del reproductor.
     onPlayerUiStateChanged: (isFullScreen: Boolean, isInPipMode: Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -78,7 +78,6 @@ fun ChannelsScreen(
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val lazyListState = rememberLazyListState()
 
-    // ¡CAMBIO CLAVE! Este LaunchedEffect ahora informa a MainScreen de ambos estados.
     LaunchedEffect(uiState.isFullScreen, uiState.isInPipMode) {
         onPlayerUiStateChanged(uiState.isFullScreen, uiState.isInPipMode)
     }
@@ -167,7 +166,6 @@ fun ChannelsScreen(
         }
     }
 
-    // ¡CORRECCIÓN CLAVE! La lógica del modo inmersivo ahora también depende de los menús.
     LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu) {
         val window = activity?.window ?: return@LaunchedEffect
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
@@ -254,7 +252,6 @@ fun ChannelsScreen(
     }
 }
 
-// ... El resto del archivo no necesita cambios ...
 @Composable
 private fun PlayerSection(
     viewModel: ChannelsViewModel,

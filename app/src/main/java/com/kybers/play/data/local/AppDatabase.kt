@@ -14,7 +14,11 @@ import com.kybers.play.data.remote.model.EpgEvent
 
 @Database(
     entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class, MovieDetailsCache::class],
-    version = 5, // ¡VERSIÓN INCREMENTADA! Esto le dice a Room que el esquema ha cambiado.
+    // --- ¡CAMBIO CLAVE! ---
+    // Incrementamos la versión de la base de datos de 4 a 5.
+    // Esto es OBLIGATORIO porque hemos añadido el campo 'tmdbId' a la tabla 'Movie'.
+    // Al hacerlo, Room sabrá que necesita actualizar la estructura de la base de datos.
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

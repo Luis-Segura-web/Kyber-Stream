@@ -16,9 +16,10 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
+import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.TrackInfo
 import com.kybers.play.ui.player.toAspectRatioMode
-import com.kybers.play.ui.player.toSortOrder // ¡IMPORTACIÓN CLAVE AÑADIDA!
+import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -35,13 +36,6 @@ import org.videolan.libvlc.MediaPlayer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-// Enum para las opciones de ordenamiento.
-enum class SortOrder {
-    DEFAULT, // Orden original del servicio (por ID o el que venga por defecto de la API)
-    AZ,      // Alfabético A-Z
-    ZA       // Alfabético Z-A
-}
 
 // Data class para representar una categoría de canales que puede expandirse o contraerse.
 data class ExpandableCategory(
@@ -146,7 +140,6 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
-        // ¡CORREGIDO! Ahora la función toSortOrder se encuentra gracias a la nueva importación.
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()

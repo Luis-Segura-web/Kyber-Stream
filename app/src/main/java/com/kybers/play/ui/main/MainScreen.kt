@@ -51,7 +51,6 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     object Channels : Screen("channels", "Canales", Icons.Default.Tv)
     object Movies : Screen("movies", "Películas", Icons.Default.Movie)
     object Series : Screen("series", "Series", Icons.Default.Movie)
-    // ¡CAMBIO! La ruta ahora distingue el argumento para que la navegación funcione correctamente.
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
@@ -129,7 +128,6 @@ fun MainScreen(
                 MoviesScreen(
                     viewModel = moviesViewModel,
                     onNavigateToDetails = { movieId ->
-                        // Usamos la nueva función para crear la ruta
                         navController.navigate(Screen.MovieDetails.createRoute(movieId))
                     }
                 )
@@ -154,7 +152,6 @@ fun MainScreen(
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
                     onNavigateUp = { navController.navigateUp() },
-                    // ¡NUEVO! Pasamos la función para navegar a otra película.
                     onNavigateToMovie = { newMovieId ->
                         navController.navigate(Screen.MovieDetails.createRoute(newMovieId))
                     }

@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
 import com.kybers.play.MainApplication
 import com.kybers.play.ui.ContentViewModelFactory
-import com.kybers.play.ui.MovieDetailsViewModelFactory // Importación necesaria
 import com.kybers.play.ui.theme.IPTVAppTheme
 import kotlinx.coroutines.launch
 
@@ -55,7 +54,7 @@ class MainActivity : ComponentActivity() {
             // 8. Establecemos el contenido de la actividad.
             setContent {
                 IPTVAppTheme {
-                    // ¡CAMBIO CLAVE! Pasamos todas las dependencias a MainScreen.
+                    // Pasamos todas las dependencias a MainScreen.
                     MainScreen(
                         contentViewModelFactory = contentViewModelFactory,
                         contentRepository = contentRepository,

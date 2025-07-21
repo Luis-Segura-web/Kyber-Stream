@@ -46,6 +46,8 @@ class SyncActivity : ComponentActivity() {
             return
         }
 
+        // --- CORRECCIÓN ---
+        // Aseguramos que 'launch' esté importado para que lifecycleScope funcione.
         lifecycleScope.launch {
             val user = (application as MainApplication).container.userRepository.getUserById(userId)
             if (user == null) {
