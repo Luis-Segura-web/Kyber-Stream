@@ -56,8 +56,13 @@ class MoviesViewModel(
     private val _uiState = MutableStateFlow(MoviesUiState())
     val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()
 
-    private val _originalCategories = MutableStateFlow<List<ExpandableMovieCategory>>(emptyList())
+    // --- ¡CAMBIO CLAVE! ---
+    // Mantenemos listas separadas para las categorías "oficiales" y todas las películas.
+    // Esto nos da más flexibilidad para procesar los datos.
+    private val _officialCategories = MutableStateFlow<List<Category>>(emptyList())
     private val _allMovies = MutableStateFlow<List<Movie>>(emptyList())
+    // Mantiene el estado de expansión de las categorías entre recargas.
+    private val _expansionState = mutableMapOf<String, Boolean>()
 
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
@@ -80,9 +85,15 @@ class MoviesViewModel(
 
             val lastSyncTime = if (syncManager.isSyncNeeded(currentUser.id)) 0L else System.currentTimeMillis()
 
-            val categories = contentRepository.getMovieCategories(currentUser.username, currentUser.password)
-            _originalCategories.value = categories.map { ExpandableMovieCategory(category = it) }
-            _allMovies.value = contentRepository.getAllMovies(currentUser.id).first()
+            // Cargamos las categorías y películas de forma concurrente
+            val categoriesJob = launch {
+                _officialCategories.value = contentRepository.getMovieCategories(currentUser.username, currentUser.password)
+            }
+            val moviesJob = launch {
+                _allMovies.value = contentRepository.getAllMovies(currentUser.id).first()
+            }
+            categoriesJob.join()
+            moviesJob.join()
 
             updateUiWithFilteredData()
             _uiState.update { it.copy(isLoading = false, lastUpdatedTimestamp = lastSyncTime) }
@@ -111,21 +122,21 @@ class MoviesViewModel(
 
     fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
-            val currentOriginals = _originalCategories.value
-            val category = currentOriginals.find { it.category.categoryId == categoryId } ?: return@launch
-            val isNowExpanding = !category.isExpanded
+            val isCurrentlyExpanded = _expansionState[categoryId] ?: false
+            val isNowExpanding = !isCurrentlyExpanded
 
-            val updatedOriginals = currentOriginals.map {
-                when {
-                    it.category.categoryId == categoryId -> it.copy(isExpanded = isNowExpanding)
-                    isNowExpanding -> it.copy(isExpanded = false)
-                    else -> it
+            // Si estamos expandiendo una nueva categoría, colapsamos las demás.
+            if (isNowExpanding) {
+                _expansionState.keys.forEach { key ->
+                    _expansionState[key] = false
                 }
             }
-            _originalCategories.value = updatedOriginals
+            // Actualizamos el estado de la categoría actual.
+            _expansionState[categoryId] = isNowExpanding
 
             updateUiWithFilteredData()
-            if(isNowExpanding) {
+
+            if (isNowExpanding) {
                 _scrollToItemEvent.emit(categoryId)
             }
         }
@@ -133,7 +144,7 @@ class MoviesViewModel(
 
     private fun updateUiWithFilteredData() {
         val filteredList = filterAndSort(
-            _originalCategories.value,
+            _officialCategories.value,
             _allMovies.value,
             _uiState.value.searchQuery,
             _uiState.value.categorySortOrder,
@@ -142,67 +153,63 @@ class MoviesViewModel(
         _uiState.update { it.copy(categories = filteredList) }
     }
 
-    // --- ¡LÓGICA CLAVE MEJORADA! ---
+    // --- ¡NUEVA LÓGICA DE FILTRADO Y CLASIFICACIÓN! ---
     private fun filterAndSort(
-        categories: List<ExpandableMovieCategory>,
+        officialCategories: List<Category>,
         allMovies: List<Movie>,
         query: String,
         categorySortOrder: SortOrder,
         movieSortOrder: SortOrder
     ): List<ExpandableMovieCategory> {
-        val lowercasedQuery = query.lowercase()
-        val officialCategoryIds = categories.map { it.category.categoryId }.toSet()
 
-        // 1. Filtra todas las películas primero según la búsqueda.
-        val searchedMovies = if (query.isBlank()) {
+        val lowercasedQuery = query.lowercase().trim()
+
+        // 1. Filtrar películas según la búsqueda.
+        val searchedMovies = if (lowercasedQuery.isBlank()) {
             allMovies
         } else {
             allMovies.filter { it.name.lowercase().contains(lowercasedQuery) }
         }
 
-        // 2. Agrupa las películas filtradas por su ID de categoría.
-        val moviesByCat = searchedMovies.groupBy { it.categoryId }
+        // 2. Agrupar las películas por su categoryId.
+        val moviesByCategory = searchedMovies.groupBy { it.categoryId }
 
-        // 3. Crea la lista de categorías oficiales, asignando las películas filtradas y ordenadas.
-        var finalCategories = categories.map { expandableCategory ->
-            val moviesForThisCategory = moviesByCat[expandableCategory.category.categoryId] ?: emptyList()
-            val sortedMovies = when (movieSortOrder) {
-                SortOrder.AZ -> moviesForThisCategory.sortedBy { it.name }
-                SortOrder.ZA -> moviesForThisCategory.sortedByDescending { it.name }
-                SortOrder.DEFAULT -> moviesForThisCategory
-            }
-            expandableCategory.copy(movies = sortedMovies)
-        }
+        // 3. Crear un mapa para buscar nombres de categoría fácilmente.
+        val categoryIdToNameMap = officialCategories.associateBy({ it.categoryId }, { it.categoryName })
 
-        // 4. Busca películas "huérfanas" (sin categoría o con una ID no oficial).
-        val orphanMovies = searchedMovies.filter { it.categoryId.isBlank() || !officialCategoryIds.contains(it.categoryId) }
-
-        // 5. Si hay películas huérfanas, crea una categoría "Varios" para ellas.
-        if (orphanMovies.isNotEmpty()) {
-            val sortedOrphans = when (movieSortOrder) {
-                SortOrder.AZ -> orphanMovies.sortedBy { it.name }
-                SortOrder.ZA -> orphanMovies.sortedByDescending { it.name }
-                SortOrder.DEFAULT -> orphanMovies
-            }
-            val miscCategory = ExpandableMovieCategory(
-                category = Category(categoryId = "misc", categoryName = "Varios", parentId = 0),
-                movies = sortedOrphans,
-                // Mantenemos el estado de expansión si ya existía.
-                isExpanded = categories.find { it.category.categoryId == "misc" }?.isExpanded ?: false
+        // 4. Construir las categorías expandibles dinámicamente.
+        val dynamicallyBuiltCategories = moviesByCategory.mapNotNull { (categoryId, movies) ->
+            // Usamos el nombre oficial si existe, si no, usamos el ID como nombre provisional.
+            val categoryName = categoryIdToNameMap[categoryId] ?: categoryId
+            val category = Category(categoryId = categoryId, categoryName = categoryName, parentId = 0)
+            ExpandableMovieCategory(
+                category = category,
+                movies = movies,
+                isExpanded = _expansionState[categoryId] ?: false // Restauramos el estado de expansión
             )
-            finalCategories = finalCategories + miscCategory
+        }.toMutableList()
+
+        // 5. Ordenar las películas dentro de cada categoría.
+        val sortedMoviesInCategories = dynamicallyBuiltCategories.map { category ->
+            val sortedMovies = when (movieSortOrder) {
+                SortOrder.AZ -> category.movies.sortedBy { it.name }
+                SortOrder.ZA -> category.movies.sortedByDescending { it.name }
+                SortOrder.DEFAULT -> category.movies
+            }
+            category.copy(movies = sortedMovies)
         }
 
-        // 6. Si hay una búsqueda, filtra las categorías que se quedaron vacías.
-        if (query.isNotBlank()) {
-            finalCategories = finalCategories.filter { it.movies.isNotEmpty() }
-        }
-
-        // 7. Finalmente, ordena la lista de categorías.
+        // 6. Ordenar la lista final de categorías.
         return when (categorySortOrder) {
-            SortOrder.AZ -> finalCategories.sortedBy { it.category.categoryName }
-            SortOrder.ZA -> finalCategories.sortedByDescending { it.category.categoryName }
-            SortOrder.DEFAULT -> finalCategories
+            SortOrder.AZ -> sortedMoviesInCategories.sortedBy { it.category.categoryName }
+            SortOrder.ZA -> sortedMoviesInCategories.sortedByDescending { it.category.categoryName }
+            SortOrder.DEFAULT -> {
+                // Para el orden por defecto, intentamos mantener el orden del servidor.
+                sortedMoviesInCategories.sortedBy { cat ->
+                    officialCategories.indexOfFirst { it.categoryId == cat.category.categoryId }
+                        .let { if (it == -1) Int.MAX_VALUE else it } // Las no oficiales van al final.
+                }
+            }
         }
     }
 
