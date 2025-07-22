@@ -44,16 +44,12 @@ data class MovieDetailsUiState(
     val availableRecommendations: List<Movie> = emptyList(),
     val isFavorite: Boolean = false,
     val playbackPosition: Long = 0L,
-
-    // Estado del diálogo del actor
     val showActorMoviesDialog: Boolean = false,
     val selectedActorName: String = "",
     val selectedActorBio: String? = null,
     val availableActorMovies: List<Movie> = emptyList(),
-    val unavailableActorMovies: List<TMDbMovieResult> = emptyList(),
+    // EL CAMPO 'unavailableActorMovies' HA SIDO ELIMINADO
     val isActorMoviesLoading: Boolean = false,
-
-    // Estado del reproductor
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
@@ -84,13 +80,10 @@ class MovieDetailsViewModel(
 
     private val _uiState = MutableStateFlow(MovieDetailsUiState())
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
-
     private val _navigationEvent = MutableSharedFlow<Int>()
     val navigationEvent: SharedFlow<Int> = _navigationEvent.asSharedFlow()
-
     private val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
-
     private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
 
     init {
@@ -101,13 +94,10 @@ class MovieDetailsViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true) }
-            val movie = contentRepository.getAllMovies(currentUser.id).firstOrNull()
-                ?.find { it.streamId == movieId }
-
+            val movie = contentRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId }
             if (movie != null) {
                 val favoriteIds = preferenceManager.getFavoriteMovieIds()
                 val savedPosition = preferenceManager.getPlaybackPosition(movieId.toString())
-
                 _uiState.update {
                     it.copy(
                         movie = movie,
@@ -126,31 +116,24 @@ class MovieDetailsViewModel(
     private fun fetchEnrichedDetails(movie: Movie) {
         viewModelScope.launch(Dispatchers.IO) {
             val detailsWrapper = contentRepository.getMovieDetails(movie)
-
+            val latinCharsRegex = "^[\\p{L}\\p{M}\\p{N}\\p{P}\\p{Z}\\s]*$".toRegex()
+            val filteredCast = detailsWrapper.getCastList().filter { latinCharsRegex.matches(it.name) }
             _uiState.update {
                 it.copy(
                     isLoadingDetails = false,
-                    title = detailsWrapper.details?.releaseYear?.let { year ->
-                        "${movie.name} ($year)"
-                    } ?: movie.name,
+                    title = movie.name,
                     posterUrl = detailsWrapper.details?.posterUrl ?: movie.streamIcon,
                     backdropUrl = detailsWrapper.details?.backdropUrl,
                     releaseYear = detailsWrapper.details?.releaseYear,
                     rating = detailsWrapper.details?.rating,
                     plot = detailsWrapper.details?.plot,
-                    cast = detailsWrapper.getCastList()
+                    cast = filteredCast
                 )
             }
-
             launch {
                 val allLocalMovies = contentRepository.getAllMovies(currentUser.id).first()
-                val availableRecs = contentRepository.findMoviesByTMDbResults(
-                    detailsWrapper.getRecommendationList(),
-                    allLocalMovies
-                )
-                _uiState.update {
-                    it.copy(availableRecommendations = availableRecs.distinctBy { it.streamId })
-                }
+                val availableRecs = contentRepository.findMoviesByTMDbResults(detailsWrapper.getRecommendationList(), allLocalMovies)
+                _uiState.update { it.copy(availableRecommendations = availableRecs.distinctBy { it.streamId }) }
             }
         }
     }
@@ -164,28 +147,18 @@ class MovieDetailsViewModel(
                     selectedActorName = actor.name
                 )
             }
-
             val allMovies = contentRepository.getAllMovies(currentUser.id).first()
             val filmography = contentRepository.getActorFilmography(actor.id, allMovies)
-
             val sortedAvailableMovies = filmography.availableMovies.sortedByDescending { movie ->
                 contentRepository.cleanMovieTitle(movie.name).year?.toIntOrNull() ?: 0
             }
-
             _uiState.update {
                 it.copy(
                     isActorMoviesLoading = false,
                     selectedActorBio = filmography.biography,
-                    availableActorMovies = sortedAvailableMovies,
-                    unavailableActorMovies = filmography.unavailableMovies
+                    availableActorMovies = sortedAvailableMovies
                 )
             }
-        }
-    }
-
-    fun onRecommendationSelected(movie: Movie) {
-        viewModelScope.launch {
-            _navigationEvent.emit(movie.streamId)
         }
     }
 
@@ -195,12 +168,15 @@ class MovieDetailsViewModel(
                 showActorMoviesDialog = false,
                 selectedActorName = "",
                 selectedActorBio = null,
-                availableActorMovies = emptyList(),
-                unavailableActorMovies = emptyList()
+                availableActorMovies = emptyList()
             )
         }
     }
 
+    // ... El resto del ViewModel sigue igual
+    fun onRecommendationSelected(movie: Movie) {
+        viewModelScope.launch { _navigationEvent.emit(movie.streamId) }
+    }
     private fun setupMediaPlayer() {
         mediaPlayer.setEventListener { event ->
             val currentState = _uiState.value.playerStatus

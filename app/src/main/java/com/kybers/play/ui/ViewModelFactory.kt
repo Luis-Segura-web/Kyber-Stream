@@ -9,9 +9,6 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.ui.channels.ChannelsViewModel
-// --- ¡CORRECCIÓN! ---
-// Añadimos la importación que faltaba para que la fábrica sepa dónde encontrar
-// el MovieDetailsViewModel.
 import com.kybers.play.ui.details.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.login.LoginViewModel
@@ -21,7 +18,6 @@ import com.kybers.play.ui.sync.SyncViewModel
 
 /**
  * Fábrica para el LoginViewModel.
- * No necesita cambios, pero se queda para mantener la estructura.
  */
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -87,7 +83,7 @@ class MovieDetailsViewModelFactory(
 
 
 /**
- * Fábrica para el PlayerViewModel. Sin cambios.
+ * Fábrica para el PlayerViewModel.
  */
 class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -100,16 +96,19 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
 }
 
 /**
- * Fábrica para el SyncViewModel. Sin cambios.
+ * --- ¡FÁBRICA MODIFICADA! ---
+ * Ahora acepta y pasa el PreferenceManager al SyncViewModel.
  */
 class SyncViewModelFactory(
     private val contentRepository: ContentRepository,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val preferenceManager: PreferenceManager // Nueva dependencia
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SyncViewModel(contentRepository, syncManager) as T
+            // Se lo pasamos al constructor del ViewModel
+            return SyncViewModel(contentRepository, syncManager, preferenceManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

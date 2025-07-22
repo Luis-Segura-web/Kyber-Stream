@@ -1,7 +1,6 @@
 package com.kybers.play.data.repository
 
 import android.util.Log
-import com.google.gson.Gson
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.local.EpgEventDao
 import com.kybers.play.data.local.LiveStreamDao
@@ -12,14 +11,11 @@ import com.kybers.play.data.local.model.MovieDetailsCache
 import com.kybers.play.data.model.MovieWithDetails
 import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.remote.XtreamApiService
-import com.kybers.play.data.remote.model.Category
-import com.kybers.play.data.remote.model.EpgEvent
-import com.kybers.play.data.remote.model.LiveStream
-import com.kybers.play.data.remote.model.Movie
-import com.kybers.play.data.remote.model.Series
-import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.data.remote.model.TMDbMovieResult
+import com.kybers.play.data.remote.model.*
 import com.kybers.play.util.XmlTvParser
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -36,7 +32,6 @@ data class ActorFilmography(
     val unavailableMovies: List<TMDbMovieResult>
 )
 
-// Regex mejoradas para una limpieza más precisa
 private val yearRegex = """\b((19|20)\d{2})\b""".toRegex()
 private val parensRegex = """\s*\(.*?\)""".toRegex()
 private val bracketsRegex = """\s*\[.*?]""".toRegex()
@@ -54,9 +49,11 @@ open class ContentRepository(
     private val movieDetailsCacheDao: MovieDetailsCacheDao,
     private val baseUrl: String
 ) {
-    private val gson = Gson()
+    // ¡CAMBIO CLAVE! Usamos Moshi en lugar de Gson para ser consistentes.
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
 
-    // --- ¡FUNCIÓN CLAVE MODIFICADA! ---
     suspend fun getMovieDetails(movie: Movie): MovieWithDetails {
         val cacheExpiry = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
         val cachedDetails = movieDetailsCacheDao.getByStreamId(movie.streamId)
@@ -66,59 +63,79 @@ open class ContentRepository(
             return MovieWithDetails(movie, cachedDetails)
         }
 
-        // --- INICIO DE LA NUEVA LÓGICA INTELIGENTE ---
-        var tmdbId: Int? = null
+        val cleaned = cleanMovieTitle(movie.name)
+        var finalDetails: MovieDetailsCache?
 
-        // 1. PRIMER INTENTO: Usar el tmdbId del proveedor si es válido.
-        if (movie.tmdbId != null && movie.tmdbId > 0) {
-            Log.d("ContentRepository", "Usando tmdbId (${movie.tmdbId}) directamente del proveedor para '${movie.name}'.")
-            tmdbId = movie.tmdbId
+        // 1. Búsqueda principal en TMDb
+        Log.d("ContentRepository", "Iniciando búsqueda de detalles para '${movie.name}' en TMDb.")
+        val tmdbIdFromProvider = movie.tmdbId?.toIntOrNull()
+        val tmdbId = if (tmdbIdFromProvider != null && tmdbIdFromProvider > 0) {
+            tmdbIdFromProvider
         } else {
-            // 2. PLAN B: Si no hay tmdbId, usamos el método antiguo de "detective".
-            Log.d("ContentRepository", "No se encontró tmdbId para '${movie.name}'. Usando método de búsqueda por título.")
-            val cleaned = cleanMovieTitle(movie.name)
-            tmdbId = findTMDbId(cleaned.title, cleaned.year)
+            findTMDbId(cleaned.title, cleaned.year)
         }
-        // --- FIN DE LA NUEVA LÓGICA INTELIGENTE ---
 
-        val newDetails = if (tmdbId != null) {
+        finalDetails = if (tmdbId != null) {
             fetchFromTMDbById(movie.streamId, tmdbId)
         } else {
-            Log.w("ContentRepository", "No se pudo encontrar un tmdbId para '${movie.name}' después de todos los intentos.")
+            Log.w("ContentRepository", "No se encontró ID en TMDb para '${movie.name}'.")
             null
         }
 
-        newDetails?.let {
-            Log.d("ContentRepository", "Guardando nuevos detalles en caché para '${movie.name}'.")
+        // 2. Comprobar si los datos de TMDb están incompletos
+        val needsEnrichment = finalDetails != null && (finalDetails.plot.isNullOrBlank() || finalDetails.posterUrl.isNullOrBlank())
+
+        if (needsEnrichment) {
+            Log.d("ContentRepository", "Datos de TMDb incompletos para '${movie.name}'. Buscando en OMDb para enriquecer.")
+            val tmdbMovieTitle = findTMDbTitleById(tmdbId!!) ?: cleaned.title // Usar el título de TMDb si es posible
+            val omdbBackup = fetchFromOMDbByTitle(movie.streamId, tmdbMovieTitle, finalDetails!!.releaseYear ?: cleaned.year)
+
+            if (omdbBackup != null) {
+                // 3. Fusionar los datos
+                finalDetails = finalDetails.copy(
+                    plot = finalDetails.plot.takeIf { !it.isNullOrBlank() } ?: omdbBackup.plot,
+                    posterUrl = finalDetails.posterUrl.takeIf { !it.isNullOrBlank() } ?: omdbBackup.posterUrl,
+                    rating = finalDetails.rating.takeIf { it != null && it > 0 } ?: omdbBackup.rating
+                )
+                Log.d("ContentRepository", "Datos de OMDb fusionados exitosamente para '${movie.name}'.")
+            }
+        } else if (finalDetails == null) {
+            // 4. Si TMDb falló por completo, usar OMDb como respaldo principal
+            Log.d("ContentRepository", "TMDb falló. Iniciando búsqueda de respaldo para '${movie.name}' en OMDb.")
+            finalDetails = fetchFromOMDbByTitle(movie.streamId, cleaned.title, cleaned.year)
+            if (finalDetails != null) {
+                Log.d("ContentRepository", "¡Éxito! Detalles encontrados en OMDb para '${movie.name}'.")
+            } else {
+                Log.e("ContentRepository", "Ambos servicios fallaron para '${movie.name}'.")
+            }
+        }
+
+        finalDetails?.let {
+            Log.d("ContentRepository", "Guardando detalles finales en caché para '${movie.name}'.")
             movieDetailsCacheDao.insertOrUpdate(it)
         }
-        return MovieWithDetails(movie, newDetails)
+
+        return MovieWithDetails(movie, finalDetails)
     }
+
 
     fun cleanMovieTitle(title: String): CleanedTitle {
         val yearMatch = yearRegex.find(title)
         val year = yearMatch?.value
-
         var tempTitle = title
-
         if (year != null) {
             tempTitle = tempTitle.replace(year, "")
         }
-
         var cleanedTitle = tempTitle
             .replace(parensRegex, "")
             .replace(bracketsRegex, "")
             .replace(tagsRegex, "")
-
         if (cleanedTitle.contains(": ")) {
             cleanedTitle = cleanedTitle.substringBefore(": ")
         }
-
         cleanedTitle = cleanedTitle.trim().replace(spacesRegex, " ")
-
         return CleanedTitle(cleanedTitle, year)
     }
-
 
     private suspend fun findTMDbId(cleanedTitle: String, year: String?): Int? {
         try {
@@ -136,6 +153,19 @@ open class ContentRepository(
         return null
     }
 
+    private suspend fun findTMDbTitleById(tmdbId: Int): String? {
+        try {
+            val response = tmdbApiService.getMovieDetailsTMDb(movieId = tmdbId, apiKey = BuildConfig.TMDB_API_KEY)
+            if (response.isSuccessful) {
+                return response.body()?.title
+            }
+        } catch (e: Exception) {
+            Log.e("ContentRepository", "Fallo al obtener título de TMDb para ID $tmdbId: ${e.message}")
+        }
+        return null
+    }
+
+
     private suspend fun fetchFromTMDbById(streamId: Int, tmdbId: Int): MovieDetailsCache? {
         try {
             val response = tmdbApiService.getMovieDetailsTMDb(
@@ -148,17 +178,67 @@ open class ContentRepository(
                     val castList: List<TMDbCastMember> = details.credits?.cast?.take(10) ?: emptyList()
                     val recommendations: List<TMDbMovieResult> = details.recommendations?.results?.take(10) ?: emptyList()
 
+                    // ¡CAMBIO CLAVE! Usamos Moshi para convertir las listas a JSON.
+                    val castAdapter = moshi.adapter<List<TMDbCastMember>>(
+                        Types.newParameterizedType(List::class.java, TMDbCastMember::class.java)
+                    )
+                    val recommendationsAdapter = moshi.adapter<List<TMDbMovieResult>>(
+                        Types.newParameterizedType(List::class.java, TMDbMovieResult::class.java)
+                    )
+
                     return MovieDetailsCache(
                         streamId = streamId, tmdbId = tmdbId, plot = details.overview,
                         posterUrl = details.getFullPosterUrl(), backdropUrl = details.getFullBackdropUrl(),
                         releaseYear = details.releaseDate?.substringBefore("-"), rating = details.voteAverage,
-                        castJson = gson.toJson(castList), recommendationsJson = gson.toJson(recommendations),
+                        castJson = castAdapter.toJson(castList), // Usamos el adaptador de Moshi
+                        recommendationsJson = recommendationsAdapter.toJson(recommendations), // Usamos el adaptador de Moshi
                         lastUpdated = System.currentTimeMillis()
                     )
                 }
             }
         } catch (e: Exception) {
             Log.e("ContentRepository", "Fallo al obtener detalles de TMDb para ID $tmdbId: ${e.message}")
+        }
+        return null
+    }
+
+    private suspend fun fetchFromOMDbByTitle(streamId: Int, title: String, year: String?): MovieDetailsCache? {
+        try {
+            val response = omdbApiService.getMovieDetailsOMDb(
+                apiKey = BuildConfig.OMDB_API_KEY,
+                title = title,
+                year = year
+            )
+            if (response.isSuccessful) {
+                val details = response.body()
+                if (details != null && details.response == "True") {
+                    val castList: List<TMDbCastMember> = if (details.actors.isNullOrBlank() || details.actors == "N/A") {
+                        emptyList()
+                    } else {
+                        details.actors.split(", ").map { TMDbCastMember(name = it, character = "", profilePath = null, id = 0) }
+                    }
+
+                    // ¡CAMBIO CLAVE! Usamos Moshi aquí también para la consistencia.
+                    val castAdapter = moshi.adapter<List<TMDbCastMember>>(
+                        Types.newParameterizedType(List::class.java, TMDbCastMember::class.java)
+                    )
+
+                    return MovieDetailsCache(
+                        streamId = streamId,
+                        tmdbId = null,
+                        plot = if (details.plot == "N/A") null else details.plot,
+                        posterUrl = if (details.poster == "N/A") null else details.poster,
+                        backdropUrl = null,
+                        releaseYear = if (details.year == "N/A") null else details.year,
+                        rating = details.imdbRating?.toDoubleOrNull(),
+                        castJson = castAdapter.toJson(castList), // Usamos el adaptador de Moshi
+                        recommendationsJson = "[]",
+                        lastUpdated = System.currentTimeMillis()
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ContentRepository", "Fallo al obtener detalles de OMDb para '$title': ${e.message}")
         }
         return null
     }
@@ -170,7 +250,6 @@ open class ContentRepository(
                 findLocalMovieMatches(tmdbMovie, localMoviesCleaned)
             }
         }
-        // ¡NUEVO! Filtramos por link único (streamId + extension)
         matchJobs.awaitAll().flatten().distinctBy { "${it.streamId}.${it.containerExtension}" }
     }
 
@@ -223,8 +302,6 @@ open class ContentRepository(
             val available = results.flatMap { it.first }
             val matchedTmdbMovies = results.filter { it.first.isNotEmpty() }.map { it.second }
             val unavailable = filmography.filterNot { tmdbMovie -> matchedTmdbMovies.any { it.id == tmdbMovie.id } }
-
-            // ¡NUEVO! Filtramos por link único (streamId + extension)
             val uniqueAvailable = available.distinctBy { "${it.streamId}.${it.containerExtension}" }
 
             return@coroutineScope ActorFilmography(biography, uniqueAvailable, unavailable)
@@ -245,6 +322,7 @@ open class ContentRepository(
             stream
         }
     }
+
     fun getAllMovies(userId: Int): Flow<List<Movie>> = movieDao.getAllMovies(userId)
     fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
     open suspend fun getLiveCategories(user: String, pass: String): List<Category> {
@@ -267,24 +345,34 @@ open class ContentRepository(
                     streams.forEach { it.userId = userId }
                     allStreamsForUser.addAll(streams)
                 }
-            } catch (e: Exception) { /* Log error */ }
+            } catch (e: Exception) {
+                Log.e("ContentRepository", "Error al descargar streams de categoría ${category.categoryId}", e)
+            }
         }
         liveStreamDao.replaceAll(allStreamsForUser, userId)
     }
-    suspend fun cacheMovies(user: String, pass: String, userId: Int) {
+
+    suspend fun cacheMovies(user: String, pass: String, userId: Int): Int {
         val movieCategories = xtreamApiService.getMovieCategories(user, pass).body() ?: emptyList()
-        val allMoviesForUser = mutableListOf<Movie>()
+        var downloadedMoviesCount = 0
+        Log.d("ContentRepository", "Iniciando descarga masiva de películas para ${movieCategories.size} categorías.")
         for (category in movieCategories) {
             try {
                 val movies = xtreamApiService.getMovies(user, pass, category.categoryId.toInt()).body()
                 if (!movies.isNullOrEmpty()) {
                     movies.forEach { it.userId = userId }
-                    allMoviesForUser.addAll(movies)
+                    downloadedMoviesCount += movies.size
+                    movieDao.cacheMovies(movies, userId)
+                    Log.d("ContentRepository", "Categoría '${category.categoryName}': ${movies.size} películas descargadas y cacheadas.")
                 }
-            } catch (e: Exception) { /* Log error */ }
+            } catch (e: Exception) {
+                Log.e("ContentRepository", "Error al descargar películas de categoría ${category.categoryId}", e)
+            }
         }
-        movieDao.replaceAll(allMoviesForUser, userId)
+        Log.d("ContentRepository", "Descarga masiva completada. Total de películas descargadas en esta sesión: $downloadedMoviesCount")
+        return downloadedMoviesCount
     }
+
     suspend fun cacheSeries(user: String, pass: String, userId: Int) {
         val seriesCategories = xtreamApiService.getSeriesCategories(user, pass).body() ?: emptyList()
         val allSeriesForUser = mutableListOf<Series>()
@@ -295,10 +383,13 @@ open class ContentRepository(
                     series.forEach { it.userId = userId }
                     allSeriesForUser.addAll(series)
                 }
-            } catch (e: Exception) { /* Log error */ }
+            } catch (e: Exception) {
+                Log.e("ContentRepository", "Error al descargar series de categoría ${category.categoryId}", e)
+            }
         }
         seriesDao.replaceAll(allSeriesForUser, userId)
     }
+
     suspend fun cacheEpgData(user: String, pass: String, userId: Int) {
         try {
             val allStreams = liveStreamDao.getAllLiveStreams(userId).first()
@@ -311,6 +402,13 @@ open class ContentRepository(
                 val allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId)
                 epgEventDao.replaceAll(allEpgEvents, userId)
             }
-        } catch (e: Exception) { /* Log error */ }
+        } catch (e: Exception) {
+            Log.e("ContentRepository", "Error al cachear datos de EPG", e)
+        }
     }
+
+    suspend fun getAllCachedMovieDetailsMap(): Map<Int, MovieDetailsCache> {
+        return movieDetailsCacheDao.getAllDetails().associateBy { it.streamId }
+    }
+
 }

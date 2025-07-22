@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +50,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.kybers.play.R
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
 import com.kybers.play.data.remote.model.TMDbMovieResult
@@ -157,7 +163,8 @@ fun MovieDetailsScreen(
                     MovieDetailsContent(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onNavigateToMovie = onNavigateToMovie
+                        onNavigateToMovie = onNavigateToMovie,
+                        onNavigateToList = onNavigateUp
                     )
                 }
             }
@@ -167,7 +174,6 @@ fun MovieDetailsScreen(
                 actorName = uiState.selectedActorName,
                 biography = uiState.selectedActorBio,
                 availableMovies = uiState.availableActorMovies,
-                unavailableMovies = uiState.unavailableActorMovies,
                 isLoading = uiState.isActorMoviesLoading,
                 onDismiss = { viewModel.onDismissActorMoviesDialog() },
                 onMovieClick = { movieId ->
@@ -263,30 +269,37 @@ fun MoviePlayerSection(viewModel: MovieDetailsViewModel, onToggleFullScreen: () 
             }
         }
 
-        AnimatedVisibility(
-            visible = !uiState.isPlayerVisible && !uiState.isFullScreen,
-            enter = fadeIn(),
-            exit = fadeOut()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             IconButton(
                 onClick = onNavigateUp,
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Regresar",
-                    tint = Color.White
-                )
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
+            }
+
+            IconButton(
+                onClick = onNavigateUp,
+                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Volver a la lista", tint = Color.White)
             }
         }
     }
 }
 
 @Composable
-fun ColumnScope.MovieDetailsContent(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel, onNavigateToMovie: (Int) -> Unit) {
+fun ColumnScope.MovieDetailsContent(
+    uiState: MovieDetailsUiState,
+    viewModel: MovieDetailsViewModel,
+    onNavigateToMovie: (Int) -> Unit,
+    onNavigateToList: () -> Unit
+) {
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         InfoHeader(title = uiState.title, posterUrl = uiState.posterUrl, year = uiState.releaseYear, rating = uiState.rating)
         ActionButtons(
@@ -294,7 +307,14 @@ fun ColumnScope.MovieDetailsContent(uiState: MovieDetailsUiState, viewModel: Mov
             onPlay = { viewModel.startPlayback(false) }, onContinue = { viewModel.startPlayback(true) },
             onToggleFavorite = viewModel::toggleFavorite
         )
-        Text(text = uiState.plot ?: "Cargando descripción...", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(16.dp))
+        val plotText = if (uiState.plot.isNullOrBlank()) "Sin descripción disponible." else uiState.plot
+        Text(
+            text = plotText,
+            style = MaterialTheme.typography.bodyLarge,
+            fontStyle = if (uiState.plot.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
+            color = if (uiState.plot.isNullOrBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else LocalContentColor.current,
+            modifier = Modifier.padding(16.dp)
+        )
         if (uiState.cast.isNotEmpty()) {
             CastSection(cast = uiState.cast, onActorClick = { actor -> viewModel.onActorSelected(actor) })
         }
@@ -323,13 +343,19 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+
             Spacer(modifier = Modifier.height(8.dp))
-            if (year != null) {
-                Text(text = "Año: $year", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (rating != null && rating > 0) {
-                Spacer(modifier = Modifier.height(4.dp))
-                RatingBar(rating = rating / 2, maxRating = 5)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (year != null) {
+                    Text(text = year, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (rating != null && rating > 0) {
+                    val ratingOutOfFive = if (rating > 10) rating / 20 else rating / 2
+                    RatingBar(rating = ratingOutOfFive, maxRating = 5)
+                }
             }
         }
     }
@@ -368,6 +394,7 @@ fun ActionButtons(playbackPosition: Long, isFavorite: Boolean, onPlay: () -> Uni
     }
 }
 
+// --- ¡FUNCIÓN RESTAURADA! ---
 @Composable
 fun RatingBar(rating: Double, maxRating: Int = 5) {
     Row {
@@ -380,6 +407,7 @@ fun RatingBar(rating: Double, maxRating: Int = 5) {
     }
 }
 
+
 @Composable
 fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Unit) {
     Column(modifier = Modifier.padding(top = 16.dp)) {
@@ -391,12 +419,35 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
                     modifier = Modifier.width(80.dp).clickable { onActorClick(member) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    AsyncImage(
-                        model = member.getFullProfileUrl(), contentDescription = member.name, contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(80.dp).clip(CircleShape)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .border(1.dp, Color.LightGray, CircleShape)
+                            .padding(4.dp)
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(member.getFullProfileUrl())
+                                .crossfade(true)
+                                .placeholder(R.drawable.ic_person_placeholder)
+                                .error(R.drawable.ic_person_placeholder)
+                                .build(),
+                            contentDescription = member.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = member.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                    Text(
+                        text = member.name,
+                        fontSize = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
                 }
             }
         }
@@ -416,7 +467,13 @@ fun RecommendationsSection(recommendations: List<Movie>, onMovieClick: (Movie) -
                         modifier = Modifier.width(120.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp))
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = movie.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = movie.name,
+                        fontSize = 12.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 14.sp
+                    )
                 }
             }
         }
@@ -429,7 +486,6 @@ fun ActorFilmographyDialog(
     actorName: String,
     biography: String?,
     availableMovies: List<Movie>,
-    unavailableMovies: List<TMDbMovieResult>,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onMovieClick: (Int) -> Unit
@@ -471,22 +527,6 @@ fun ActorFilmographyDialog(
                                     title = movie.name,
                                     posterUrl = movie.streamIcon,
                                     onClick = { onMovieClick(movie.streamId) }
-                                )
-                            }
-                        }
-
-                        if (unavailableMovies.isNotEmpty()) {
-                            item {
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text("Otras Películas (No disponibles)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            items(unavailableMovies, key = { "unavail-${it.id}" }) { movie ->
-                                MovieListItem(
-                                    title = movie.title ?: "Título no disponible",
-                                    posterUrl = movie.getFullPosterUrl(),
-                                    onClick = { /* No hacer nada */ },
-                                    isAvailable = false
                                 )
                             }
                         }

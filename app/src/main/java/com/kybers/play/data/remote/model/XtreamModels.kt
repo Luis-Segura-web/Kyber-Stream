@@ -5,17 +5,11 @@ import androidx.room.Ignore
 import com.squareup.moshi.Json
 import android.util.Base64
 
-/**
- * Representa la respuesta principal de la API al hacer login.
- */
 data class XtreamResponse(
     @Json(name = "user_info") val userInfo: UserInfo?,
     @Json(name = "server_info") val serverInfo: ServerInfo?
 )
 
-/**
- * Información básica del usuario autenticado.
- */
 data class UserInfo(
     @Json(name = "username") val username: String?,
     @Json(name = "password") val password: String?,
@@ -30,9 +24,6 @@ data class UserInfo(
     @Json(name = "allowed_output_formats") val allowedOutputFormats: List<String>?
 )
 
-/**
- * Información del servidor al que nos conectamos.
- */
 data class ServerInfo(
     @Json(name = "url") val url: String?,
     @Json(name = "port") val port: String?,
@@ -44,18 +35,12 @@ data class ServerInfo(
     @Json(name = "time_now") val timeNow: String?
 )
 
-/**
- * Representa una categoría, ya sea de canales en vivo, películas o series.
- */
 data class Category(
     @Json(name = "category_id") val categoryId: String,
     @Json(name = "category_name") val categoryName: String,
     @Json(name = "parent_id") val parentId: Int
 )
 
-/**
- * Representa un canal de TV en vivo. Ahora también es una entidad de Room.
- */
 @Entity(tableName = "live_streams", primaryKeys = ["streamId", "userId"])
 data class LiveStream(
     @Json(name = "stream_id") val streamId: Int,
@@ -76,18 +61,13 @@ data class LiveStream(
     @Ignore var nextEpgEvent: EpgEvent? = null
 }
 
-/**
- * Representa una película (VOD - Video On Demand). Es una entidad de Room.
- */
-// --- ¡CAMBIO CLAVE! ---
-// Cambiamos la clave primaria. Ahora, una película es única por la combinación
-// de su ID, su ID de categoría y el ID del usuario. Esto permite que la misma
-// película (mismo streamId) exista en la base de datos varias veces, siempre y
-// cuando esté en diferentes categorías.
-@Entity(tableName = "movies", primaryKeys = ["streamId", "categoryId", "num", "userId"])
+// --- ¡ENTIDAD MODIFICADA! ---
+// La clave primaria ahora es solo el ID del stream y del usuario.
+// Esto nos permite tener un categoryId nulo sin problemas.
+@Entity(tableName = "movies", primaryKeys = ["streamId", "userId"])
 data class Movie(
     @Json(name = "stream_id") val streamId: Int,
-    @Json(name = "tmdb_id") val tmdbId: Int?,
+    @Json(name = "tmdb_id") val tmdbId: String?,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
     @Json(name = "stream_type") val streamType: String,
@@ -95,15 +75,12 @@ data class Movie(
     @Json(name = "rating") val rating: String?,
     @Json(name = "rating_5based") val rating5Based: Float,
     @Json(name = "added") val added: String,
-    @Json(name = "category_id") val categoryId: String,
+    @Json(name = "category_id") val categoryId: String?,
     @Json(name = "container_extension") val containerExtension: String
 ) {
     var userId: Int = 0
 }
 
-/**
- * Representa una serie. Es una entidad de Room.
- */
 @Entity(tableName = "series", primaryKeys = ["seriesId", "userId"])
 data class Series(
     @Json(name = "series_id") val seriesId: Int,

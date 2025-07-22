@@ -3,21 +3,29 @@ package com.kybers.play.ui.movies
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -44,6 +52,7 @@ fun MoviesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = rememberLazyListState()
 
+    // ... (LaunchedEffect para el scroll sigue igual)
     LaunchedEffect(Unit) {
         viewModel.scrollToItemEvent.collectLatest { categoryId ->
             val categoryIndex = uiState.categories.indexOfFirst { it.category.categoryId == categoryId }
@@ -60,8 +69,10 @@ fun MoviesScreen(
         }
     }
 
+
     Scaffold(
         topBar = {
+            // ... (La TopAppBar sigue igual)
             TopAppBar(
                 title = {
                     Row(
@@ -77,15 +88,19 @@ fun MoviesScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Películas",
+                                text = "Películas (${uiState.totalMovieCount})",
                                 color = Color.White,
                                 fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                text = "Últ. act: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.8f)
+                                color = Color.White.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -138,10 +153,7 @@ fun MoviesScreen(
             )
 
             if (uiState.isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
@@ -156,7 +168,7 @@ fun MoviesScreen(
                                 CategoryHeader(
                                     categoryName = expandableCategory.category.categoryName,
                                     isExpanded = expandableCategory.isExpanded,
-                                    onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
+                                    onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId ?: "") },
                                     itemCount = expandableCategory.movies.size
                                 )
                             }
@@ -177,8 +189,13 @@ fun MoviesScreen(
                                     rowMovies.forEach { movie ->
                                         Box(modifier = Modifier.weight(1f)) {
                                             MoviePosterItem(
+                                                // --- ¡CAMBIO CLAVE! ---
+                                                // Pasamos el viewModel para usar el selector inteligente de carátulas.
+                                                viewModel = viewModel,
                                                 movie = movie,
-                                                onClick = { onNavigateToDetails(movie.streamId) }
+                                                isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
+                                                onPosterClick = { onNavigateToDetails(movie.streamId) },
+                                                onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
                                             )
                                         }
                                     }
@@ -195,6 +212,7 @@ fun MoviesScreen(
     }
 
     if (uiState.showSortMenu) {
+        // ... (El diálogo de ordenación sigue igual)
         SortOptionsDialog(
             currentCategorySortOrder = uiState.categorySortOrder,
             currentItemSortOrder = uiState.movieSortOrder,
@@ -209,23 +227,28 @@ fun MoviesScreen(
 
 @Composable
 fun MoviePosterItem(
+    viewModel: MoviesViewModel, // Necesitamos el viewModel para la nueva función
     movie: Movie,
-    onClick: () -> Unit
+    isFavorite: Boolean,
+    onPosterClick: () -> Unit,
+    onFavoriteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .aspectRatio(2f / 3f)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onPosterClick)
             .padding(top = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter
+            modifier = Modifier.fillMaxSize()
         ) {
             AsyncImage(
+                // --- ¡CAMBIO CLAVE! ---
+                // Usamos el selector inteligente para obtener la mejor URL de carátula.
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(movie.streamIcon)
+                    .data(viewModel.getBestPosterUrl(movie))
                     .crossfade(true)
                     .error(android.R.drawable.stat_notify_error)
                     .build(),
@@ -233,38 +256,80 @@ fun MoviePosterItem(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
+
+            // ... (El resto del diseño del póster, con las barras y botones, sigue igual)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (movie.rating5Based > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = "Calificación",
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "%.1f".format(movie.rating5Based),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(1.dp))
+                }
+
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = "Añadir a favoritos",
+                        tint = if (isFavorite) Color(0xFFE91E63) else Color.White
+                    )
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
+                    .align(Alignment.BottomCenter)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.2f),
-                                Color.Black.copy(alpha = 0.8f),
+                                Color.Black.copy(alpha = 0.7f),
                                 Color.Black.copy(alpha = 0.9f)
                             )
                         )
                     )
-            )
-            Text(
-                text = movie.name,
-                color = Color.White,
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 16.sp
-                ),
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .align(Alignment.BottomStart)
-            )
+                    .padding(top = 16.dp, bottom = 8.dp, start = 8.dp, end = 8.dp)
+            ) {
+                Text(
+                    text = movie.name,
+                    color = Color.White,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 16.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
+
 
 @Composable
 fun SortOptionsDialog(

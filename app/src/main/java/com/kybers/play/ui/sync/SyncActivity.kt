@@ -25,13 +25,17 @@ class SyncActivity : ComponentActivity() {
 
     private var currentUser: User? = null
 
-    // El ViewModel se inicializa más tarde, una vez que currentUser esté disponible.
     private val syncViewModel: SyncViewModel by viewModels {
-        // Asegurarse de que currentUser no sea nulo antes de usarlo.
         val user = currentUser ?: throw IllegalStateException("User must be set before accessing SyncViewModel.")
         val appContainer = (application as MainApplication).container
         val contentRepository = appContainer.createContentRepository(user.url)
-        SyncViewModelFactory(contentRepository, appContainer.syncManager)
+        // --- ¡LÍNEA MODIFICADA! ---
+        // Ahora pasamos el preferenceManager a la fábrica.
+        SyncViewModelFactory(
+            contentRepository,
+            appContainer.syncManager,
+            appContainer.preferenceManager // <-- Le pasamos la nueva dependencia
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,8 +50,6 @@ class SyncActivity : ComponentActivity() {
             return
         }
 
-        // --- CORRECCIÓN ---
-        // Aseguramos que 'launch' esté importado para que lifecycleScope funcione.
         lifecycleScope.launch {
             val user = (application as MainApplication).container.userRepository.getUserById(userId)
             if (user == null) {

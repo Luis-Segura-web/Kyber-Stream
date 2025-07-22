@@ -9,7 +9,7 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import kotlinx.coroutines.flow.Flow
-import android.util.Log // <-- ¡NUEVA IMPORTACIÓN!
+import android.util.Log
 
 @Dao
 interface LiveStreamDao {
@@ -30,7 +30,7 @@ interface LiveStreamDao {
         Log.d("LiveStreamDao", "replaceAll: Eliminando streams antiguos para userId: $userId")
         deleteAllByUserId(userId)
         Log.d("LiveStreamDao", "replaceAll: Insertando ${streams.size} nuevos streams para userId: $userId")
-        if (streams.isNotEmpty()) { // Solo insertar si la lista no está vacía
+        if (streams.isNotEmpty()) {
             insertAll(streams)
         } else {
             Log.d("LiveStreamDao", "replaceAll: No hay streams para insertar para userId: $userId")
@@ -43,12 +43,6 @@ interface MovieDao {
     @Query("SELECT * FROM movies WHERE categoryId = :categoryId AND userId = :userId")
     fun getMoviesByCategory(categoryId: String, userId: Int): Flow<List<Movie>>
 
-    /**
-     * ¡MODIFICADO!
-     * Nos aseguramos de que esta función exista y devuelva un Flow.
-     * Nuestro MoviesViewModel la usará para obtener todas las películas de una vez
-     * y manejarlas en memoria, lo cual es muy eficiente.
-     */
     @Query("SELECT * FROM movies WHERE userId = :userId")
     fun getAllMovies(userId: Int): Flow<List<Movie>>
 
@@ -58,6 +52,17 @@ interface MovieDao {
     @Query("DELETE FROM movies WHERE userId = :userId")
     suspend fun deleteAllByUserId(userId: Int)
 
+    // --- ¡LÓGICA MODIFICADA! ---
+    // Esta función ahora solo añade o actualiza películas, no borra las anteriores.
+    @Transaction
+    suspend fun cacheMovies(movies: List<Movie>, userId: Int) {
+        Log.d("MovieDao", "cacheMovies: Insertando o actualizando ${movies.size} películas para userId: $userId")
+        if (movies.isNotEmpty()) {
+            insertAll(movies)
+        }
+    }
+
+    // Mantenemos esta función por si se necesita en el futuro para una limpieza manual.
     @Transaction
     suspend fun replaceAll(movies: List<Movie>, userId: Int) {
         Log.d("MovieDao", "replaceAll: Eliminando películas antiguas para userId: $userId")
@@ -65,8 +70,6 @@ interface MovieDao {
         Log.d("MovieDao", "replaceAll: Insertando ${movies.size} nuevas películas para userId: $userId")
         if (movies.isNotEmpty()) {
             insertAll(movies)
-        } else {
-            Log.d("MovieDao", "replaceAll: No hay películas para insertar para userId: $userId")
         }
     }
 }

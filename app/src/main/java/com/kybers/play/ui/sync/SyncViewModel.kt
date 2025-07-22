@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
+import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.ContentRepository
 import kotlinx.coroutines.async
@@ -11,6 +12,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -30,62 +32,62 @@ sealed class SyncState {
 /**
  * ViewModel para la SyncScreen. Maneja la lógica para obtener todo el contenido,
  * incluyendo la EPG, del servidor remoto.
+ * ¡MODIFICADO PARA LA NUEVA LÓGICA DE CARGA!
  */
 class SyncViewModel(
     private val contentRepository: ContentRepository,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    // --- ¡NUEVA DEPENDENCIA! ---
+    // Necesitamos el PreferenceManager para guardar nuestras estadísticas.
+    private val preferenceManager: PreferenceManager
 ) : ViewModel() {
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
-    /**
-     * ¡LÓGICA CORREGIDA Y ORDENADA!
-     * Inicia el proceso de sincronización completo para un usuario.
-     * Ahora se asegura de que la EPG se sincronice solo después de que los canales
-     * hayan terminado de guardarse.
-     */
     fun startSync(user: User) {
         viewModelScope.launch {
             Log.d("SyncViewModel", "Iniciando sincronización completa para usuario: ${user.profileName}")
             try {
-                // Tareas que no tienen dependencias y pueden correr en paralelo (películas y series).
-                val independentJobs = listOf(
-                    async {
-                        _syncState.update { SyncState.SyncingMovies }
-                        contentRepository.cacheMovies(user.username, user.password, user.id)
-                        Log.d("SyncViewModel", "Sincronización de películas completada.")
-                    },
+                // --- ¡NUEVA LÓGICA DE SINCRONIZACIÓN! ---
+
+                // Tarea para sincronizar películas
+                val moviesSyncJob = async {
+                    _syncState.update { SyncState.SyncingMovies }
+                    // 1. Llamamos a la nueva función que devuelve el conteo
+                    val downloadedCount = contentRepository.cacheMovies(user.username, user.password, user.id)
+                    // 2. Obtenemos el total de películas en la base de datos
+                    val totalInCache = contentRepository.getAllMovies(user.id).first().size
+                    // 3. Guardamos ambas estadísticas
+                    preferenceManager.saveMovieSyncStats(downloadedCount, totalInCache)
+                    Log.d("SyncViewModel", "Sincronización de películas completada. Descargadas: $downloadedCount, Total en caché: $totalInCache")
+                }
+
+                // Tareas para Canales/EPG y Series (pueden correr en paralelo con las películas)
+                val otherJobs = listOf(
                     async {
                         _syncState.update { SyncState.SyncingSeries }
                         contentRepository.cacheSeries(user.username, user.password, user.id)
                         Log.d("SyncViewModel", "Sincronización de series completada.")
+                    },
+                    async {
+                        _syncState.update { SyncState.SyncingChannels }
+                        contentRepository.cacheLiveStreams(user.username, user.password, user.id)
+                        Log.d("SyncViewModel", "Sincronización de canales completada.")
+                        if (syncManager.isEpgSyncNeeded(user.id)) {
+                            Log.d("SyncViewModel", "Se necesita sincronización de EPG.")
+                            _syncState.update { SyncState.SyncingEpg }
+                            contentRepository.cacheEpgData(user.username, user.password, user.id)
+                            syncManager.saveEpgLastSyncTimestamp(user.id)
+                            Log.d("SyncViewModel", "Sincronización de EPG completada.")
+                        }
                     }
                 )
 
-                // Tarea principal que tiene una secuencia interna (Canales -> EPG).
-                val dependentJob = async {
-                    // Paso 1: Sincronizar canales y esperar a que termine. Esto es crucial.
-                    _syncState.update { SyncState.SyncingChannels }
-                    contentRepository.cacheLiveStreams(user.username, user.password, user.id)
-                    Log.d("SyncViewModel", "Sincronización de canales completada. Procediendo a EPG.")
+                // Esperamos a que todas las tareas terminen
+                awaitAll(moviesSyncJob, *otherJobs.toTypedArray())
 
-                    // Paso 2: Ahora que los canales están en la DB, sincronizar EPG si es necesario.
-                    if (syncManager.isEpgSyncNeeded(user.id)) {
-                        Log.d("SyncViewModel", "Se necesita sincronización de EPG. Iniciando descarga.")
-                        _syncState.update { SyncState.SyncingEpg }
-                        contentRepository.cacheEpgData(user.username, user.password, user.id)
-                        syncManager.saveEpgLastSyncTimestamp(user.id) // Guardamos la marca de tiempo de la EPG
-                        Log.d("SyncViewModel", "Sincronización de EPG completada.")
-                    } else {
-                        Log.d("SyncViewModel", "Saltando sincronización de EPG, caché aún válido.")
-                    }
-                }
-
-                // Esperamos a que todas las tareas (independientes y la principal) terminen.
-                awaitAll(*independentJobs.toTypedArray(), dependentJob)
-
-                // Guardamos la marca de tiempo de la sincronización de contenido general.
+                // Marcamos la sincronización de contenido general como completada
                 syncManager.saveLastSyncTimestamp(user.id)
                 _syncState.update { SyncState.Success }
                 Log.d("SyncViewModel", "Sincronización completa y exitosa para userId: ${user.id}")

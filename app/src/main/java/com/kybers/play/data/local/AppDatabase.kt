@@ -14,11 +14,9 @@ import com.kybers.play.data.remote.model.EpgEvent
 
 @Database(
     entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class, MovieDetailsCache::class],
-    // --- ¡CAMBIO CLAVE! ---
-    // Incrementamos la versión de la base de datos de 4 a 5.
-    // Esto es OBLIGATORIO porque hemos añadido el campo 'tmdbId' a la tabla 'Movie'.
-    // Al hacerlo, Room sabrá que necesita actualizar la estructura de la base de datos.
-    version = 6,
+    // --- ¡VERSIÓN INCREMENTADA! ---
+    // Aumentamos la versión para forzar la actualización de la estructura de la tabla de películas.
+    version = 1,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -42,8 +40,6 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // Esta estrategia destruirá y reconstruirá la base de datos si no
-                    // proveemos una migración. Es perfecta para la fase de desarrollo.
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
