@@ -49,7 +49,6 @@ open class ContentRepository(
     private val movieDetailsCacheDao: MovieDetailsCacheDao,
     private val baseUrl: String
 ) {
-    // ¡CAMBIO CLAVE! Usamos Moshi en lugar de Gson para ser consistentes.
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
@@ -66,7 +65,6 @@ open class ContentRepository(
         val cleaned = cleanMovieTitle(movie.name)
         var finalDetails: MovieDetailsCache?
 
-        // 1. Búsqueda principal en TMDb
         Log.d("ContentRepository", "Iniciando búsqueda de detalles para '${movie.name}' en TMDb.")
         val tmdbIdFromProvider = movie.tmdbId?.toIntOrNull()
         val tmdbId = if (tmdbIdFromProvider != null && tmdbIdFromProvider > 0) {
@@ -82,16 +80,14 @@ open class ContentRepository(
             null
         }
 
-        // 2. Comprobar si los datos de TMDb están incompletos
         val needsEnrichment = finalDetails != null && (finalDetails.plot.isNullOrBlank() || finalDetails.posterUrl.isNullOrBlank())
 
         if (needsEnrichment) {
             Log.d("ContentRepository", "Datos de TMDb incompletos para '${movie.name}'. Buscando en OMDb para enriquecer.")
-            val tmdbMovieTitle = findTMDbTitleById(tmdbId!!) ?: cleaned.title // Usar el título de TMDb si es posible
+            val tmdbMovieTitle = findTMDbTitleById(tmdbId!!) ?: cleaned.title
             val omdbBackup = fetchFromOMDbByTitle(movie.streamId, tmdbMovieTitle, finalDetails!!.releaseYear ?: cleaned.year)
 
             if (omdbBackup != null) {
-                // 3. Fusionar los datos
                 finalDetails = finalDetails.copy(
                     plot = finalDetails.plot.takeIf { !it.isNullOrBlank() } ?: omdbBackup.plot,
                     posterUrl = finalDetails.posterUrl.takeIf { !it.isNullOrBlank() } ?: omdbBackup.posterUrl,
@@ -100,7 +96,6 @@ open class ContentRepository(
                 Log.d("ContentRepository", "Datos de OMDb fusionados exitosamente para '${movie.name}'.")
             }
         } else if (finalDetails == null) {
-            // 4. Si TMDb falló por completo, usar OMDb como respaldo principal
             Log.d("ContentRepository", "TMDb falló. Iniciando búsqueda de respaldo para '${movie.name}' en OMDb.")
             finalDetails = fetchFromOMDbByTitle(movie.streamId, cleaned.title, cleaned.year)
             if (finalDetails != null) {
@@ -117,7 +112,6 @@ open class ContentRepository(
 
         return MovieWithDetails(movie, finalDetails)
     }
-
 
     fun cleanMovieTitle(title: String): CleanedTitle {
         val yearMatch = yearRegex.find(title)
@@ -165,7 +159,6 @@ open class ContentRepository(
         return null
     }
 
-
     private suspend fun fetchFromTMDbById(streamId: Int, tmdbId: Int): MovieDetailsCache? {
         try {
             val response = tmdbApiService.getMovieDetailsTMDb(
@@ -177,8 +170,6 @@ open class ContentRepository(
                 if (details != null) {
                     val castList: List<TMDbCastMember> = details.credits?.cast?.take(10) ?: emptyList()
                     val recommendations: List<TMDbMovieResult> = details.recommendations?.results?.take(10) ?: emptyList()
-
-                    // ¡CAMBIO CLAVE! Usamos Moshi para convertir las listas a JSON.
                     val castAdapter = moshi.adapter<List<TMDbCastMember>>(
                         Types.newParameterizedType(List::class.java, TMDbCastMember::class.java)
                     )
@@ -190,8 +181,8 @@ open class ContentRepository(
                         streamId = streamId, tmdbId = tmdbId, plot = details.overview,
                         posterUrl = details.getFullPosterUrl(), backdropUrl = details.getFullBackdropUrl(),
                         releaseYear = details.releaseDate?.substringBefore("-"), rating = details.voteAverage,
-                        castJson = castAdapter.toJson(castList), // Usamos el adaptador de Moshi
-                        recommendationsJson = recommendationsAdapter.toJson(recommendations), // Usamos el adaptador de Moshi
+                        castJson = castAdapter.toJson(castList),
+                        recommendationsJson = recommendationsAdapter.toJson(recommendations),
                         lastUpdated = System.currentTimeMillis()
                     )
                 }
@@ -217,12 +208,9 @@ open class ContentRepository(
                     } else {
                         details.actors.split(", ").map { TMDbCastMember(name = it, character = "", profilePath = null, id = 0) }
                     }
-
-                    // ¡CAMBIO CLAVE! Usamos Moshi aquí también para la consistencia.
                     val castAdapter = moshi.adapter<List<TMDbCastMember>>(
                         Types.newParameterizedType(List::class.java, TMDbCastMember::class.java)
                     )
-
                     return MovieDetailsCache(
                         streamId = streamId,
                         tmdbId = null,
@@ -231,7 +219,7 @@ open class ContentRepository(
                         backdropUrl = null,
                         releaseYear = if (details.year == "N/A") null else details.year,
                         rating = details.imdbRating?.toDoubleOrNull(),
-                        castJson = castAdapter.toJson(castList), // Usamos el adaptador de Moshi
+                        castJson = castAdapter.toJson(castList),
                         recommendationsJson = "[]",
                         lastUpdated = System.currentTimeMillis()
                     )
@@ -247,13 +235,13 @@ open class ContentRepository(
         val localMoviesCleaned = allLocalMovies.map { it to cleanMovieTitle(it.name) }
         val matchJobs = tmdbMovies.map { tmdbMovie ->
             async {
-                findLocalMovieMatches(tmdbMovie, localMoviesCleaned)
+                findLocalMovieMatchesByName(tmdbMovie, localMoviesCleaned)
             }
         }
         matchJobs.awaitAll().flatten().distinctBy { "${it.streamId}.${it.containerExtension}" }
     }
 
-    private suspend fun findLocalMovieMatches(tmdbMovie: TMDbMovieResult, localMoviesCleaned: List<Pair<Movie, CleanedTitle>>): List<Movie> {
+    private suspend fun findLocalMovieMatchesByName(tmdbMovie: TMDbMovieResult, localMoviesCleaned: List<Pair<Movie, CleanedTitle>>): List<Movie> {
         try {
             val detailsResponse = tmdbApiService.getMovieDetailsTMDb(
                 movieId = tmdbMovie.id,
@@ -274,11 +262,12 @@ open class ContentRepository(
                 }.map { it.first }
             }
         } catch (e: Exception) {
-            Log.e("ContentRepository", "Error buscando coincidencias para TMDb ID ${tmdbMovie.id}: ${e.message}")
+            Log.e("ContentRepository", "Error buscando coincidencias por nombre para TMDb ID ${tmdbMovie.id}: ${e.message}")
         }
         return emptyList()
     }
 
+    // --- ¡FUNCIÓN CLAVE MODIFICADA! ---
     suspend fun getActorFilmography(actorId: Int, allLocalMovies: List<Movie>): ActorFilmography = coroutineScope {
         val biography = try {
             tmdbApiService.getPersonDetails(actorId, BuildConfig.TMDB_API_KEY).body()?.biography
@@ -289,20 +278,53 @@ open class ContentRepository(
         } catch (e: Exception) { null }
 
         if (filmographyResponse?.isSuccessful == true) {
-            val filmography = filmographyResponse.body()?.cast ?: emptyList()
-            val localMoviesCleaned = allLocalMovies.map { it to cleanMovieTitle(it.name) }
+            val actorFilmography = filmographyResponse.body()?.cast ?: emptyList()
 
-            val matchJobs = filmography.map { tmdbMovie ->
-                async {
-                    findLocalMovieMatches(tmdbMovie, localMoviesCleaned) to tmdbMovie
+            // 1. Separamos nuestras películas locales en dos grupos para mayor eficiencia.
+            val localMoviesWithId = allLocalMovies.filter { it.tmdbId?.toIntOrNull() != null }
+            val localMoviesWithoutId = allLocalMovies.filter { it.tmdbId?.toIntOrNull() == null }
+
+            val availableMovies = mutableListOf<Movie>()
+            val matchedTmdbIds = mutableSetOf<Int>()
+
+            // 2. PRIMERA PASADA: Búsqueda por ID (la más rápida y precisa).
+            Log.d("Filmography", "Iniciando búsqueda por ID. Filmografía del actor: ${actorFilmography.size}, Locales con ID: ${localMoviesWithId.size}")
+            actorFilmography.forEach { tmdbMovie ->
+                val match = localMoviesWithId.find { it.tmdbId?.toIntOrNull() == tmdbMovie.id }
+                if (match != null) {
+                    availableMovies.add(match)
+                    matchedTmdbIds.add(tmdbMovie.id)
                 }
             }
-            val results = matchJobs.awaitAll()
+            Log.d("Filmography", "Fin de búsqueda por ID. Coincidencias encontradas: ${availableMovies.size}")
 
-            val available = results.flatMap { it.first }
-            val matchedTmdbMovies = results.filter { it.first.isNotEmpty() }.map { it.second }
-            val unavailable = filmography.filterNot { tmdbMovie -> matchedTmdbMovies.any { it.id == tmdbMovie.id } }
-            val uniqueAvailable = available.distinctBy { "${it.streamId}.${it.containerExtension}" }
+            // 3. SEGUNDA PASADA: Búsqueda por nombre para las películas restantes.
+            val remainingTMDbFilmography = actorFilmography.filterNot { it.id in matchedTmdbIds }
+            if (remainingTMDbFilmography.isNotEmpty() && localMoviesWithoutId.isNotEmpty()) {
+                Log.d("Filmography", "Iniciando búsqueda por nombre para ${remainingTMDbFilmography.size} películas restantes.")
+                val localMoviesCleaned = localMoviesWithoutId.map { it to cleanMovieTitle(it.name) }
+                val nameMatchJobs = remainingTMDbFilmography.map { tmdbMovie ->
+                    async {
+                        findLocalMovieMatchesByName(tmdbMovie, localMoviesCleaned)
+                    }
+                }
+                val nameMatches = nameMatchJobs.awaitAll().flatten()
+                if (nameMatches.isNotEmpty()) {
+                    availableMovies.addAll(nameMatches)
+                    nameMatches.forEach { movie ->
+                        // Aunque la encontramos por nombre, si la película de TMDb tenía un ID, lo marcamos como encontrado.
+                        val tmdbIdMatch = remainingTMDbFilmography.find { tmdbMovie ->
+                            cleanMovieTitle(tmdbMovie.title ?: "").title.equals(cleanMovieTitle(movie.name).title, ignoreCase = true)
+                        }
+                        tmdbIdMatch?.let { matchedTmdbIds.add(it.id) }
+                    }
+                }
+                Log.d("Filmography", "Fin de búsqueda por nombre. Nuevas coincidencias: ${nameMatches.size}")
+            }
+
+            // 4. Determinamos las películas no disponibles y devolvemos el resultado.
+            val unavailable = actorFilmography.filterNot { it.id in matchedTmdbIds }
+            val uniqueAvailable = availableMovies.distinctBy { "${it.streamId}.${it.containerExtension}" }
 
             return@coroutineScope ActorFilmography(biography, uniqueAvailable, unavailable)
         }
