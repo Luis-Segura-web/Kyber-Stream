@@ -6,9 +6,11 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.filled.OndemandVideo
+import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Slideshow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -48,10 +50,10 @@ import com.kybers.play.ui.movies.MoviesViewModel
 import com.kybers.play.ui.series.SeriesScreen
 
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
-    object Home : Screen("home", "Inicio", Icons.Default.Home)
-    object Channels : Screen("channels", "Canales", Icons.Default.Tv)
-    object Movies : Screen("movies", "Películas", Icons.Default.Movie)
-    object Series : Screen("series", "Series", Icons.Default.Movie)
+    object Home : Screen("home", "Inicio", Icons.Outlined.Home)
+    object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
+    object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
+    object Series : Screen("series", "Series", Icons.Outlined.Slideshow)
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
