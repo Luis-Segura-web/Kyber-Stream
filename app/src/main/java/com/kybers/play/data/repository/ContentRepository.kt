@@ -218,12 +218,12 @@ open class ContentRepository(
     fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
     open suspend fun getLiveCategories(user: String, pass: String): List<Category> {
         return try {
-            xtreamApiService.getLiveCategories(user, pass).body() ?: emptyList()
+            xtreamApiService.getLiveCategories(user = user, pass = pass).body() ?: emptyList()
         } catch (e: IOException) { emptyList() }
     }
     open suspend fun getMovieCategories(user: String, pass: String): List<Category> {
         return try {
-            xtreamApiService.getMovieCategories(user, pass).body() ?: emptyList()
+            xtreamApiService.getMovieCategories(user = user, pass = pass).body() ?: emptyList()
         } catch (e: IOException) { emptyList() }
     }
     suspend fun cacheLiveStreams(user: String, pass: String, userId: Int) {
@@ -231,7 +231,11 @@ open class ContentRepository(
         val allStreamsForUser = mutableListOf<LiveStream>()
         for (category in liveCategories) {
             try {
-                val streams = xtreamApiService.getLiveStreams(user, pass, category.categoryId.toInt()).body()
+                val streams = xtreamApiService.getLiveStreams(
+                    user = user,
+                    pass = pass,
+                    categoryId = category.categoryId.toInt()
+                ).body()
                 if (!streams.isNullOrEmpty()) {
                     streams.forEach { it.userId = userId }
                     allStreamsForUser.addAll(streams)
@@ -244,12 +248,16 @@ open class ContentRepository(
     }
 
     suspend fun cacheMovies(user: String, pass: String, userId: Int): Int {
-        val movieCategories = xtreamApiService.getMovieCategories(user, pass).body() ?: emptyList()
+        val movieCategories = xtreamApiService.getMovieCategories(user = user, pass = pass).body() ?: emptyList()
         var downloadedMoviesCount = 0
         Log.d("ContentRepository", "Iniciando descarga masiva de películas para ${movieCategories.size} categorías.")
         for (category in movieCategories) {
             try {
-                val movies = xtreamApiService.getMovies(user, pass, category.categoryId.toInt()).body()
+                val movies = xtreamApiService.getMovies(
+                    user = user,
+                    pass = pass,
+                    categoryId = category.categoryId.toInt()
+                ).body()
                 if (!movies.isNullOrEmpty()) {
                     movies.forEach { it.userId = userId }
                     downloadedMoviesCount += movies.size
@@ -265,11 +273,15 @@ open class ContentRepository(
     }
 
     suspend fun cacheSeries(user: String, pass: String, userId: Int) {
-        val seriesCategories = xtreamApiService.getSeriesCategories(user, pass).body() ?: emptyList()
+        val seriesCategories = xtreamApiService.getSeriesCategories(user = user, pass = pass).body() ?: emptyList()
         val allSeriesForUser = mutableListOf<Series>()
         for (category in seriesCategories) {
             try {
-                val series = xtreamApiService.getSeries(user, pass, category.categoryId.toInt()).body()
+                val series = xtreamApiService.getSeries(
+                    user = user,
+                    pass = pass,
+                    categoryId = category.categoryId.toInt()
+                ).body()
                 if (!series.isNullOrEmpty()) {
                     series.forEach { it.userId = userId }
                     allSeriesForUser.addAll(series)
@@ -287,7 +299,7 @@ open class ContentRepository(
             val epgIdToStreamIdsMap = allStreams
                 .filter { !it.epgChannelId.isNullOrBlank() }
                 .groupBy({ it.epgChannelId!!.lowercase().trim() }, { it.streamId })
-            val response = xtreamApiService.getXmlTvEpg(user, pass)
+            val response = xtreamApiService.getXmlTvEpg(user = user, pass = pass)
             if (response.isSuccessful && response.body() != null) {
                 val inputStream = response.body()!!.byteStream()
                 val allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId)

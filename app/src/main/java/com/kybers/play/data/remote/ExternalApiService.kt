@@ -6,6 +6,7 @@ import com.kybers.play.data.remote.model.TMDbPerson
 import com.kybers.play.data.remote.model.TMDbPersonMovieCredits
 import com.kybers.play.data.remote.model.TMDbPersonTvCredits
 import com.kybers.play.data.remote.model.TMDbSearchResponse
+import com.kybers.play.data.remote.model.TMDbTvDetails
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -17,9 +18,19 @@ interface ExternalApiService {
     suspend fun getMovieDetailsTMDb(
         @Path("movie_id") movieId: Int,
         @Query("api_key") apiKey: String,
-        @Query("append_to_response") appendToResponse: String = "credits,recommendations,alternative_titles",
+        @Query("append_to_response") appendToResponse: String = "credits,recommendations,release_dates",
         @Query("language") language: String = "es-ES"
     ): Response<TMDbMovieDetails>
+
+    // --- ¡NUEVO ENDPOINT AÑADIDO! ---
+    // Para obtener los detalles de una serie de TV, incluyendo su clasificación por edades.
+    @GET("tv/{tv_id}")
+    suspend fun getTvDetailsTMDb(
+        @Path("tv_id") tvId: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-ES",
+        @Query("append_to_response") appendToResponse: String = "content_ratings"
+    ): Response<TMDbTvDetails>
 
     @GET("person/{person_id}")
     suspend fun getPersonDetails(
@@ -35,8 +46,6 @@ interface ExternalApiService {
         @Query("language") language: String = "es-ES"
     ): Response<TMDbPersonMovieCredits>
 
-    // --- ¡NUEVO ENDPOINT! ---
-    // Para obtener las series en las que ha participado un actor.
     @GET("person/{person_id}/tv_credits")
     suspend fun getPersonTvCredits(
         @Path("person_id") personId: Int,
