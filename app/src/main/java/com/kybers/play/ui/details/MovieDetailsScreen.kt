@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -52,9 +53,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.R
+import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.ui.player.MoviePlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
@@ -150,6 +151,7 @@ fun MovieDetailsScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 MoviePlayerSection(
                     viewModel = viewModel,
+                    audioManager = audioManager,
                     onToggleFullScreen = {
                         activity?.requestedOrientation = if (uiState.isFullScreen) {
                             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -157,14 +159,14 @@ fun MovieDetailsScreen(
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
                     },
-                    onNavigateUp = onNavigateUp
+                    onNavigateUp = onNavigateUp,
+                    onNavigateToList = onNavigateUp
                 )
                 AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
                     MovieDetailsContent(
                         uiState = uiState,
                         viewModel = viewModel,
-                        onNavigateToMovie = onNavigateToMovie,
-                        onNavigateToList = onNavigateUp
+                        onNavigateToMovie = onNavigateToMovie
                     )
                 }
             }
@@ -173,23 +175,38 @@ fun MovieDetailsScreen(
             ActorFilmographyDialog(
                 actorName = uiState.selectedActorName,
                 biography = uiState.selectedActorBio,
-                availableMovies = uiState.availableActorMovies,
+                availableItems = uiState.availableFilmography,
+                unavailableItems = uiState.unavailableFilmography,
                 isLoading = uiState.isActorMoviesLoading,
                 onDismiss = { viewModel.onDismissActorMoviesDialog() },
                 onMovieClick = { movieId ->
                     viewModel.onDismissActorMoviesDialog()
                     onNavigateToMovie(movieId)
-                }
+                },
+                onUnavailableItemClick = { item -> viewModel.onUnavailableItemSelected(item) }
+            )
+        }
+
+        if (uiState.showUnavailableDetailsDialog) {
+            UnavailableItemDetailsDialog(
+                isLoading = uiState.isUnavailableItemLoading,
+                details = uiState.unavailableItemDetails,
+                onDismiss = { viewModel.onDismissUnavailableDetailsDialog() }
             )
         }
     }
 }
 
 @Composable
-fun MoviePlayerSection(viewModel: MovieDetailsViewModel, onToggleFullScreen: () -> Unit, onNavigateUp: () -> Unit) {
+fun MoviePlayerSection(
+    viewModel: MovieDetailsViewModel,
+    audioManager: AudioManager,
+    onToggleFullScreen: () -> Unit,
+    onNavigateUp: () -> Unit,
+    onNavigateToList: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     Box(
         modifier = if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
@@ -284,7 +301,7 @@ fun MoviePlayerSection(viewModel: MovieDetailsViewModel, onToggleFullScreen: () 
             }
 
             IconButton(
-                onClick = onNavigateUp,
+                onClick = onNavigateToList,
                 modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Volver a la lista", tint = Color.White)
@@ -297,8 +314,7 @@ fun MoviePlayerSection(viewModel: MovieDetailsViewModel, onToggleFullScreen: () 
 fun ColumnScope.MovieDetailsContent(
     uiState: MovieDetailsUiState,
     viewModel: MovieDetailsViewModel,
-    onNavigateToMovie: (Int) -> Unit,
-    onNavigateToList: () -> Unit
+    onNavigateToMovie: (Int) -> Unit
 ) {
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         InfoHeader(title = uiState.title, posterUrl = uiState.posterUrl, year = uiState.releaseYear, rating = uiState.rating)
@@ -394,19 +410,17 @@ fun ActionButtons(playbackPosition: Long, isFavorite: Boolean, onPlay: () -> Uni
     }
 }
 
-// --- ¡FUNCIÓN RESTAURADA! ---
 @Composable
-fun RatingBar(rating: Double, maxRating: Int = 5) {
-    Row {
+fun RatingBar(rating: Double, maxRating: Int = 5, modifier: Modifier = Modifier) {
+    Row(modifier = modifier) {
         val fullStars = floor(rating).toInt()
         val halfStar = ceil(rating) > rating && (rating - fullStars) > 0.25
         val emptyStars = maxRating - fullStars - if (halfStar) 1 else 0
-        repeat(fullStars) { Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFFC107)) }
-        if (halfStar) { Icon(Icons.Filled.StarHalf, contentDescription = null, tint = Color(0xFFFFC107)) }
-        repeat(emptyStars) { Icon(Icons.Filled.StarBorder, contentDescription = null, tint = Color(0xFFFFC107)) }
+        repeat(fullStars) { Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp)) }
+        if (halfStar) { Icon(Icons.Filled.StarHalf, contentDescription = null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp)) }
+        repeat(emptyStars) { Icon(Icons.Filled.StarBorder, contentDescription = null, tint = Color(0xFFFFC107), modifier = Modifier.size(16.dp)) }
     }
 }
-
 
 @Composable
 fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Unit) {
@@ -443,11 +457,23 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
                     Text(
                         text = member.name,
                         fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         lineHeight = 14.sp
                     )
+                    if (!member.character.isNullOrBlank()) {
+                        Text(
+                            text = member.character,
+                            fontSize = 11.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -485,10 +511,12 @@ fun RecommendationsSection(recommendations: List<Movie>, onMovieClick: (Movie) -
 fun ActorFilmographyDialog(
     actorName: String,
     biography: String?,
-    availableMovies: List<Movie>,
+    availableItems: List<EnrichedActorMovie>,
+    unavailableItems: List<FilmographyItem>,
     isLoading: Boolean,
     onDismiss: () -> Unit,
-    onMovieClick: (Int) -> Unit
+    onMovieClick: (Int) -> Unit,
+    onUnavailableItemClick: (FilmographyItem) -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f), shape = RoundedCornerShape(16.dp)) {
@@ -517,16 +545,29 @@ fun ActorFilmographyDialog(
                             }
                         }
 
-                        if (availableMovies.isNotEmpty()) {
+                        if (availableItems.isNotEmpty()) {
                             item {
-                                Text("Películas Disponibles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Disponible en tu servicio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            items(availableMovies, key = { "avail-${it.streamId}" }) { movie ->
-                                MovieListItem(
-                                    title = movie.name,
-                                    posterUrl = movie.streamIcon,
-                                    onClick = { onMovieClick(movie.streamId) }
+                            items(availableItems, key = { "avail-${it.movie.streamId}" }) { item ->
+                                EnrichedFilmographyListItem(
+                                    item = item,
+                                    onClick = { onMovieClick(item.movie.streamId) }
+                                )
+                            }
+                        }
+
+                        if (unavailableItems.isNotEmpty()) {
+                            item {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text("No Disponible", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            items(unavailableItems, key = { "unavail-${it.id}" }) { item ->
+                                FilmographyListItem(
+                                    item = item,
+                                    onClick = { onUnavailableItemClick(item) }
                                 )
                             }
                         }
@@ -557,35 +598,213 @@ fun BiographySection(biography: String) {
     }
 }
 
+// --- ¡NUEVO COMPONENTE PARA ITEMS ENRIQUECIDOS! ---
 @Composable
-fun MovieListItem(title: String, posterUrl: String?, onClick: () -> Unit, isAvailable: Boolean = true) {
+fun EnrichedFilmographyListItem(
+    item: EnrichedActorMovie,
+    onClick: () -> Unit
+) {
+    val details = item.details.details
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = isAvailable, onClick = onClick)
+            .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = posterUrl,
-            contentDescription = title,
+            model = details?.posterUrl ?: item.movie.streamIcon,
+            contentDescription = item.movie.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .width(60.dp)
+                .width(80.dp)
                 .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = title,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = if (isAvailable) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.5f)
-        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.movie.name,
+                fontWeight = FontWeight.Bold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            val year = details?.releaseYear
+            val cert = details?.certification
+            val subInfo = listOfNotNull(year, cert).joinToString(" | ")
+
+            if (subInfo.isNotBlank()) {
+                Text(
+                    text = subInfo,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            if (details?.rating != null && details.rating > 0) {
+                val ratingOutOfFive = if (details.rating > 10) details.rating / 20 else details.rating / 2
+                RatingBar(
+                    rating = ratingOutOfFive,
+                    maxRating = 5,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            Text(
+                text = "PELÍCULA",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
     }
 }
+
+// --- ¡COMPONENTE MODIFICADO PARA ITEMS NO DISPONIBLES! ---
+@Composable
+fun FilmographyListItem(
+    item: FilmographyItem,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        AsyncImage(
+            model = item.getFullPosterUrl(),
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(80.dp)
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            val mediaTypeLabel = if (item.mediaType == "movie") "PELÍCULA" else "SERIE"
+            val mediaTypeColor = if (item.mediaType == "movie") MaterialTheme.colorScheme.primary else Color(0xFFE53935)
+            Text(
+                text = mediaTypeLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier
+                    .background(mediaTypeColor, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+// --- ¡DIÁLOGO COMPLETAMENTE REDISEÑADO! ---
+@Composable
+fun UnavailableItemDetailsDialog(
+    isLoading: Boolean,
+    details: UnavailableItemDetails?,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (details != null) {
+                Column {
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        AsyncImage(
+                            model = details.backdropUrl,
+                            contentDescription = "Backdrop",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(180.dp)
+                        )
+                        Box(modifier = Modifier.matchParentSize().background(Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )))
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White,
+                                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape))
+                        }
+                    }
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        AsyncImage(
+                            model = details.posterUrl,
+                            contentDescription = "Póster",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(details.title ?: "Sin título", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            val subInfo = listOfNotNull(details.releaseYear, details.certification).joinToString(" | ")
+                            if (subInfo.isNotBlank()) {
+                                Text(subInfo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        details.rating?.let {
+                            if (it > 0) RatingBar(rating = it / 2, maxRating = 5, modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally))
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            details.overview ?: "Sin descripción disponible.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "NO DISPONIBLE EN TU SERVICIO",
+                            color = MaterialTheme.colorScheme.onError,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        )
+                    }
+                }
+            } else {
+                Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                    Text("No se pudieron cargar los detalles.", textAlign = TextAlign.Center)
+                }
+            }
+        }
+    }
+}
+
 
 private fun formatTime(millis: Long): String {
     if (millis <= 0) return ""

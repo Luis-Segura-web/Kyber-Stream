@@ -7,16 +7,20 @@ import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
+import com.kybers.play.data.model.MovieWithDetails
 import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.data.remote.model.TMDbMovieResult
+import com.kybers.play.data.remote.model.TMDbMovieDetails
+import com.kybers.play.data.remote.model.TMDbTvDetails
 import com.kybers.play.data.repository.ContentRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
-import com.kybers.play.ui.player.toAspectRatioMode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +35,21 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
+data class EnrichedActorMovie(
+    val movie: Movie,
+    val details: MovieWithDetails
+)
+
+data class UnavailableItemDetails(
+    val title: String?,
+    val posterUrl: String?,
+    val backdropUrl: String?,
+    val releaseYear: String?,
+    val rating: Double?,
+    val certification: String?,
+    val overview: String?
+)
+
 data class MovieDetailsUiState(
     val isLoadingDetails: Boolean = true,
     val movie: Movie? = null,
@@ -44,12 +63,18 @@ data class MovieDetailsUiState(
     val availableRecommendations: List<Movie> = emptyList(),
     val isFavorite: Boolean = false,
     val playbackPosition: Long = 0L,
+
     val showActorMoviesDialog: Boolean = false,
     val selectedActorName: String = "",
     val selectedActorBio: String? = null,
-    val availableActorMovies: List<Movie> = emptyList(),
-    // EL CAMPO 'unavailableActorMovies' HA SIDO ELIMINADO
+    val availableFilmography: List<EnrichedActorMovie> = emptyList(),
+    val unavailableFilmography: List<FilmographyItem> = emptyList(),
     val isActorMoviesLoading: Boolean = false,
+
+    val showUnavailableDetailsDialog: Boolean = false,
+    val unavailableItemDetails: UnavailableItemDetails? = null,
+    val isUnavailableItemLoading: Boolean = false,
+
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
@@ -148,15 +173,26 @@ class MovieDetailsViewModel(
                 )
             }
             val allMovies = contentRepository.getAllMovies(currentUser.id).first()
-            val filmography = contentRepository.getActorFilmography(actor.id, allMovies)
-            val sortedAvailableMovies = filmography.availableMovies.sortedByDescending { movie ->
-                contentRepository.cleanMovieTitle(movie.name).year?.toIntOrNull() ?: 0
+            val allSeries = contentRepository.getAllSeries(currentUser.id).first()
+            val filmography = contentRepository.getActorFilmography(actor.id, allMovies, allSeries)
+
+            val availableTmdbIds = filmography.availableItems.map { it.id }.toSet()
+            val availableLocalMovies = allMovies.filter { availableTmdbIds.contains(it.tmdbId?.toIntOrNull()) }
+
+            val enrichedMoviesJobs = availableLocalMovies.map { movie ->
+                async {
+                    val details = contentRepository.getMovieDetails(movie)
+                    EnrichedActorMovie(movie, details)
+                }
             }
+            val enrichedMovies = enrichedMoviesJobs.awaitAll()
+
             _uiState.update {
                 it.copy(
                     isActorMoviesLoading = false,
                     selectedActorBio = filmography.biography,
-                    availableActorMovies = sortedAvailableMovies
+                    availableFilmography = enrichedMovies,
+                    unavailableFilmography = filmography.unavailableItems
                 )
             }
         }
@@ -168,12 +204,69 @@ class MovieDetailsViewModel(
                 showActorMoviesDialog = false,
                 selectedActorName = "",
                 selectedActorBio = null,
-                availableActorMovies = emptyList()
+                availableFilmography = emptyList(),
+                unavailableFilmography = emptyList()
             )
         }
     }
 
-    // ... El resto del ViewModel sigue igual
+    // --- ¡FUNCIÓN CORREGIDA! ---
+    fun onUnavailableItemSelected(item: FilmographyItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isUnavailableItemLoading = true, showUnavailableDetailsDialog = true) }
+
+            val details: UnavailableItemDetails? = when (item.mediaType) {
+                "movie" -> {
+                    val movieDetails = contentRepository.getTMDbDetails(item.id)
+                    movieDetails?.let {
+                        UnavailableItemDetails(
+                            title = it.title,
+                            posterUrl = it.getFullPosterUrl(),
+                            backdropUrl = it.getFullBackdropUrl(),
+                            releaseYear = it.releaseDate?.substringBefore("-"),
+                            rating = it.voteAverage,
+                            certification = contentRepository.findMovieCertification(it),
+                            overview = it.overview
+                        )
+                    }
+                }
+                "tv" -> {
+                    val tvDetails = contentRepository.getTMDbTvDetails(item.id)
+                    tvDetails?.let {
+                        UnavailableItemDetails(
+                            title = it.name,
+                            posterUrl = it.getFullPosterUrl(),
+                            backdropUrl = it.getFullBackdropUrl(),
+                            releaseYear = it.firstAirDate?.substringBefore("-"),
+                            rating = it.voteAverage,
+                            certification = contentRepository.findTvCertification(it),
+                            overview = it.overview
+                        )
+                    }
+                }
+                else -> null
+            }
+
+            _uiState.update {
+                it.copy(
+                    isUnavailableItemLoading = false,
+                    unavailableItemDetails = details
+                )
+            }
+        }
+    }
+
+
+    fun onDismissUnavailableDetailsDialog() {
+        _uiState.update {
+            it.copy(
+                showUnavailableDetailsDialog = false,
+                unavailableItemDetails = null
+            )
+        }
+    }
+
+
     fun onRecommendationSelected(movie: Movie) {
         viewModelScope.launch { _navigationEvent.emit(movie.streamId) }
     }

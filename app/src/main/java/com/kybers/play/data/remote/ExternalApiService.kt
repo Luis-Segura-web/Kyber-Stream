@@ -4,6 +4,7 @@ import com.kybers.play.data.remote.model.OMDbMovieDetail
 import com.kybers.play.data.remote.model.TMDbMovieDetails
 import com.kybers.play.data.remote.model.TMDbPerson
 import com.kybers.play.data.remote.model.TMDbPersonMovieCredits
+import com.kybers.play.data.remote.model.TMDbPersonTvCredits
 import com.kybers.play.data.remote.model.TMDbSearchResponse
 import retrofit2.Response
 import retrofit2.http.GET
@@ -11,14 +12,6 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ExternalApiService {
-
-    @GET("search/movie")
-    suspend fun searchMovieTMDb(
-        @Query("api_key") apiKey: String,
-        @Query("query") movieTitle: String,
-        @Query("year") year: String? = null, // Anotación incorrecta eliminada
-        @Query("language") language: String = "es-ES"
-    ): Response<TMDbSearchResponse>
 
     @GET("movie/{movie_id}")
     suspend fun getMovieDetailsTMDb(
@@ -41,6 +34,15 @@ interface ExternalApiService {
         @Query("api_key") apiKey: String,
         @Query("language") language: String = "es-ES"
     ): Response<TMDbPersonMovieCredits>
+
+    // --- ¡NUEVO ENDPOINT! ---
+    // Para obtener las series en las que ha participado un actor.
+    @GET("person/{person_id}/tv_credits")
+    suspend fun getPersonTvCredits(
+        @Path("person_id") personId: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-ES"
+    ): Response<TMDbPersonTvCredits>
 
     @GET("/")
     suspend fun getMovieDetailsOMDb(

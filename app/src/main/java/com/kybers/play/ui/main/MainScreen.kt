@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -151,9 +152,21 @@ fun MainScreen(
                 )
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
-                    onNavigateUp = { navController.navigateUp() },
+                    // --- ¡CAMBIO CLAVE! ---
+                    // onNavigateUp ahora navega a la pantalla de películas y limpia el backstack.
+                    onNavigateUp = {
+                        navController.navigate(Screen.Movies.route) {
+                            // Esto evita acumular pantallas de detalles en la pila de navegación.
+                            popUpTo(Screen.Home.route)
+                        }
+                    },
                     onNavigateToMovie = { newMovieId ->
-                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId))
+                        // Navega a una nueva pantalla de detalles sin añadir la actual al backstack.
+                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
+                            popUpTo(navController.currentDestination!!.id) {
+                                inclusive = true
+                            }
+                        }
                     }
                 )
             }
