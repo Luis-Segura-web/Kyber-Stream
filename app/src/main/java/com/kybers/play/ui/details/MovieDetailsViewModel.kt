@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kybers.play.data.local.model.MovieDetailsCache
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.model.MovieWithDetails
 import com.kybers.play.data.preferences.PreferenceManager
@@ -108,6 +109,11 @@ class MovieDetailsViewModel(
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
     private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
 
+    // --- ¡NUEVO! ---
+    // Mapa para guardar en memoria todos los detalles de películas que ya tenemos en la BD local.
+    private var cachedDetailsMap: Map<Int, MovieDetailsCache> = emptyMap()
+
+
     init {
         loadInitialData()
         setupMediaPlayer()
@@ -116,7 +122,15 @@ class MovieDetailsViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true) }
-            val movie = vodRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId }
+
+            // --- ¡CAMBIO! ---
+            // Precargamos todos los detalles cacheados al mismo tiempo que la película actual.
+            val movieJob = async { vodRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId } }
+            val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
+
+            val movie = movieJob.await()
+            cacheJob.await() // Nos aseguramos de que el mapa esté listo.
+
             if (movie != null) {
                 val favoriteIds = preferenceManager.getFavoriteMovieIds()
                 val savedPosition = preferenceManager.getPlaybackPosition(movieId.toString())
@@ -179,13 +193,14 @@ class MovieDetailsViewModel(
             val availableTmdbIds = filmography.availableItems.map { it.id }.toSet()
             val availableLocalMovies = allMovies.filter { availableTmdbIds.contains(it.tmdbId?.toIntOrNull()) }
 
-            val enrichedMoviesJobs = availableLocalMovies.map { movie ->
-                async {
-                    val details = detailsRepository.getMovieDetails(movie)
-                    EnrichedActorMovie(movie, details)
-                }
+
+            // --- ¡GRAN OPTIMIZACIÓN AQUÍ! ---
+            // Ya no hacemos llamadas de red en bucle. Usamos el mapa que cargamos al inicio.
+            val enrichedMovies = availableLocalMovies.map { movie ->
+                val details = cachedDetailsMap[movie.streamId]
+                EnrichedActorMovie(movie, MovieWithDetails(movie, details))
             }
-            val enrichedMovies = enrichedMoviesJobs.awaitAll()
+
 
             _uiState.update {
                 it.copy(

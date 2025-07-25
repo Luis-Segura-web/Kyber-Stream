@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 
 /**
  * Placeholder para la pantalla de Series.
+ * Nos permite tener la sección en la barra de navegación mientras
+ * nos concentramos en desarrollar otras partes de la app.
  */
 @Composable
 fun SeriesScreen() {

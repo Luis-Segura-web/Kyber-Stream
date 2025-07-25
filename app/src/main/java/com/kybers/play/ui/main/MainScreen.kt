@@ -48,18 +48,21 @@ import com.kybers.play.ui.movies.MoviesScreen
 import com.kybers.play.ui.movies.MoviesViewModel
 import com.kybers.play.ui.series.SeriesScreen
 
-// Definición de las rutas de navegación
+// Definición de las rutas de navegación.
+// Usar una sealed class hace que la navegación sea "type-safe",
+// es decir, el compilador nos avisará si escribimos mal una ruta.
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
     object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
     object Series : Screen("series", "Series", Icons.Outlined.Slideshow)
+    // Ruta para detalles que necesita un argumento (el ID de la película)
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
 }
 
-// Lista de items para la barra de navegación inferior
+// Lista de items para la barra de navegación inferior.
 private val items = listOf(
     Screen.Home,
     Screen.Channels,
@@ -67,11 +70,6 @@ private val items = listOf(
     Screen.Series,
 )
 
-/**
- * --- ¡COMPOSABLE CORREGIDO! ---
- * Se han añadido todas las importaciones necesarias de 'androidx.navigation.compose'
- * para resolver los errores de compilación.
- */
 @Composable
 fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
@@ -81,18 +79,25 @@ fun MainScreen(
     currentUser: User,
     syncManager: SyncManager
 ) {
+    // El NavController es el cerebro de la navegación en Compose.
+    // Lo recordamos para que no se pierda entre recomposiciones.
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    // Estados para controlar la visibilidad de la barra inferior
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
+    // La barra inferior solo será visible si estamos en una de las pantallas principales
+    // y el reproductor de video no está en pantalla completa o modo PiP.
     val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
     val context = LocalContext.current
     val application = context.applicationContext as Application
 
+    // Scaffold es la estructura básica de una pantalla con Material Design.
+    // Nos da espacios predefinidos para barras superiores, inferiores, botones flotantes, etc.
     Scaffold(
         bottomBar = {
             AnimatedVisibility(
@@ -108,6 +113,8 @@ fun MainScreen(
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
+                                    // Esto evita acumular un montón de pantallas en la pila de atrás
+                                    // cuando cambiamos de pestaña.
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
@@ -121,6 +128,7 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
+        // NavHost es el contenedor que mostrará el Composable correspondiente a la ruta actual.
         NavHost(navController, startDestination = Screen.Home.route, Modifier.padding(innerPadding)) {
             composable(Screen.Home.route) {
                 val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
@@ -166,11 +174,11 @@ fun MainScreen(
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
                     onNavigateUp = {
-                        navController.navigate(Screen.Movies.route) {
-                            popUpTo(Screen.Home.route)
-                        }
+                        // Navega hacia atrás, a la pantalla anterior en la pila.
+                        navController.popBackStack()
                     },
                     onNavigateToMovie = { newMovieId ->
+                        // Navega a una nueva película, reemplazando la actual en la pila.
                         navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
                             popUpTo(navController.currentDestination!!.id) {
                                 inclusive = true

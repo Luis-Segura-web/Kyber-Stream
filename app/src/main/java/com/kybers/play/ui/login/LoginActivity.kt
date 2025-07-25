@@ -2,55 +2,34 @@ package com.kybers.play.ui.login
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kybers.play.MainApplication
@@ -59,10 +38,6 @@ import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.main.MainActivity
 import com.kybers.play.ui.sync.SyncActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
-import android.util.Log // Importación necesaria para Log
-
-// Nota: LoginViewModel y LoginUiState están en el mismo paquete (com.kybers.play.ui.login),
-// por lo que no necesitan importación explícita aquí.
 
 class LoginActivity : ComponentActivity() {
 
@@ -81,7 +56,6 @@ class LoginActivity : ComponentActivity() {
                     viewModel = loginViewModel,
                     onUserSelected = { user ->
                         Log.d("LoginActivity", "Usuario seleccionado: ${user.profileName} (ID: ${user.id})")
-                        // ¡CAMBIO CLAVE! Ahora se verifica la necesidad de sincronización para el usuario específico
                         if (syncManager.isSyncNeeded(user.id)) {
                             Log.d("LoginActivity", "Sincronización necesaria para userId: ${user.id}")
                             navigateToSync(user.id)
@@ -90,11 +64,9 @@ class LoginActivity : ComponentActivity() {
                             navigateToMain(user.id)
                         }
                     },
-                    onUserAdded = { user ->
-                        Log.d("LoginActivity", "Nuevo usuario añadido: ${user.profileName} (ID: ${user.id}). Forzando sincronización.")
-                        // Un nuevo usuario SIEMPRE requiere una sincronización.
-                        // No es necesario llamar a isSyncNeeded aquí, ya que es un usuario nuevo.
-                        navigateToSync(user.id)
+                    onNavigateToSyncAfterUserAdded = { newUser ->
+                        Log.d("LoginActivity", "Nuevo usuario añadido: ${newUser.profileName} (ID: ${newUser.id}). Forzando sincronización.")
+                        navigateToSync(newUser.id)
                     }
                 )
             }
@@ -124,7 +96,7 @@ class LoginActivity : ComponentActivity() {
 fun LoginScreen(
     viewModel: LoginViewModel,
     onUserSelected: (User) -> Unit,
-    onUserAdded: (User) -> Unit
+    onNavigateToSyncAfterUserAdded: (User) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showAddUserForm by remember { mutableStateOf(false) }
@@ -132,7 +104,9 @@ fun LoginScreen(
     LaunchedEffect(uiState) {
         val currentState = uiState
         if (showAddUserForm && currentState is LoginUiState.UserList) {
-            currentState.users.firstOrNull()?.let { onUserAdded(it) }
+            currentState.users.maxByOrNull { it.id }?.let { newUser ->
+                onNavigateToSyncAfterUserAdded(newUser)
+            }
         }
     }
 
@@ -153,12 +127,12 @@ fun LoginScreen(
                 }
             }
             is LoginUiState.ShowRegistration -> {
-                showAddUserForm = true
                 LoginForm(
                     onUserAdded = { profile, url, username, password ->
                         viewModel.addUser(profile, url, username, password)
+                        showAddUserForm = true
                     },
-                    onCancel = { /* Not cancelable if no users exist */ },
+                    onCancel = { /* No cancelable */ },
                     isCancelable = false
                 )
             }
@@ -167,7 +141,6 @@ fun LoginScreen(
                     LoginForm(
                         onUserAdded = { profile, url, username, password ->
                             viewModel.addUser(profile, url, username, password)
-                            showAddUserForm = false
                         },
                         onCancel = { showAddUserForm = false },
                         isCancelable = true
@@ -212,11 +185,11 @@ fun UserSelectionContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
+                .padding(paddingValues),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(users) { user ->
+            items(users, key = { user -> user.id }) { user ->
                 UserItem(
                     user = user,
                     onClick = { onUserSelected(user) },
@@ -239,18 +212,16 @@ fun UserItem(user: User, onClick: () -> Unit, onDelete: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Icono de perfil",
-                    modifier = Modifier.size(40.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(user.profileName, fontSize = 20.sp)
-            }
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "Icono de perfil",
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(user.profileName, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -262,6 +233,7 @@ fun UserItem(user: User, onClick: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginForm(
     onUserAdded: (String, String, String, String) -> Unit,
@@ -269,9 +241,19 @@ fun LoginForm(
     isCancelable: Boolean
 ) {
     var profileName by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+
+    // Estado para la visibilidad de la contraseña
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    // ¡MEJORA! Nos permite controlar el foco del teclado
+    val focusManager = LocalFocusManager.current
+
+    val isFormValid by remember(profileName, url, username, password) {
+        mutableStateOf(profileName.isNotBlank() && url.isNotBlank() && username.isNotBlank() && password.isNotBlank())
+    }
 
     Column(
         modifier = Modifier
@@ -283,55 +265,81 @@ fun LoginForm(
         Text("Añadir Nuevo Perfil", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
 
+        // --- CAMPO 1: Nombre del Perfil ---
         OutlinedTextField(
             value = profileName,
             onValueChange = { profileName = it },
             label = { Text("Nombre del Perfil (ej. Casa)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.AccountCircle, contentDescription = null) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text("URL del Servidor") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // --- CAMPO 2: Usuario ---
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
             label = { Text("Usuario") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
         )
         Spacer(modifier = Modifier.height(16.dp))
 
+        // --- CAMPO 3: Contraseña con visibilidad ---
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("Contraseña") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+            trailingIcon = {
+                val image = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility
+                val description = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = image, contentDescription = description)
+                }
+            }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- CAMPO 4: URL ---
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            label = { Text("URL del Servidor (ej. http://servidor.com:80)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.Dns, contentDescription = null) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
         )
         Spacer(modifier = Modifier.height(32.dp))
 
-        Row {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (isCancelable) {
-                Button(
+                OutlinedButton(
                     onClick = onCancel,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancelar")
                 }
-                Spacer(modifier = Modifier.width(16.dp))
             }
             Button(
                 onClick = {
-                    onUserAdded(profileName, url, username, password)
+                    onUserAdded(profileName.trim(), url.trim(), username.trim(), password.trim())
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = isFormValid
             ) {
                 Text("Guardar")
             }

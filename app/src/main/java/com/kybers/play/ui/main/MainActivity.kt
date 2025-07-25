@@ -21,10 +21,10 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
 
 /**
- * --- ¡ACTIVITY CORREGIDA PARA EL CRASH! ---
+ * --- ¡ACTIVITY CORREGIDA Y ROBUSTA! ---
  * MainActivity es el contenedor principal de la aplicación después del login.
- * Se ha refactorizado para llamar a setContent inmediatamente y manejar la carga de datos
- * de forma asíncrona dentro de la composición, evitando así el crash de ciclo de vida.
+ * Carga los datos del usuario de forma asíncrona dentro de la composición
+ * para evitar crashes de ciclo de vida y muestra un indicador de carga mientras tanto.
  */
 class MainActivity : ComponentActivity() {
 
@@ -36,13 +36,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             IPTVAppTheme {
-                // Estados para manejar la carga del perfil de usuario.
+                // Estados para manejar la carga del perfil de usuario de forma segura.
                 var user by remember { mutableStateOf<User?>(null) }
                 var isLoading by remember { mutableStateOf(true) }
                 var error by remember { mutableStateOf<String?>(null) }
 
-                // LaunchedEffect se ejecuta una vez cuando el composable entra en la composición.
-                // Es el lugar ideal para cargar datos de forma asíncrona.
+                // LaunchedEffect es la forma correcta en Compose de ejecutar código asíncrono
+                // una sola vez, cuando el Composable aparece en pantalla.
                 LaunchedEffect(userId) {
                     if (userId == -1) {
                         error = "ID de usuario no válido."
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     isLoading = false
                 }
 
-                // Renderizamos la UI basándonos en el estado actual.
+                // Renderizamos la UI basándonos en el estado actual de la carga.
                 when {
                     isLoading -> {
                         // Muestra un indicador de carga mientras se obtiene el perfil.
@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     user != null -> {
-                        // El usuario se ha cargado correctamente.
+                        // El usuario se ha cargado correctamente. ¡A la carga!
                         // Usamos 'remember' para que estas instancias no se recreen en cada recomposición.
                         val vodRepository = remember(user!!.url) { appContainer.createVodRepository(user!!.url) }
                         val liveRepository = remember(user!!.url) { appContainer.createLiveRepository(user!!.url) }
@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Mostramos la pantalla principal.
+                        // Una vez tenemos todo, mostramos la pantalla principal.
                         MainScreen(
                             contentViewModelFactory = contentViewModelFactory,
                             vodRepository = vodRepository,
@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     else -> {
-                        // Ha ocurrido un error. Mostramos un mensaje y cerramos.
+                        // Si algo salió mal, mostramos un error y cerramos.
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(error ?: "Ha ocurrido un error inesperado.")
                         }
