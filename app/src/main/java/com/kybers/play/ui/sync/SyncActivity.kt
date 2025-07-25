@@ -17,24 +17,29 @@ import com.kybers.play.ui.theme.IPTVAppTheme
 import kotlinx.coroutines.launch
 
 /**
- * An activity dedicated to showing the data synchronization screen.
- * It's responsible for initiating the sync process and navigating to the
- * main application screen upon completion.
+ * --- ¡ACTIVITY ACTUALIZADA! ---
+ * Activity dedicada a mostrar la pantalla de sincronización de datos.
+ * Ahora construye el SyncViewModel utilizando los repositorios modulares.
  */
 class SyncActivity : ComponentActivity() {
 
     private var currentUser: User? = null
 
     private val syncViewModel: SyncViewModel by viewModels {
-        val user = currentUser ?: throw IllegalStateException("User must be set before accessing SyncViewModel.")
+        val user = currentUser ?: throw IllegalStateException("El usuario debe estar seteado para acceder al SyncViewModel.")
         val appContainer = (application as MainApplication).container
-        val contentRepository = appContainer.createContentRepository(user.url)
-        // --- ¡LÍNEA MODIFICADA! ---
-        // Ahora pasamos el preferenceManager a la fábrica.
+
+        // --- ¡CAMBIO CLAVE! ---
+        // Creamos los repositorios necesarios a través del AppContainer.
+        val liveRepository = appContainer.createLiveRepository(user.url)
+        val vodRepository = appContainer.createVodRepository(user.url)
+
+        // Pasamos los nuevos repositorios a la fábrica del ViewModel.
         SyncViewModelFactory(
-            contentRepository,
+            liveRepository,
+            vodRepository,
             appContainer.syncManager,
-            appContainer.preferenceManager // <-- Le pasamos la nueva dependencia
+            appContainer.preferenceManager
         )
     }
 
@@ -53,11 +58,11 @@ class SyncActivity : ComponentActivity() {
         lifecycleScope.launch {
             val user = (application as MainApplication).container.userRepository.getUserById(userId)
             if (user == null) {
-                Log.e("SyncActivity", "onCreate: Usuario con ID $userId no encontrado en la base de datos. Volviendo a Login.")
+                Log.e("SyncActivity", "onCreate: Usuario con ID $userId no encontrado. Volviendo a Login.")
                 navigateToLogin()
             } else {
                 currentUser = user
-                Log.d("SyncActivity", "onCreate: Usuario cargado: ${currentUser?.profileName} (ID: ${currentUser?.id})")
+                Log.d("SyncActivity", "onCreate: Usuario cargado: ${currentUser?.profileName}")
 
                 setContent {
                     IPTVAppTheme {
@@ -65,15 +70,15 @@ class SyncActivity : ComponentActivity() {
                             viewModel = syncViewModel,
                             onSyncComplete = { navigateToMain(userId) },
                             onSyncFailed = {
-                                Toast.makeText(this@SyncActivity, "Data sync failed. Please try again.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this@SyncActivity, "Falló la sincronización. Intenta de nuevo.", Toast.LENGTH_LONG).show()
                                 Log.e("SyncActivity", "onCreate: Sincronización fallida para userId: $userId")
                                 navigateToLogin()
                             }
                         )
                     }
                 }
-                // Iniciar el proceso de sincronización después de que la UI esté configurada.
-                currentUser?.let { syncViewModel.startSync(it) } ?: Log.e("SyncActivity", "Error: currentUser es nulo al intentar iniciar la sincronización.")
+                // Inicia el proceso de sincronización después de configurar la UI.
+                currentUser?.let { syncViewModel.startSync(it) }
             }
         }
     }

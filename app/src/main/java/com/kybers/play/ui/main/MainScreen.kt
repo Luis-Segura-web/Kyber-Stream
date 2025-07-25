@@ -7,9 +7,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Slideshow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -27,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,7 +35,8 @@ import androidx.navigation.navArgument
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.data.repository.DetailsRepository
+import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
@@ -49,6 +48,7 @@ import com.kybers.play.ui.movies.MoviesScreen
 import com.kybers.play.ui.movies.MoviesViewModel
 import com.kybers.play.ui.series.SeriesScreen
 
+// Definición de las rutas de navegación
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
@@ -59,6 +59,7 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     }
 }
 
+// Lista de items para la barra de navegación inferior
 private val items = listOf(
     Screen.Home,
     Screen.Channels,
@@ -66,10 +67,16 @@ private val items = listOf(
     Screen.Series,
 )
 
+/**
+ * --- ¡COMPOSABLE CORREGIDO! ---
+ * Se han añadido todas las importaciones necesarias de 'androidx.navigation.compose'
+ * para resolver los errores de compilación.
+ */
 @Composable
 fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
-    contentRepository: ContentRepository,
+    vodRepository: VodRepository,
+    detailsRepository: DetailsRepository,
     preferenceManager: PreferenceManager,
     currentUser: User,
     syncManager: SyncManager
@@ -101,7 +108,9 @@ fun MainScreen(
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -143,10 +152,12 @@ fun MainScreen(
                 arguments = listOf(navArgument("movieId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val movieId = backStackEntry.arguments?.getInt("movieId") ?: 0
+
                 val detailsViewModel: MovieDetailsViewModel = viewModel(
                     factory = MovieDetailsViewModelFactory(
                         application = application,
-                        contentRepository = contentRepository,
+                        vodRepository = vodRepository,
+                        detailsRepository = detailsRepository,
                         preferenceManager = preferenceManager,
                         currentUser = currentUser,
                         movieId = movieId
@@ -154,16 +165,12 @@ fun MainScreen(
                 )
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
-                    // --- ¡CAMBIO CLAVE! ---
-                    // onNavigateUp ahora navega a la pantalla de películas y limpia el backstack.
                     onNavigateUp = {
                         navController.navigate(Screen.Movies.route) {
-                            // Esto evita acumular pantallas de detalles en la pila de navegación.
                             popUpTo(Screen.Home.route)
                         }
                     },
                     onNavigateToMovie = { newMovieId ->
-                        // Navega a una nueva pantalla de detalles sin añadir la actual al backstack.
                         navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
                             popUpTo(navController.currentDestination!!.id) {
                                 inclusive = true

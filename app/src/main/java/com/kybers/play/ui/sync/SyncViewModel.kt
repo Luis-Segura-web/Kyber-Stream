@@ -6,7 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.data.repository.LiveRepository
+import com.kybers.play.data.repository.VodRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,15 +31,18 @@ sealed class SyncState {
 }
 
 /**
- * ViewModel para la SyncScreen. Maneja la lógica para obtener todo el contenido,
- * incluyendo la EPG, del servidor remoto.
- * ¡MODIFICADO PARA LA NUEVA LÓGICA DE CARGA!
+ * --- ¡VIEWMODEL ACTUALIZADO! ---
+ * ViewModel para la SyncScreen. Ahora utiliza los repositorios modulares.
+ *
+ * @property liveRepository Repositorio para contenido en vivo (canales y EPG).
+ * @property vodRepository Repositorio para contenido VOD (películas y series).
+ * @property syncManager Gestiona los timestamps de sincronización.
+ * @property preferenceManager Gestiona las preferencias del usuario.
  */
 class SyncViewModel(
-    private val contentRepository: ContentRepository,
+    private val liveRepository: LiveRepository,
+    private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
-    // --- ¡NUEVA DEPENDENCIA! ---
-    // Necesitamos el PreferenceManager para guardar nuestras estadísticas.
     private val preferenceManager: PreferenceManager
 ) : ViewModel() {
 
@@ -47,47 +51,39 @@ class SyncViewModel(
 
     fun startSync(user: User) {
         viewModelScope.launch {
-            Log.d("SyncViewModel", "Iniciando sincronización completa para usuario: ${user.profileName}")
+            Log.d("SyncViewModel", "Iniciando sincronización completa para: ${user.profileName}")
             try {
-                // --- ¡NUEVA LÓGICA DE SINCRONIZACIÓN! ---
-
-                // Tarea para sincronizar películas
-                val moviesSyncJob = async {
+                // Tarea para sincronizar películas y series desde VodRepository
+                val vodSyncJob = async {
                     _syncState.update { SyncState.SyncingMovies }
-                    // 1. Llamamos a la nueva función que devuelve el conteo
-                    val downloadedCount = contentRepository.cacheMovies(user.username, user.password, user.id)
-                    // 2. Obtenemos el total de películas en la base de datos
-                    val totalInCache = contentRepository.getAllMovies(user.id).first().size
-                    // 3. Guardamos ambas estadísticas
+                    val downloadedCount = vodRepository.cacheMovies(user.username, user.password, user.id)
+                    val totalInCache = vodRepository.getAllMovies(user.id).first().size
                     preferenceManager.saveMovieSyncStats(downloadedCount, totalInCache)
-                    Log.d("SyncViewModel", "Sincronización de películas completada. Descargadas: $downloadedCount, Total en caché: $totalInCache")
+                    Log.d("SyncViewModel", "Películas sincronizadas. Descargadas: $downloadedCount, Total: $totalInCache")
+
+                    _syncState.update { SyncState.SyncingSeries }
+                    vodRepository.cacheSeries(user.username, user.password, user.id)
+                    Log.d("SyncViewModel", "Series sincronizadas.")
                 }
 
-                // Tareas para Canales/EPG y Series (pueden correr en paralelo con las películas)
-                val otherJobs = listOf(
-                    async {
-                        _syncState.update { SyncState.SyncingSeries }
-                        contentRepository.cacheSeries(user.username, user.password, user.id)
-                        Log.d("SyncViewModel", "Sincronización de series completada.")
-                    },
-                    async {
-                        _syncState.update { SyncState.SyncingChannels }
-                        contentRepository.cacheLiveStreams(user.username, user.password, user.id)
-                        Log.d("SyncViewModel", "Sincronización de canales completada.")
-                        if (syncManager.isEpgSyncNeeded(user.id)) {
-                            Log.d("SyncViewModel", "Se necesita sincronización de EPG.")
-                            _syncState.update { SyncState.SyncingEpg }
-                            contentRepository.cacheEpgData(user.username, user.password, user.id)
-                            syncManager.saveEpgLastSyncTimestamp(user.id)
-                            Log.d("SyncViewModel", "Sincronización de EPG completada.")
-                        }
+                // Tarea para sincronizar canales y EPG desde LiveRepository
+                val liveSyncJob = async {
+                    _syncState.update { SyncState.SyncingChannels }
+                    liveRepository.cacheLiveStreams(user.username, user.password, user.id)
+                    Log.d("SyncViewModel", "Canales sincronizados.")
+
+                    if (syncManager.isEpgSyncNeeded(user.id)) {
+                        Log.d("SyncViewModel", "Se necesita sincronización de EPG.")
+                        _syncState.update { SyncState.SyncingEpg }
+                        liveRepository.cacheEpgData(user.username, user.password, user.id)
+                        syncManager.saveEpgLastSyncTimestamp(user.id)
+                        Log.d("SyncViewModel", "EPG sincronizada.")
                     }
-                )
+                }
 
-                // Esperamos a que todas las tareas terminen
-                awaitAll(moviesSyncJob, *otherJobs.toTypedArray())
+                // Esperamos a que ambas tareas (VOD y Live) terminen.
+                awaitAll(vodSyncJob, liveSyncJob)
 
-                // Marcamos la sincronización de contenido general como completada
                 syncManager.saveLastSyncTimestamp(user.id)
                 _syncState.update { SyncState.Success }
                 Log.d("SyncViewModel", "Sincronización completa y exitosa para userId: ${user.id}")

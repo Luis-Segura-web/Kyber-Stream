@@ -13,7 +13,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
-import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
@@ -76,9 +76,16 @@ data class ChannelsUiState(
     val isRefreshing: Boolean = false
 )
 
+/**
+ * --- ¡VIEWMODEL ACTUALIZADO! ---
+ * ViewModel para la pantalla de Canales.
+ * Ahora depende de [LiveRepository] para toda la lógica de obtención de datos en vivo.
+ *
+ * @property liveRepository El repositorio especializado en contenido en vivo.
+ */
 open class ChannelsViewModel(
     application: Application,
-    private val contentRepository: ContentRepository,
+    private val liveRepository: LiveRepository,
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager
@@ -99,17 +106,9 @@ open class ChannelsViewModel(
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
-    private var epgEnrichmentJob: Job? = null
-
     private val vlcOptions = arrayListOf(
         "--network-caching=3000",
-        "--file-caching=3000",
-        "--clock-jitter=0",
-        "--clock-synchro=0",
-        "--no-drop-late-frames",
-        "--no-skip-frames",
-        "--sout-ts-dts-delay=0",
-        "--no-ts-trust-pcr"
+        "--file-caching=3000"
     )
 
     private val vlcPlayerListener = MediaPlayer.EventListener { event ->
@@ -135,8 +134,7 @@ open class ChannelsViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
-        val lastSyncTime = syncManager.isSyncNeeded(currentUser.id).let { if (it) 0L else System.currentTimeMillis() }
-
+        val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
         _uiState.update {
             it.copy(
@@ -253,10 +251,6 @@ open class ChannelsViewModel(
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
 
-    fun retryPlayback() {
-        uiState.value.currentlyPlaying?.let { onChannelSelected(it) }
-    }
-
     fun onToggleFullScreen() {
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
     }
@@ -267,7 +261,6 @@ open class ChannelsViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        epgEnrichmentJob?.cancel()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
         mediaPlayer.release()
@@ -326,7 +319,7 @@ open class ChannelsViewModel(
             Log.d("ChannelsViewModel", "Iniciando refresco manual de canales...")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                contentRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
+                liveRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
                 loadInitialChannelsAndPreloadEpg()
                 syncManager.saveLastSyncTimestamp(currentUser.id)
                 _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
@@ -393,7 +386,7 @@ open class ChannelsViewModel(
                 }
 
                 val updatedCategory = if (isNowExpanding && !category.epgLoaded) {
-                    val enrichedChannels = contentRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
+                    val enrichedChannels = liveRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
                     category.copy(
                         channels = enrichedChannels,
                         isExpanded = true,
@@ -416,8 +409,8 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val categories = contentRepository.getLiveCategories(currentUser.username, currentUser.password)
-                val allChannels = contentRepository.getRawLiveStreams(currentUser.id).first()
+                val categories = liveRepository.getLiveCategories(currentUser.username, currentUser.password)
+                val allChannels = liveRepository.getRawLiveStreams(currentUser.id).first()
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
                 val expandableCategories = categories.map { category ->
                     ExpandableCategory(
@@ -430,8 +423,8 @@ open class ChannelsViewModel(
                 _uiState.update { it.copy(isLoading = false) }
 
                 Log.d("ChannelsViewModel", "Iniciando precarga de EPG en memoria...")
-                epgCacheMap = contentRepository.getAllEpgMapForUser(currentUser.id)
-                Log.d("ChannelsViewModel", "Precarga de EPG completada. ${epgCacheMap.size} canales tienen EPG en caché.")
+                epgCacheMap = liveRepository.getAllEpgMapForUser(currentUser.id)
+                Log.d("ChannelsViewModel", "Precarga de EPG completada. ${epgCacheMap.size} canales tienen EPG.")
 
             } catch (e: Exception) {
                 Log.e("ChannelsViewModel", "Error en loadInitialChannelsAndPreloadEpg(): ${e.message}", e)
@@ -507,7 +500,7 @@ open class ChannelsViewModel(
 
             if(isNowExpanding) {
                 val favoriteChannels = getFavoriteChannels()
-                val enrichedFavorites = contentRepository.enrichChannelsWithEpg(favoriteChannels, epgCacheMap)
+                val enrichedFavorites = liveRepository.enrichChannelsWithEpg(favoriteChannels, epgCacheMap)
 
                 val originals = _originalCategories.value.toMutableList()
                 enrichedFavorites.forEach { enrichedFav ->

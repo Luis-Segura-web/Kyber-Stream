@@ -1,67 +1,111 @@
 package com.kybers.play.ui.main
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import com.kybers.play.MainApplication
+import com.kybers.play.data.local.model.User
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
-import kotlinx.coroutines.launch
 
 /**
+ * --- ¡ACTIVITY CORREGIDA PARA EL CRASH! ---
  * MainActivity es el contenedor principal de la aplicación después del login.
- * Alberga el NavHost con todas las pantallas principales (Inicio, Canales, etc.).
+ * Se ha refactorizado para llamar a setContent inmediatamente y manejar la carga de datos
+ * de forma asíncrona dentro de la composición, evitando así el crash de ciclo de vida.
  */
 class MainActivity : ComponentActivity() {
-    // Variable para almacenar la fábrica de ViewModels.
-    private lateinit var contentViewModelFactory: ContentViewModelFactory
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 1. Recuperamos el ID del usuario que fue pasado desde LoginActivity.
         val userId = intent.getIntExtra("USER_ID", -1)
-
-        // 2. Obtenemos acceso a nuestro contenedor de dependencias.
         val appContainer = (application as MainApplication).container
 
-        // 3. Usamos una coroutina para realizar operaciones de base de datos de forma asíncrona.
-        lifecycleScope.launch {
-            // 4. Buscamos el perfil completo del usuario en la base de datos usando su ID.
-            val user = appContainer.userRepository.getUserById(userId)
+        setContent {
+            IPTVAppTheme {
+                // Estados para manejar la carga del perfil de usuario.
+                var user by remember { mutableStateOf<User?>(null) }
+                var isLoading by remember { mutableStateOf(true) }
+                var error by remember { mutableStateOf<String?>(null) }
 
-            // 5. Si por alguna razón el usuario no se encuentra, cerramos la actividad.
-            if (user == null) {
-                finish()
-                return@launch
-            }
+                // LaunchedEffect se ejecuta una vez cuando el composable entra en la composición.
+                // Es el lugar ideal para cargar datos de forma asíncrona.
+                LaunchedEffect(userId) {
+                    if (userId == -1) {
+                        error = "ID de usuario no válido."
+                        isLoading = false
+                        return@LaunchedEffect
+                    }
+                    // Buscamos el usuario en segundo plano sin bloquear la UI.
+                    val loadedUser = appContainer.userRepository.getUserById(userId)
+                    if (loadedUser == null) {
+                        error = "No se pudo encontrar el perfil del usuario."
+                    } else {
+                        user = loadedUser
+                    }
+                    isLoading = false
+                }
 
-            // 6. Creamos las dependencias que se necesitarán en las diferentes pantallas.
-            val contentRepository = appContainer.createContentRepository(user.url)
-            val preferenceManager = appContainer.preferenceManager
-            val syncManager = appContainer.syncManager
+                // Renderizamos la UI basándonos en el estado actual.
+                when {
+                    isLoading -> {
+                        // Muestra un indicador de carga mientras se obtiene el perfil.
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    user != null -> {
+                        // El usuario se ha cargado correctamente.
+                        // Usamos 'remember' para que estas instancias no se recreen en cada recomposición.
+                        val vodRepository = remember(user!!.url) { appContainer.createVodRepository(user!!.url) }
+                        val liveRepository = remember(user!!.url) { appContainer.createLiveRepository(user!!.url) }
+                        val detailsRepository = remember { appContainer.detailsRepository }
 
-            // 7. Creamos la fábrica de ViewModels para el contenido principal.
-            contentViewModelFactory = ContentViewModelFactory(
-                application = application,
-                contentRepository = contentRepository,
-                currentUser = user,
-                preferenceManager = preferenceManager,
-                syncManager = syncManager
-            )
+                        val contentViewModelFactory = remember(user!!.id) {
+                            ContentViewModelFactory(
+                                application = application,
+                                vodRepository = vodRepository,
+                                liveRepository = liveRepository,
+                                detailsRepository = detailsRepository,
+                                currentUser = user!!,
+                                preferenceManager = appContainer.preferenceManager,
+                                syncManager = appContainer.syncManager
+                            )
+                        }
 
-            // 8. Establecemos el contenido de la actividad.
-            setContent {
-                IPTVAppTheme {
-                    // Pasamos todas las dependencias a MainScreen.
-                    MainScreen(
-                        contentViewModelFactory = contentViewModelFactory,
-                        contentRepository = contentRepository,
-                        preferenceManager = preferenceManager,
-                        currentUser = user,
-                        syncManager = syncManager
-                    )
+                        // Mostramos la pantalla principal.
+                        MainScreen(
+                            contentViewModelFactory = contentViewModelFactory,
+                            vodRepository = vodRepository,
+                            detailsRepository = detailsRepository,
+                            preferenceManager = appContainer.preferenceManager,
+                            currentUser = user!!,
+                            syncManager = appContainer.syncManager
+                        )
+                    }
+                    else -> {
+                        // Ha ocurrido un error. Mostramos un mensaje y cerramos.
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(error ?: "Ha ocurrido un error inesperado.")
+                        }
+                        LaunchedEffect(error) {
+                            Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                            finish() // Cerramos la actividad de forma segura.
+                        }
+                    }
                 }
             }
         }

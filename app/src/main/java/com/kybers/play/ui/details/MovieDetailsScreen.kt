@@ -285,7 +285,10 @@ fun MoviePlayerSection(
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = uiState.backdropUrl ?: uiState.posterUrl,
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(uiState.backdropUrl ?: uiState.posterUrl)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "Backdrop de la película",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -300,7 +303,6 @@ fun MoviePlayerSection(
                             .size(80.dp)
                             .clickable { viewModel.startPlayback(false) }
                     )
-                    // Botones superpuestos SOLO en el póster
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -367,11 +369,16 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = posterUrl, contentDescription = "Poster de la película", contentScale = ContentScale.Crop,
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(posterUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = "Poster de la película", contentScale = ContentScale.Crop,
             modifier = Modifier
                 .width(100.dp)
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -454,28 +461,21 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
                         .clickable { onActorClick(member) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(member.getFullProfileUrl())
+                            .crossfade(true)
+                            .fallback(R.drawable.ic_person_placeholder) // --- ¡CORRECCIÓN! ---
+                            .error(R.drawable.ic_person_placeholder)
+                            .placeholder(R.drawable.ic_person_placeholder)
+                            .build(),
+                        contentDescription = member.name,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(80.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
-                            .border(1.dp, Color.LightGray, CircleShape)
-                            .padding(4.dp)
-                    ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(member.getFullProfileUrl())
-                                .crossfade(true)
-                                .placeholder(R.drawable.ic_person_placeholder)
-                                .error(R.drawable.ic_person_placeholder)
-                                .build(),
-                            contentDescription = member.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = member.name,
@@ -514,11 +514,16 @@ fun RecommendationsSection(recommendations: List<Movie>, onMovieClick: (Movie) -
                     .width(120.dp)
                     .clickable { onMovieClick(movie) }) {
                     AsyncImage(
-                        model = movie.streamIcon, contentDescription = movie.name, contentScale = ContentScale.Crop,
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(movie.streamIcon)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = movie.name, contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .width(120.dp)
                             .aspectRatio(2f / 3f)
                             .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -645,7 +650,10 @@ fun EnrichedFilmographyListItem(
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = details?.posterUrl ?: item.movie.streamIcon,
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(details?.posterUrl ?: item.movie.streamIcon)
+                .crossfade(true)
+                .build(),
             contentDescription = item.movie.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -712,7 +720,10 @@ fun FilmographyListItem(
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            model = item.getFullPosterUrl(),
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(item.getFullPosterUrl())
+                .crossfade(true)
+                .build(),
             contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -767,12 +778,16 @@ fun UnavailableItemDetailsDialog(
                 Column {
                     Box(contentAlignment = Alignment.TopEnd) {
                         AsyncImage(
-                            model = details.backdropUrl,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(details.backdropUrl)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = "Backdrop",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         )
                         Box(modifier = Modifier
                             .matchParentSize()
@@ -791,13 +806,17 @@ fun UnavailableItemDetailsDialog(
                             .verticalScroll(rememberScrollState())
                     ) {
                         AsyncImage(
-                            model = details.posterUrl,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(details.posterUrl)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = "Póster",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(2f / 3f)
                                 .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(details.title ?: "Sin título", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())

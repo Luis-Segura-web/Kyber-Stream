@@ -8,7 +8,8 @@ import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Movie
-import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.data.repository.DetailsRepository
+import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.async
@@ -45,8 +46,17 @@ data class MoviesUiState(
     val favoriteMovieIds: Set<String> = emptySet()
 )
 
+/**
+ * --- ¡VIEWMODEL ACTUALIZADO! ---
+ * ViewModel para la pantalla de Películas.
+ * Ahora depende de [VodRepository] y [DetailsRepository].
+ *
+ * @property vodRepository Repositorio para obtener listas de películas y categorías.
+ * @property detailsRepository Repositorio para obtener detalles cacheados (como pósters).
+ */
 class MoviesViewModel(
-    private val contentRepository: ContentRepository,
+    private val vodRepository: VodRepository,
+    private val detailsRepository: DetailsRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User
@@ -78,16 +88,15 @@ class MoviesViewModel(
         loadInitialData()
     }
 
-    // --- ¡LÓGICA DE CARGA CORREGIDA! ---
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
-            // Usamos async dentro del launch, que es la forma correcta.
-            val moviesJob = async { allMovies = contentRepository.getAllMovies(currentUser.id).first() }
-            val categoriesJob = async { officialCategories = contentRepository.getMovieCategories(currentUser.username, currentUser.password) }
-            val cacheJob = async { cachedDetailsMap = contentRepository.getAllCachedMovieDetailsMap() }
+            // Obtenemos los datos de los repositorios correspondientes.
+            val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
+            val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password) }
+            val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
 
             awaitAll(moviesJob, categoriesJob, cacheJob)
 
@@ -104,23 +113,20 @@ class MoviesViewModel(
 
     fun getBestPosterUrl(movie: Movie): String? {
         val cachedPoster = cachedDetailsMap[movie.streamId]?.posterUrl
-        return if (!cachedPoster.isNullOrBlank()) {
-            cachedPoster
-        } else {
-            movie.streamIcon
-        }
+        return if (!cachedPoster.isNullOrBlank()) cachedPoster else movie.streamIcon
     }
 
     fun refreshMoviesManually() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                contentRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
+                // Llama al método de cacheo en el VodRepository.
+                vodRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
                 syncManager.saveLastSyncTimestamp(currentUser.id)
 
-                // Refrescamos los datos después de la sincronización
-                val moviesJob = async { allMovies = contentRepository.getAllMovies(currentUser.id).first() }
-                val cacheJob = async { cachedDetailsMap = contentRepository.getAllCachedMovieDetailsMap() }
+                // Refresca los datos locales después de la sincronización.
+                val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
+                val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
                 awaitAll(moviesJob, cacheJob)
 
                 val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)

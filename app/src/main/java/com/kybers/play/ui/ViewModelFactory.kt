@@ -6,8 +6,10 @@ import androidx.lifecycle.ViewModelProvider
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.repository.ContentRepository
+import com.kybers.play.data.repository.DetailsRepository
+import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
+import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeViewModel
@@ -17,7 +19,7 @@ import com.kybers.play.ui.player.PlayerViewModel
 import com.kybers.play.ui.sync.SyncViewModel
 
 /**
- * Fábrica para el LoginViewModel.
+ * Fábrica para el LoginViewModel. No cambia, ya que solo depende de UserRepository.
  */
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -30,11 +32,15 @@ class LoginViewModelFactory(private val userRepository: UserRepository) : ViewMo
 }
 
 /**
- * Fábrica para los ViewModels que dependen del contenido principal.
+ * --- ¡FÁBRICA ACTUALIZADA! ---
+ * Fábrica para los ViewModels de la pantalla principal que dependen del contenido.
+ * Ahora inyecta los repositorios modulares específicos que cada ViewModel necesita.
  */
 class ContentViewModelFactory(
     private val application: Application,
-    private val contentRepository: ContentRepository,
+    private val vodRepository: VodRepository,
+    private val liveRepository: LiveRepository,
+    private val detailsRepository: DetailsRepository, // Añadido para futuros usos
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager
@@ -43,25 +49,32 @@ class ContentViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(HomeViewModel::class.java) -> {
-                HomeViewModel(contentRepository, currentUser) as T
+                // HomeViewModel ahora usa VodRepository para obtener películas y series.
+                HomeViewModel(vodRepository, currentUser) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
-                ChannelsViewModel(application, contentRepository, currentUser, preferenceManager, syncManager) as T
+                // ChannelsViewModel usa LiveRepository.
+                ChannelsViewModel(application, liveRepository, currentUser, preferenceManager, syncManager) as T
             }
             modelClass.isAssignableFrom(MoviesViewModel::class.java) -> {
-                MoviesViewModel(contentRepository, syncManager, preferenceManager, currentUser) as T
+                // MoviesViewModel usa VodRepository y DetailsRepository.
+                MoviesViewModel(vodRepository, detailsRepository, syncManager, preferenceManager, currentUser) as T
             }
+            // Aquí se añadirían otros ViewModels como SeriesViewModel en el futuro.
             else -> throw IllegalArgumentException("Unknown ViewModel class in ContentViewModelFactory: ${modelClass.name}")
         }
     }
 }
 
 /**
- * Fábrica dedicada exclusivamente para crear el MovieDetailsViewModel.
+ * --- ¡FÁBRICA ACTUALIZADA! ---
+ * Fábrica dedicada para crear el MovieDetailsViewModel.
+ * Ahora depende de VodRepository y DetailsRepository.
  */
 class MovieDetailsViewModelFactory(
     private val application: Application,
-    private val contentRepository: ContentRepository,
+    private val vodRepository: VodRepository,
+    private val detailsRepository: DetailsRepository,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val movieId: Int
@@ -71,7 +84,8 @@ class MovieDetailsViewModelFactory(
         if (modelClass.isAssignableFrom(MovieDetailsViewModel::class.java)) {
             return MovieDetailsViewModel(
                 application,
-                contentRepository,
+                vodRepository,
+                detailsRepository,
                 preferenceManager,
                 currentUser,
                 movieId
@@ -81,34 +95,35 @@ class MovieDetailsViewModelFactory(
     }
 }
 
+/**
+ * --- ¡FÁBRICA ACTUALIZADA! ---
+ * Fábrica para el SyncViewModel.
+ * Ahora recibe los repositorios de Live y VOD para realizar la sincronización.
+ */
+class SyncViewModelFactory(
+    private val liveRepository: LiveRepository,
+    private val vodRepository: VodRepository,
+    private val syncManager: SyncManager,
+    private val preferenceManager: PreferenceManager
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return SyncViewModel(liveRepository, vodRepository, syncManager, preferenceManager) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
 
 /**
- * Fábrica para el PlayerViewModel.
+ * Fábrica para el PlayerViewModel (sin cambios).
  */
 class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return PlayerViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
-
-/**
- * --- ¡FÁBRICA MODIFICADA! ---
- * Ahora acepta y pasa el PreferenceManager al SyncViewModel.
- */
-class SyncViewModelFactory(
-    private val contentRepository: ContentRepository,
-    private val syncManager: SyncManager,
-    private val preferenceManager: PreferenceManager // Nueva dependencia
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            // Se lo pasamos al constructor del ViewModel
-            return SyncViewModel(contentRepository, syncManager, preferenceManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
