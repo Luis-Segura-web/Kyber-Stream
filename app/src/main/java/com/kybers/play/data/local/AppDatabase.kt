@@ -11,12 +11,20 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.EpgEvent
+import com.kybers.play.data.remote.model.Episode
 
 @Database(
-    entities = [User::class, Movie::class, Series::class, LiveStream::class, EpgEvent::class, MovieDetailsCache::class],
-    // --- ¡VERSIÓN INCREMENTADA! ---
-    // Aumentamos la versión para forzar la actualización de la estructura de la tabla de películas.
-    version = 1,
+    entities = [
+        User::class,
+        Movie::class,
+        Series::class,
+        LiveStream::class,
+        EpgEvent::class,
+        MovieDetailsCache::class,
+        Episode::class // --- ¡NUEVA ENTIDAD AÑADIDA! ---
+    ],
+    // --- ¡VERSIÓN INCREMENTADA A 2! ---
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -28,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun liveStreamDao(): LiveStreamDao
     abstract fun epgEventDao(): EpgEventDao
     abstract fun movieDetailsCacheDao(): MovieDetailsCacheDao
+    abstract fun episodeDao(): EpisodeDao // --- ¡NUEVO DAO AÑADIDO! ---
 
     companion object {
         @Volatile
@@ -40,6 +49,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
+                    // --- ¡CORRECCIÓN! ---
+                    // Se reemplaza la llamada obsoleta por la nueva, siendo explícitos
+                    // en que queremos que todas las tablas se eliminen en la migración.
                     .fallbackToDestructiveMigration(true)
                     .build()
                 INSTANCE = instance

@@ -1,63 +1,35 @@
 package com.kybers.play.data.repository
 
 import android.util.Log
+import com.kybers.play.data.local.EpisodeDao
 import com.kybers.play.data.local.MovieDao
 import com.kybers.play.data.local.SeriesDao
 import com.kybers.play.data.remote.XtreamApiService
+import com.kybers.play.data.remote.model.Episode
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.data.remote.model.SeriesInfo
+import com.kybers.play.data.remote.model.SeriesInfoResponse
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 
-/**
- * Repositorio especializado en la gestión de contenido "Bajo Demanda" (VOD).
- * Se encarga de todo lo relacionado con Películas y Series.
- *
- * Hereda de [BaseContentRepository] para reutilizar la lógica común de obtención de categorías.
- *
- * @property xtreamApiService La instancia del servicio Retrofit para la API de Xtream.
- * @property movieDao El DAO para acceder a la tabla de películas en la base de datos local.
- * @property seriesDao El DAO para acceder a la tabla de series en la base de datos local.
- */
 class VodRepository(
     xtreamApiService: XtreamApiService,
     private val movieDao: MovieDao,
-    private val seriesDao: SeriesDao
+    private val seriesDao: SeriesDao,
+    private val episodeDao: EpisodeDao
 ) : BaseContentRepository(xtreamApiService) {
 
-    /**
-     * Obtiene un Flow con todas las películas cacheadas en la base de datos para un usuario específico.
-     *
-     * @param userId El ID del usuario.
-     * @return Un [Flow] que emite la lista de [Movie].
-     */
     fun getAllMovies(userId: Int): Flow<List<Movie>> = movieDao.getAllMovies(userId)
 
-    /**
-     * Obtiene un Flow con todas las series cacheadas en la base de datos para un usuario específico.
-     *
-     * @param userId El ID del usuario.
-     * @return Un [Flow] que emite la lista de [Series].
-     */
-    fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
-
-    /**
-     * Descarga y cachea todas las películas desde el servidor para un usuario.
-     * Itera sobre cada categoría de películas, descarga los streams y los guarda en la base de datos.
-     *
-     * @param user El nombre de usuario para la autenticación.
-     * @param pass La contraseña para la autenticación.
-     * @param userId El ID del usuario para asociar los datos cacheados.
-     * @return El número total de películas descargadas en esta sesión.
-     */
     suspend fun cacheMovies(user: String, pass: String, userId: Int): Int {
-        // Obtiene las categorías de películas desde la API (método heredado de la clase base).
         val movieCategories = getMovieCategories(user, pass)
         var downloadedMoviesCount = 0
         Log.d("VodRepository", "Iniciando descarga de películas para ${movieCategories.size} categorías.")
 
         for (category in movieCategories) {
             try {
-                // Descarga las películas para la categoría actual.
                 val movies = xtreamApiService.getMovies(
                     user = user,
                     pass = pass,
@@ -65,10 +37,8 @@ class VodRepository(
                 ).body()
 
                 if (!movies.isNullOrEmpty()) {
-                    // Asigna el userId a cada película antes de guardarla.
                     movies.forEach { it.userId = userId }
                     downloadedMoviesCount += movies.size
-                    // Guarda las películas en la base de datos local.
                     movieDao.cacheMovies(movies, userId)
                     Log.d("VodRepository", "Categoría '${category.categoryName}': ${movies.size} películas cacheadas.")
                 }
@@ -80,15 +50,9 @@ class VodRepository(
         return downloadedMoviesCount
     }
 
-    /**
-     * Descarga y cachea todas las series desde el servidor para un usuario.
-     *
-     * @param user El nombre de usuario para la autenticación.
-     * @param pass La contraseña para la autenticación.
-     * @param userId El ID del usuario para asociar los datos cacheados.
-     */
+    fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
+
     suspend fun cacheSeries(user: String, pass: String, userId: Int) {
-        // Obtiene las categorías de series.
         val seriesCategories = getSeriesCategories(user, pass)
         val allSeriesForUser = mutableListOf<Series>()
         Log.d("VodRepository", "Iniciando descarga de series para ${seriesCategories.size} categorías.")
@@ -109,8 +73,74 @@ class VodRepository(
                 Log.e("VodRepository", "Error al descargar series de la categoría ${category.categoryId}", e)
             }
         }
-        // Reemplaza todas las series existentes para este usuario con la nueva lista.
         seriesDao.replaceAll(allSeriesForUser, userId)
         Log.d("VodRepository", "Descarga de series completada. Total: ${allSeriesForUser.size}")
+    }
+
+    fun getSeriesDetails(user: String, pass: String, seriesId: Int, userId: Int): Flow<SeriesInfoResponse?> = flow {
+        val cachedEpisodes = episodeDao.getEpisodesForSeries(seriesId, userId).first()
+        if (cachedEpisodes.isNotEmpty()) {
+            Log.d("VodRepository", "Detalles de la serie $seriesId encontrados en caché.")
+            val seriesInfoFromDb = seriesDao.getAllSeries(userId).first().find { it.seriesId == seriesId }
+            if (seriesInfoFromDb != null) {
+                val seasons = cachedEpisodes.map { it.season }.distinct().sorted()
+                    .map { com.kybers.play.data.remote.model.Season(it, "Temporada $it") }
+                val episodesBySeason = cachedEpisodes.groupBy { it.season.toString() }
+
+                // --- ¡CORRECCIÓN! ---
+                // Creamos un objeto SeriesInfo a partir del Series que tenemos en la base de datos.
+                val seriesInfoForResponse = SeriesInfo(
+                    name = seriesInfoFromDb.name,
+                    cover = seriesInfoFromDb.cover,
+                    plot = seriesInfoFromDb.plot,
+                    cast = seriesInfoFromDb.cast,
+                    director = seriesInfoFromDb.director,
+                    genre = seriesInfoFromDb.genre,
+                    releaseDate = seriesInfoFromDb.releaseDate,
+                    lastModified = seriesInfoFromDb.lastModified,
+                    rating = seriesInfoFromDb.rating,
+                    rating5Based = seriesInfoFromDb.rating5Based,
+                    backdropPath = seriesInfoFromDb.backdropPath,
+                    youtubeTrailer = seriesInfoFromDb.youtubeTrailer,
+                    episodeRunTime = seriesInfoFromDb.episodeRunTime,
+                    categoryId = seriesInfoFromDb.categoryId
+                )
+                emit(SeriesInfoResponse(seriesInfoForResponse, seasons, episodesBySeason))
+                return@flow
+            }
+        }
+
+        Log.d("VodRepository", "No hay caché para la serie $seriesId. Solicitando a la red.")
+        try {
+            val response = xtreamApiService.getSeriesInfo(user, pass, seriesId = seriesId)
+            if (response.isSuccessful) {
+                val seriesInfoResponse = response.body()
+                seriesInfoResponse?.let {
+                    val processedEpisodes = it.episodes.values.flatten().map { episode ->
+                        episode.apply {
+                            this.seriesId = seriesId
+                            this.userId = userId
+                            this.plot = episode.info?.plot
+                            this.imageUrl = episode.info?.imageUrl
+                            this.rating = episode.info?.rating?.toFloatOrNull()
+                            this.duration = episode.info?.duration
+                            this.releaseDate = episode.info?.releaseDate
+                        }
+                    }
+                    episodeDao.replaceAll(processedEpisodes, seriesId, userId)
+                    emit(it)
+                }
+            } else {
+                Log.e("VodRepository", "Error en la API al obtener detalles de la serie $seriesId: ${response.code()}")
+                emit(null)
+            }
+        } catch (e: Exception) {
+            Log.e("VodRepository", "Excepción al obtener detalles de la serie $seriesId", e)
+            emit(null)
+        }
+    }
+
+    fun getEpisodesForSeries(seriesId: Int, userId: Int): Flow<List<Episode>> {
+        return episodeDao.getEpisodesForSeries(seriesId, userId)
     }
 }

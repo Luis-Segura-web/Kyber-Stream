@@ -1,6 +1,7 @@
 package com.kybers.play.ui.main
 
 import android.app.Application
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -39,6 +40,7 @@ import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
+import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.details.MovieDetailsScreen
 import com.kybers.play.ui.details.MovieDetailsViewModel
@@ -46,23 +48,27 @@ import com.kybers.play.ui.home.HomeScreen
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.movies.MoviesScreen
 import com.kybers.play.ui.movies.MoviesViewModel
+import com.kybers.play.ui.series.SeriesDetailsScreen
+import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesScreen
+import com.kybers.play.ui.series.SeriesViewModel
 
-// Definición de las rutas de navegación.
-// Usar una sealed class hace que la navegación sea "type-safe",
-// es decir, el compilador nos avisará si escribimos mal una ruta.
+// Definición de las rutas de navegación
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
     object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
     object Series : Screen("series", "Series", Icons.Outlined.Slideshow)
-    // Ruta para detalles que necesita un argumento (el ID de la película)
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
+    // --- ¡NUEVA RUTA PARA DETALLES DE SERIES! ---
+    object SeriesDetails : Screen("series_details/{seriesId}") {
+        fun createRoute(seriesId: Int) = "series_details/$seriesId"
+    }
 }
 
-// Lista de items para la barra de navegación inferior.
+// Lista de items para la barra de navegación inferior
 private val items = listOf(
     Screen.Home,
     Screen.Channels,
@@ -79,25 +85,18 @@ fun MainScreen(
     currentUser: User,
     syncManager: SyncManager
 ) {
-    // El NavController es el cerebro de la navegación en Compose.
-    // Lo recordamos para que no se pierda entre recomposiciones.
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Estados para controlar la visibilidad de la barra inferior
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
-    // La barra inferior solo será visible si estamos en una de las pantallas principales
-    // y el reproductor de video no está en pantalla completa o modo PiP.
     val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
     val context = LocalContext.current
     val application = context.applicationContext as Application
 
-    // Scaffold es la estructura básica de una pantalla con Material Design.
-    // Nos da espacios predefinidos para barras superiores, inferiores, botones flotantes, etc.
     Scaffold(
         bottomBar = {
             AnimatedVisibility(
@@ -113,8 +112,6 @@ fun MainScreen(
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
-                                    // Esto evita acumular un montón de pantallas en la pila de atrás
-                                    // cuando cambiamos de pestaña.
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
@@ -128,7 +125,6 @@ fun MainScreen(
             }
         }
     ) { innerPadding ->
-        // NavHost es el contenedor que mostrará el Composable correspondiente a la ruta actual.
         NavHost(navController, startDestination = Screen.Home.route, Modifier.padding(innerPadding)) {
             composable(Screen.Home.route) {
                 val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
@@ -153,7 +149,15 @@ fun MainScreen(
                 )
             }
             composable(Screen.Series.route) {
-                SeriesScreen()
+                // --- ¡CONEXIÓN! ---
+                // Ahora creamos el ViewModel de verdad y le pasamos el callback de navegación.
+                val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
+                SeriesScreen(
+                    viewModel = seriesViewModel,
+                    onNavigateToDetails = { seriesId ->
+                        navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
+                    }
+                )
             }
             composable(
                 route = Screen.MovieDetails.route,
@@ -173,17 +177,36 @@ fun MainScreen(
                 )
                 MovieDetailsScreen(
                     viewModel = detailsViewModel,
-                    onNavigateUp = {
-                        // Navega hacia atrás, a la pantalla anterior en la pila.
-                        navController.popBackStack()
-                    },
+                    onNavigateUp = { navController.popBackStack() },
                     onNavigateToMovie = { newMovieId ->
-                        // Navega a una nueva película, reemplazando la actual en la pila.
                         navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
-                            popUpTo(navController.currentDestination!!.id) {
-                                inclusive = true
-                            }
+                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
                         }
+                    }
+                )
+            }
+
+            // --- ¡NUEVO DESTINO DE NAVEGACIÓN! ---
+            composable(
+                route = Screen.SeriesDetails.route,
+                arguments = listOf(navArgument("seriesId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val seriesId = backStackEntry.arguments?.getInt("seriesId") ?: 0
+
+                // Usamos nuestra nueva fábrica para crear el ViewModel.
+                val detailsViewModel: SeriesDetailsViewModel = viewModel(
+                    factory = SeriesDetailsViewModelFactory(
+                        vodRepository = vodRepository,
+                        currentUser = currentUser,
+                        seriesId = seriesId
+                    )
+                )
+                SeriesDetailsScreen(
+                    viewModel = detailsViewModel,
+                    onNavigateUp = { navController.popBackStack() },
+                    onPlayEpisode = { episode ->
+                        // TODO: Lanzar el reproductor de video para el episodio.
+                        Toast.makeText(context, "Reproduciendo: ${episode.title}", Toast.LENGTH_SHORT).show()
                     }
                 )
             }

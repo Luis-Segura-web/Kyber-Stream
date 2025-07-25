@@ -61,9 +61,6 @@ data class LiveStream(
     @Ignore var nextEpgEvent: EpgEvent? = null
 }
 
-// --- ¡ENTIDAD MODIFICADA! ---
-// La clave primaria ahora es solo el ID del stream y del usuario.
-// Esto nos permite tener un categoryId nulo sin problemas.
 @Entity(tableName = "movies", primaryKeys = ["streamId", "userId"])
 data class Movie(
     @Json(name = "stream_id") val streamId: Int,
@@ -144,4 +141,69 @@ data class EpgEvent(
     val description: String,
     val startTimestamp: Long,
     val stopTimestamp: Long
+)
+
+// --- ¡MODELOS PARA SERIES CORREGIDOS! ---
+
+/**
+ * Esta clase representa el objeto "info" que viene en la respuesta de la API get_series_info.
+ * Es diferente de nuestra entidad `Series` porque no contiene `series_id` ni `num`.
+ */
+data class SeriesInfo(
+    val name: String?,
+    val cover: String?,
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    val genre: String?,
+    val releaseDate: String?,
+    @Json(name = "last_modified") val lastModified: String?,
+    val rating: String?,
+    @Json(name = "rating_5based") val rating5Based: Float?,
+    @Json(name = "backdrop_path") val backdropPath: List<String>?,
+    @Json(name = "youtube_trailer") val youtubeTrailer: String?,
+    @Json(name = "episode_run_time") val episodeRunTime: String?,
+    @Json(name = "category_id") val categoryId: String?
+)
+
+/**
+ * La respuesta completa de la API. Ahora usa `SeriesInfo` para el campo `info`.
+ */
+data class SeriesInfoResponse(
+    val info: SeriesInfo,
+    val seasons: List<Season>,
+    val episodes: Map<String, List<Episode>>
+)
+
+data class Season(
+    @Json(name = "season_number") val seasonNumber: Int,
+    val name: String
+)
+
+@Entity(tableName = "episodes", primaryKeys = ["id", "seriesId", "userId"])
+data class Episode(
+    val id: String,
+    @Json(name = "episode_num") val episodeNum: Int,
+    val title: String,
+    @Json(name = "container_extension") val containerExtension: String,
+    val season: Int
+) {
+    @Json(name = "info") @Ignore
+    var info: EpisodeInfo? = null
+
+    var seriesId: Int = 0
+    var userId: Int = 0
+    var plot: String? = null
+    var imageUrl: String? = null
+    var rating: Float? = null
+    var duration: String? = null
+    var releaseDate: String? = null
+}
+
+data class EpisodeInfo(
+    @Json(name = "movie_image") val imageUrl: String?,
+    val plot: String?,
+    val rating: String?,
+    @Json(name = "releasedate") val releaseDate: String?,
+    val duration: String?
 )

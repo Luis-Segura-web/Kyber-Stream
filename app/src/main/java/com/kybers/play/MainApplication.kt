@@ -26,9 +26,6 @@ import java.util.concurrent.TimeUnit
 /**
  * Clase principal de la aplicación.
  * Responsable de inicializar dependencias globales y el contenedor de dependencias (AppContainer).
- *
- * Implementa ImageLoaderFactory para proporcionar una instancia única y optimizada de Coil
- * para la carga de imágenes en toda la app.
  */
 class MainApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
@@ -49,7 +46,6 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
 
     /**
      * Crea una instancia única y optimizada de ImageLoader para Coil.
-     * Configura cachés de memoria y disco para un rendimiento eficiente en la carga de imágenes.
      */
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
@@ -91,26 +87,16 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
 /**
  * Contenedor de dependencias para la aplicación.
  * Gestiona la creación y provisión de instancias de repositorios y otros servicios.
- * Este es el núcleo de nuestra inyección de dependencias manual.
  */
 class AppContainer(context: Context) {
 
-    // --- DEPENDENCIAS BASE (sin cambios) ---
     private val database by lazy { AppDatabase.getDatabase(context) }
     private val tmdbApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
 
-    // --- REPOSITORIOS PRINCIPALES (sin cambios) ---
     val userRepository by lazy { UserRepository(database.userDao()) }
     val syncManager by lazy { SyncManager(context) }
     val preferenceManager by lazy { PreferenceManager(context) }
 
-    // --- NUEVOS REPOSITORIOS MODULARIZADOS ---
-
-    /**
-     * Repositorio para detalles de TMDb.
-     * Se puede crear una sola vez como un singleton (`lazy`) ya que no depende
-     * de la URL específica del usuario.
-     */
     val detailsRepository by lazy {
         DetailsRepository(
             tmdbApiService = tmdbApiService,
@@ -118,14 +104,6 @@ class AppContainer(context: Context) {
         )
     }
 
-    /**
-     * FÁBRICA para crear un LiveRepository.
-     * Se necesita una fábrica porque este repositorio depende de la 'baseUrl'
-     * específica del perfil del usuario, la cual puede cambiar.
-     *
-     * @param baseUrl La URL del servidor del usuario.
-     * @return Una nueva instancia de [LiveRepository].
-     */
     fun createLiveRepository(baseUrl: String): LiveRepository {
         val xtreamApiService = RetrofitClient.create(baseUrl)
         return LiveRepository(
@@ -137,7 +115,6 @@ class AppContainer(context: Context) {
 
     /**
      * FÁBRICA para crear un VodRepository.
-     * También necesita la 'baseUrl' del usuario para crear su propia instancia de la API.
      *
      * @param baseUrl La URL del servidor del usuario.
      * @return Una nueva instancia de [VodRepository].
@@ -147,7 +124,10 @@ class AppContainer(context: Context) {
         return VodRepository(
             xtreamApiService = xtreamApiService,
             movieDao = database.movieDao(),
-            seriesDao = database.seriesDao()
+            seriesDao = database.seriesDao(),
+            // --- ¡CORRECCIÓN! ---
+            // Añadimos el episodeDao que faltaba al constructor.
+            episodeDao = database.episodeDao()
         )
     }
 }
