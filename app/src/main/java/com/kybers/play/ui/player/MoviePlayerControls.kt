@@ -66,6 +66,7 @@ fun MoviePlayerControls(
     onToggleAspectRatio: () -> Unit,
     onSeek: (Long) -> Unit
 ) {
+    // Wrapper para los controles que se desvanecen
     AnimatedVisibility(
         visible = isVisible,
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(durationMillis = 200)),
@@ -76,6 +77,7 @@ fun MoviePlayerControls(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.6f))
         ) {
+            // Controles Superiores (Título, Cerrar, Favorito, PiP)
             TopMovieControls(
                 modifier = Modifier.align(Alignment.TopCenter),
                 streamTitle = streamTitle,
@@ -86,30 +88,30 @@ fun MoviePlayerControls(
                 onRequestPipMode = { onRequestPipMode(); onAnyInteraction() }
             )
 
+            // Controles Centrales (Play/Pausa y Saltos Rápidos)
             CenterMovieControls(
                 modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
                 isFullScreen = isFullScreen,
-                onPlayPause = { onPlayPause(); onAnyInteraction() }
+                onPlayPause = { onPlayPause(); onAnyInteraction() },
+                onSeekForward = { onSeek(currentPosition + 10000); onAnyInteraction() },
+                onSeekBackward = { onSeek(currentPosition - 10000); onAnyInteraction() }
             )
 
+            // Controles Inferiores (Barra de progreso y botones de acción)
             BottomMovieControls(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 isMuted = isMuted,
                 isFullScreen = isFullScreen,
                 audioTracks = audioTracks,
                 subtitleTracks = subtitleTracks,
-                videoTracks = videoTracks,
                 showAudioMenu = showAudioMenu,
                 showSubtitleMenu = showSubtitleMenu,
-                showVideoMenu = showVideoMenu,
                 onToggleMute = { onToggleMute(); onAnyInteraction() },
                 onToggleAudioMenu = { onToggleAudioMenu(it); onAnyInteraction() },
                 onToggleSubtitleMenu = { onToggleSubtitleMenu(it); onAnyInteraction() },
-                onToggleVideoMenu = { onToggleVideoMenu(it); onAnyInteraction() },
                 onSelectAudioTrack = { onSelectAudioTrack(it); onAnyInteraction() },
                 onSelectSubtitleTrack = { onSelectSubtitleTrack(it); onAnyInteraction() },
-                onSelectVideoTrack = { onSelectVideoTrack(it); onAnyInteraction() },
                 currentPosition = currentPosition,
                 duration = duration,
                 onSeek = { onSeek(it); onAnyInteraction() },
@@ -117,6 +119,7 @@ fun MoviePlayerControls(
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
+            // Deslizadores laterales de Brillo y Volumen (solo en pantalla completa)
             if (isFullScreen) {
                 SideSliders(
                     modifier = Modifier.fillMaxSize(),
@@ -187,16 +190,29 @@ private fun CenterMovieControls(
     modifier: Modifier,
     isPlaying: Boolean,
     isFullScreen: Boolean,
-    onPlayPause: () -> Unit
+    onPlayPause: () -> Unit,
+    onSeekForward: () -> Unit,
+    onSeekBackward: () -> Unit
 ) {
-    val centerIconSize = if (isFullScreen) 96.dp else 56.dp
+    val centerIconSize = if (isFullScreen) 80.dp else 56.dp
+    val sideIconSize = if (isFullScreen) 64.dp else 40.dp
+    val spacerWidth = if (isFullScreen) 48.dp else 24.dp
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(onClick = onSeekBackward) {
+            Icon(Icons.Default.Replay10, "Retroceder 10s", tint = Color.White, modifier = Modifier.size(sideIconSize))
+        }
+        Spacer(modifier = Modifier.width(spacerWidth))
         IconButton(onClick = onPlayPause) {
             Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
+        }
+        Spacer(modifier = Modifier.width(spacerWidth))
+        IconButton(onClick = onSeekForward) {
+            Icon(Icons.Default.Forward10, "Adelantar 10s", tint = Color.White, modifier = Modifier.size(sideIconSize))
         }
     }
 }
@@ -208,26 +224,20 @@ private fun BottomMovieControls(
     isFullScreen: Boolean,
     audioTracks: List<TrackInfo>,
     subtitleTracks: List<TrackInfo>,
-    videoTracks: List<TrackInfo>,
     showAudioMenu: Boolean,
     showSubtitleMenu: Boolean,
-    showVideoMenu: Boolean,
     onToggleMute: () -> Unit,
     onToggleAudioMenu: (Boolean) -> Unit,
     onToggleSubtitleMenu: (Boolean) -> Unit,
-    onToggleVideoMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
-    onSelectVideoTrack: (Int) -> Unit,
     currentPosition: Long,
     duration: Long,
     onSeek: (Long) -> Unit,
     onToggleFullScreen: () -> Unit,
     onToggleAspectRatio: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
-    val formattedCurrentTime = formatTime(currentPosition)
-    val formattedTotalTime = formatTime(duration)
+    val iconSize = if (isFullScreen) 32.dp else 24.dp
 
     Column(
         modifier = modifier
@@ -237,17 +247,13 @@ private fun BottomMovieControls(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onToggleMute) {
-                Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
-            }
-
+            Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
             Slider(
-                value = if (duration > 0) currentPosition.toFloat() else 0f,
-                onValueChange = { newPosition -> onSeek((newPosition * duration).toLong()) },
-                valueRange = 0f..if (duration > 0) duration.toFloat() else 1f,
+                value = currentPosition.toFloat(),
+                onValueChange = { newPosition -> onSeek(newPosition.toLong()) },
+                valueRange = 0f..(if (duration > 0) duration.toFloat() else 0f),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp),
@@ -257,26 +263,31 @@ private fun BottomMovieControls(
                     inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                 )
             )
+            Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
+        }
 
-            Text(
-                text = "$formattedCurrentTime / $formattedTotalTime",
-                color = Color.White,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(end = 8.dp)
-            )
+        Spacer(modifier = Modifier.height(4.dp)) // Separación mínima
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = onToggleMute) {
+                Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (subtitleTracks.size > 1) {
                     TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
-                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, showText = false, iconSize = iconSize)
+                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
                     }
                 }
                 if (audioTracks.size > 1) {
                     TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
-                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, showText = false, iconSize = iconSize)
+                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
                     }
                 }
                 IconButton(onClick = onToggleAspectRatio) {
@@ -300,13 +311,15 @@ private fun SideSliders(
     onSetVolume: (Int) -> Unit,
     onSetBrightness: (Float) -> Unit
 ) {
-    Row(
-        modifier = modifier.padding(horizontal = 32.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        VerticalSlider(value = brightness, onValueChange = onSetBrightness, icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) })
-        VerticalSlider(value = volume.toFloat() / maxVolume.toFloat(), onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()) }, icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) })
+    Box(modifier = modifier.padding(horizontal = 16.dp)) {
+        // Deslizador de Brillo (Izquierda)
+        Box(modifier = Modifier.align(Alignment.CenterStart).width(64.dp)) {
+            VerticalSlider(value = brightness, onValueChange = onSetBrightness, icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) })
+        }
+        // Deslizador de Volumen (Derecha)
+        Box(modifier = Modifier.align(Alignment.CenterEnd).width(64.dp)) {
+            VerticalSlider(value = volume.toFloat() / maxVolume.toFloat(), onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()) }, icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) })
+        }
     }
 }
 
@@ -317,16 +330,16 @@ private fun VerticalSlider(
     icon: @Composable () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxHeight(0.7f),
+        modifier = Modifier.fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(modifier = Modifier.height(200.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.height(160.dp), contentAlignment = Alignment.Center) { // Altura reducida
             Slider(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier
-                    .width(200.dp)
+                    .width(160.dp)
                     .rotate(-90f),
                 colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
             )
@@ -336,7 +349,6 @@ private fun VerticalSlider(
     }
 }
 
-// ¡MEJORA VISUAL!
 @Composable
 private fun TrackMenu(
     showMenu: Boolean,
@@ -382,24 +394,15 @@ private fun ControlIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconSize: Dp,
-    showText: Boolean,
     tint: Color = Color.White
 ) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    IconButton(onClick = onClick, modifier = modifier) {
         Icon(
             imageVector = icon,
             contentDescription = text,
             tint = tint,
             modifier = Modifier.size(iconSize)
         )
-        if (showText) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = text, color = tint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
     }
 }
 

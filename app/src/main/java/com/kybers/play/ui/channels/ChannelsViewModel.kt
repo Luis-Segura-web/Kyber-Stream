@@ -65,16 +65,12 @@ data class ChannelsUiState(
     val originalBrightness: Float = -1f,
     val availableAudioTracks: List<TrackInfo> = emptyList(),
     val availableSubtitleTracks: List<TrackInfo> = emptyList(),
-    val availableVideoTracks: List<TrackInfo> = emptyList(),
     val showAudioMenu: Boolean = false,
     val showSubtitleMenu: Boolean = false,
-    val showVideoMenu: Boolean = false,
     val categorySortOrder: SortOrder = SortOrder.DEFAULT,
     val channelSortOrder: SortOrder = SortOrder.DEFAULT,
     val showSortMenu: Boolean = false,
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
-    val currentPosition: Long = 0L,
-    val duration: Long = 0L,
     val isInPipMode: Boolean = false,
     val lastUpdatedTimestamp: Long = 0L,
     val isRefreshing: Boolean = false
@@ -127,10 +123,6 @@ open class ChannelsViewModel(
             MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
             MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
             MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
-            MediaPlayer.Event.TimeChanged -> {
-                _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
-                null
-            }
             else -> null
         }
         if (newStatus != null && newStatus != currentState) {
@@ -184,10 +176,7 @@ open class ChannelsViewModel(
                     currentChannelIndex = index,
                     playerStatus = PlayerStatus.BUFFERING,
                     availableAudioTracks = emptyList(),
-                    availableSubtitleTracks = emptyList(),
-                    availableVideoTracks = emptyList(),
-                    currentPosition = 0L,
-                    duration = 0L
+                    availableSubtitleTracks = emptyList()
                 )
             }
 
@@ -201,11 +190,6 @@ open class ChannelsViewModel(
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
         }
-    }
-
-    fun seekTo(position: Long) {
-        mediaPlayer.time = position
-        _uiState.update { it.copy(currentPosition = position) }
     }
 
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
@@ -246,14 +230,10 @@ open class ChannelsViewModel(
         val subtitleTracks = mediaPlayer.spuTracks?.map {
             TrackInfo(it.id, it.name, it.id == mediaPlayer.spuTrack)
         } ?: emptyList()
-        val videoTracks = mediaPlayer.videoTracks?.map {
-            TrackInfo(it.id, it.name, it.id == mediaPlayer.videoTrack)
-        } ?: emptyList()
         _uiState.update {
             it.copy(
                 availableAudioTracks = audioTracks,
-                availableSubtitleTracks = subtitleTracks,
-                availableVideoTracks = videoTracks
+                availableSubtitleTracks = subtitleTracks
             )
         }
     }
@@ -270,15 +250,8 @@ open class ChannelsViewModel(
         updateTrackInfo()
     }
 
-    fun selectVideoTrack(trackId: Int) {
-        mediaPlayer.setVideoTrack(trackId)
-        toggleVideoMenu(false)
-        updateTrackInfo()
-    }
-
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
-    fun toggleVideoMenu(show: Boolean) = _uiState.update { it.copy(showVideoMenu = show) }
 
     fun retryPlayback() {
         uiState.value.currentlyPlaying?.let { onChannelSelected(it) }
@@ -343,8 +316,6 @@ open class ChannelsViewModel(
                 isPlayerVisible = false,
                 isFullScreen = false,
                 playerStatus = PlayerStatus.IDLE,
-                currentPosition = 0L,
-                duration = 0L,
                 isInPipMode = false
             )
         }

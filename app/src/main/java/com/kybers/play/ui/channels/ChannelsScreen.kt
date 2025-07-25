@@ -59,7 +59,7 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.ChannelPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
-import com.kybers.play.ui.player.SortOrder // --- ¡CORRECCIÓN! --- Añadimos la importación que faltaba.
+import com.kybers.play.ui.player.SortOrder
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -166,10 +166,10 @@ fun ChannelsScreen(
         }
     }
 
-    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu) {
+    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu) {
         val window = activity?.window ?: return@LaunchedEffect
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu || uiState.showVideoMenu
+        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu
 
         if (shouldBeImmersive) {
             insetsController.hide(WindowInsetsCompat.Type.systemBars())
@@ -291,12 +291,8 @@ private fun PlayerSection(
                     screenBrightness = uiState.screenBrightness,
                     audioTracks = uiState.availableAudioTracks,
                     subtitleTracks = uiState.availableSubtitleTracks,
-                    videoTracks = uiState.availableVideoTracks,
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
-                    showVideoMenu = uiState.showVideoMenu,
-                    currentPosition = uiState.currentPosition,
-                    duration = uiState.duration,
                     onClose = {
                         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         viewModel.hidePlayer()
@@ -315,12 +311,9 @@ private fun PlayerSection(
                     onSetBrightness = viewModel::setScreenBrightness,
                     onToggleAudioMenu = viewModel::toggleAudioMenu,
                     onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                    onToggleVideoMenu = viewModel::toggleVideoMenu,
                     onSelectAudioTrack = viewModel::selectAudioTrack,
                     onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
-                    onSelectVideoTrack = viewModel::selectVideoTrack,
-                    onToggleAspectRatio = viewModel::toggleAspectRatio,
-                    onSeek = viewModel::seekTo
+                    onToggleAspectRatio = viewModel::toggleAspectRatio
                 )
             }
         )

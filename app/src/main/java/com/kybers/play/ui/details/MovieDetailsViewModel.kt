@@ -85,10 +85,8 @@ data class MovieDetailsUiState(
     val originalBrightness: Float = -1f,
     val availableAudioTracks: List<TrackInfo> = emptyList(),
     val availableSubtitleTracks: List<TrackInfo> = emptyList(),
-    val availableVideoTracks: List<TrackInfo> = emptyList(),
     val showAudioMenu: Boolean = false,
     val showSubtitleMenu: Boolean = false,
-    val showVideoMenu: Boolean = false,
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
@@ -210,7 +208,6 @@ class MovieDetailsViewModel(
         }
     }
 
-    // --- ¡FUNCIÓN CORREGIDA! ---
     fun onUnavailableItemSelected(item: FilmographyItem) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(isUnavailableItemLoading = true, showUnavailableDetailsDialog = true) }
@@ -395,15 +392,12 @@ class MovieDetailsViewModel(
     private fun updateTrackInfo() {
         val audioTracks = mediaPlayer.audioTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.audioTrack) } ?: emptyList()
         val subtitleTracks = mediaPlayer.spuTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.spuTrack) } ?: emptyList()
-        val videoTracks = mediaPlayer.videoTracks?.map { TrackInfo(it.id, it.name, it.id == mediaPlayer.videoTrack) } ?: emptyList()
-        _uiState.update { it.copy(availableAudioTracks = audioTracks, availableSubtitleTracks = subtitleTracks, availableVideoTracks = videoTracks) }
+        _uiState.update { it.copy(availableAudioTracks = audioTracks, availableSubtitleTracks = subtitleTracks) }
     }
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
-    fun toggleVideoMenu(show: Boolean) = _uiState.update { it.copy(showVideoMenu = show) }
     fun selectAudioTrack(trackId: Int) { mediaPlayer.setAudioTrack(trackId); updateTrackInfo() }
     fun selectSubtitleTrack(trackId: Int) { mediaPlayer.setSpuTrack(trackId); updateTrackInfo() }
-    fun selectVideoTrack(trackId: Int) { mediaPlayer.setVideoTrack(trackId); updateTrackInfo() }
     private fun buildStreamUrl(movie: Movie): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"
         return "${baseUrl}movie/${currentUser.username}/${currentUser.password}/${movie.streamId}.${movie.containerExtension}"

@@ -7,7 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape // ¡CORRECCIÓN! Import añadido.
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
-import java.util.concurrent.TimeUnit
 
 @Composable
 fun ChannelPlayerControls(
@@ -44,12 +43,8 @@ fun ChannelPlayerControls(
     screenBrightness: Float,
     audioTracks: List<TrackInfo>,
     subtitleTracks: List<TrackInfo>,
-    videoTracks: List<TrackInfo>,
     showAudioMenu: Boolean,
     showSubtitleMenu: Boolean,
-    showVideoMenu: Boolean,
-    currentPosition: Long,
-    duration: Long,
     onClose: () -> Unit,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -61,12 +56,9 @@ fun ChannelPlayerControls(
     onSetBrightness: (Float) -> Unit,
     onToggleAudioMenu: (Boolean) -> Unit,
     onToggleSubtitleMenu: (Boolean) -> Unit,
-    onToggleVideoMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
-    onSelectVideoTrack: (Int) -> Unit,
-    onToggleAspectRatio: () -> Unit,
-    onSeek: (Long) -> Unit
+    onToggleAspectRatio: () -> Unit
 ) {
     AnimatedVisibility(
         visible = isVisible,
@@ -103,20 +95,13 @@ fun ChannelPlayerControls(
                 isFullScreen = isFullScreen,
                 audioTracks = audioTracks,
                 subtitleTracks = subtitleTracks,
-                videoTracks = videoTracks,
                 showAudioMenu = showAudioMenu,
                 showSubtitleMenu = showSubtitleMenu,
-                showVideoMenu = showVideoMenu,
                 onToggleMute = { onToggleMute(); onAnyInteraction() },
                 onToggleAudioMenu = { onToggleAudioMenu(it); onAnyInteraction() },
                 onToggleSubtitleMenu = { onToggleSubtitleMenu(it); onAnyInteraction() },
-                onToggleVideoMenu = { onToggleVideoMenu(it); onAnyInteraction() },
                 onSelectAudioTrack = { onSelectAudioTrack(it); onAnyInteraction() },
                 onSelectSubtitleTrack = { onSelectSubtitleTrack(it); onAnyInteraction() },
-                onSelectVideoTrack = { onSelectVideoTrack(it); onAnyInteraction() },
-                currentPosition = currentPosition,
-                duration = duration,
-                onSeek = { onSeek(it); onAnyInteraction() },
                 onToggleFullScreen = { onToggleFullScreen(); onAnyInteraction() },
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
@@ -226,70 +211,53 @@ private fun BottomChannelControls(
     isFullScreen: Boolean,
     audioTracks: List<TrackInfo>,
     subtitleTracks: List<TrackInfo>,
-    videoTracks: List<TrackInfo>,
     showAudioMenu: Boolean,
     showSubtitleMenu: Boolean,
-    showVideoMenu: Boolean,
     onToggleMute: () -> Unit,
     onToggleAudioMenu: (Boolean) -> Unit,
     onToggleSubtitleMenu: (Boolean) -> Unit,
-    onToggleVideoMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
-    onSelectVideoTrack: (Int) -> Unit,
-    currentPosition: Long,
-    duration: Long,
-    onSeek: (Long) -> Unit,
     onToggleFullScreen: () -> Unit,
     onToggleAspectRatio: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
-    val formattedCurrentTime = formatTime(currentPosition)
-    val formattedTotalTime = formatTime(duration)
+    val iconSize = if (isFullScreen) 32.dp else 24.dp
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        // Botón de Silenciar a la izquierda
+        IconButton(onClick = onToggleMute) {
+            Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+        }
+
+        // Espaciador para empujar los botones de la derecha
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Botones de ajustes y pantalla completa a la derecha
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onToggleMute) {
-                Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+            if (subtitleTracks.size > 1) {
+                TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
+                    ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
+                }
             }
-            Text(
-                text = "$formattedCurrentTime / $formattedTotalTime",
-                color = Color.White,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-                textAlign = TextAlign.Center
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (subtitleTracks.size > 1) {
-                    TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
-                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, showText = false, iconSize = iconSize)
-                    }
+            if (audioTracks.size > 1) {
+                TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
+                    ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
                 }
-                if (audioTracks.size > 1) {
-                    TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
-                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, showText = false, iconSize = iconSize)
-                    }
-                }
-                IconButton(onClick = onToggleAspectRatio) {
-                    Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
-                IconButton(onClick = onToggleFullScreen) {
-                    Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
+            }
+            IconButton(onClick = onToggleAspectRatio) {
+                Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+            }
+            IconButton(onClick = onToggleFullScreen) {
+                Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
             }
         }
     }
@@ -386,36 +354,14 @@ private fun ControlIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     iconSize: Dp,
-    showText: Boolean,
     tint: Color = Color.White
 ) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    IconButton(onClick = onClick, modifier = modifier) {
         Icon(
             imageVector = icon,
             contentDescription = text,
             tint = tint,
             modifier = Modifier.size(iconSize)
         )
-        if (showText) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = text, color = tint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-private fun formatTime(millis: Long): String {
-    if (millis < 0) return "00:00"
-    val hours = TimeUnit.MILLISECONDS.toHours(millis)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % TimeUnit.HOURS.toMinutes(1)
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % TimeUnit.MINUTES.toSeconds(1)
-
-    return if (hours > 0) {
-        String.format("%02d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format("%02d:%02d", minutes, seconds)
     }
 }

@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -126,10 +125,10 @@ fun MovieDetailsScreen(
             viewModel.onToggleFullScreen()
         }
     }
-    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu, uiState.showVideoMenu) {
+    LaunchedEffect(uiState.isFullScreen, uiState.showAudioMenu, uiState.showSubtitleMenu) {
         val window = activity?.window ?: return@LaunchedEffect
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu || uiState.showVideoMenu
+        val shouldBeImmersive = uiState.isFullScreen || uiState.showAudioMenu || uiState.showSubtitleMenu
         if (shouldBeImmersive) {
             insetsController.hide(WindowInsetsCompat.Type.systemBars())
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -160,8 +159,7 @@ fun MovieDetailsScreen(
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
                     },
-                    onNavigateUp = onNavigateUp,
-                    onNavigateToList = onNavigateUp
+                    onNavigateUp = onNavigateUp
                 )
                 AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
                     MovieDetailsContent(
@@ -203,14 +201,15 @@ fun MoviePlayerSection(
     viewModel: MovieDetailsViewModel,
     audioManager: AudioManager,
     onToggleFullScreen: () -> Unit,
-    onNavigateUp: () -> Unit,
-    onNavigateToList: () -> Unit
+    onNavigateUp: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     Box(
-        modifier = if (uiState.isFullScreen) Modifier.fillMaxSize() else Modifier
+        modifier = if (isLandscape) Modifier.fillMaxSize() else Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
     ) {
@@ -235,15 +234,24 @@ fun MoviePlayerSection(
                     },
                     controls = { isVisible, onAnyInteraction, onRequestPipMode ->
                         MoviePlayerControls(
-                            isVisible = isVisible, onAnyInteraction = onAnyInteraction,
-                            onRequestPipMode = onRequestPipMode, isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
-                            isMuted = uiState.isMuted, isFavorite = uiState.isFavorite,
-                            isFullScreen = uiState.isFullScreen, streamTitle = uiState.title,
-                            systemVolume = uiState.systemVolume, maxSystemVolume = uiState.maxSystemVolume,
-                            screenBrightness = uiState.screenBrightness, audioTracks = uiState.availableAudioTracks,
-                            subtitleTracks = uiState.availableSubtitleTracks, videoTracks = uiState.availableVideoTracks,
-                            showAudioMenu = uiState.showAudioMenu, showSubtitleMenu = uiState.showSubtitleMenu,
-                            showVideoMenu = uiState.showVideoMenu, currentPosition = uiState.currentPosition,
+                            isVisible = isVisible,
+                            onAnyInteraction = onAnyInteraction,
+                            onRequestPipMode = onRequestPipMode,
+                            isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
+                            isMuted = uiState.isMuted,
+                            isFavorite = uiState.isFavorite,
+                            isFullScreen = uiState.isFullScreen,
+                            streamTitle = uiState.title,
+                            systemVolume = uiState.systemVolume,
+                            maxSystemVolume = uiState.maxSystemVolume,
+                            screenBrightness = uiState.screenBrightness,
+                            audioTracks = uiState.availableAudioTracks,
+                            subtitleTracks = uiState.availableSubtitleTracks,
+                            videoTracks = emptyList(),
+                            showAudioMenu = uiState.showAudioMenu,
+                            showSubtitleMenu = uiState.showSubtitleMenu,
+                            showVideoMenu = false,
+                            currentPosition = uiState.currentPosition,
                             duration = uiState.duration,
                             onClose = {
                                 if (uiState.isFullScreen) {
@@ -254,12 +262,17 @@ fun MoviePlayerSection(
                             },
                             onPlayPause = viewModel::togglePlayPause,
                             onToggleMute = { viewModel.onToggleMute(audioManager) },
-                            onToggleFavorite = viewModel::toggleFavorite, onToggleFullScreen = onToggleFullScreen,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onToggleFullScreen = onToggleFullScreen,
                             onSetVolume = { vol -> viewModel.setSystemVolume(vol, audioManager) },
-                            onSetBrightness = viewModel::setScreenBrightness, onToggleAudioMenu = viewModel::toggleAudioMenu,
-                            onToggleSubtitleMenu = viewModel::toggleSubtitleMenu, onToggleVideoMenu = viewModel::toggleVideoMenu,
-                            onSelectAudioTrack = viewModel::selectAudioTrack, onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
-                            onSelectVideoTrack = viewModel::selectVideoTrack, onToggleAspectRatio = viewModel::toggleAspectRatio,
+                            onSetBrightness = viewModel::setScreenBrightness,
+                            onToggleAudioMenu = viewModel::toggleAudioMenu,
+                            onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                            onToggleVideoMenu = {},
+                            onSelectAudioTrack = viewModel::selectAudioTrack,
+                            onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
+                            onSelectVideoTrack = {},
+                            onToggleAspectRatio = viewModel::toggleAspectRatio,
                             onSeek = viewModel::seekTo
                         )
                     }
@@ -277,35 +290,33 @@ fun MoviePlayerSection(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f)))
                     Icon(
                         imageVector = Icons.Filled.PlayCircleOutline, contentDescription = "Reproducir",
                         tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(80.dp).clickable { viewModel.startPlayback(false) }
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clickable { viewModel.startPlayback(false) }
                     )
+                    // Botones superpuestos SOLO en el póster
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopCenter)
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        IconButton(
+                            onClick = onNavigateUp,
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
+                        }
+                    }
                 }
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(
-                onClick = onNavigateUp,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
-            }
-
-            IconButton(
-                onClick = onNavigateToList,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Volver a la lista", tint = Color.White)
             }
         }
     }
@@ -317,7 +328,9 @@ fun ColumnScope.MovieDetailsContent(
     viewModel: MovieDetailsViewModel,
     onNavigateToMovie: (Int) -> Unit
 ) {
-    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier
+        .weight(1f)
+        .verticalScroll(rememberScrollState())) {
         InfoHeader(title = uiState.title, posterUrl = uiState.posterUrl, year = uiState.releaseYear, rating = uiState.rating)
         ActionButtons(
             playbackPosition = uiState.playbackPosition, isFavorite = uiState.isFavorite,
@@ -355,7 +368,10 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
     ) {
         AsyncImage(
             model = posterUrl, contentDescription = "Poster de la película", contentScale = ContentScale.Crop,
-            modifier = Modifier.width(100.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp))
+            modifier = Modifier
+                .width(100.dp)
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(8.dp))
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -381,7 +397,9 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
 @Composable
 fun ActionButtons(playbackPosition: Long, isFavorite: Boolean, onPlay: () -> Unit, onContinue: () -> Unit, onToggleFavorite: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -431,7 +449,9 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(cast) { member ->
                 Column(
-                    modifier = Modifier.width(80.dp).clickable { onActorClick(member) },
+                    modifier = Modifier
+                        .width(80.dp)
+                        .clickable { onActorClick(member) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -451,7 +471,9 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
                                 .build(),
                             contentDescription = member.name,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -488,10 +510,15 @@ fun RecommendationsSection(recommendations: List<Movie>, onMovieClick: (Movie) -
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(recommendations, key = { it.streamId }) { movie ->
-                Column(modifier = Modifier.width(120.dp).clickable { onMovieClick(movie) }) {
+                Column(modifier = Modifier
+                    .width(120.dp)
+                    .clickable { onMovieClick(movie) }) {
                     AsyncImage(
                         model = movie.streamIcon, contentDescription = movie.name, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(120.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier
+                            .width(120.dp)
+                            .aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(8.dp))
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -520,7 +547,9 @@ fun ActorFilmographyDialog(
     onUnavailableItemClick: (FilmographyItem) -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f), shape = RoundedCornerShape(16.dp)) {
+        Card(modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.9f), shape = RoundedCornerShape(16.dp)) {
             Scaffold(
                 topBar = {
                     TopAppBar(
@@ -534,7 +563,9 @@ fun ActorFilmographyDialog(
                 }
             ) { padding ->
                 if (isLoading) {
-                    Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Box(Modifier
+                        .fillMaxSize()
+                        .padding(padding), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 } else {
@@ -599,7 +630,6 @@ fun BiographySection(biography: String) {
     }
 }
 
-// --- ¡NUEVO COMPONENTE PARA ITEMS ENRIQUECIDOS! ---
 @Composable
 fun EnrichedFilmographyListItem(
     item: EnrichedActorMovie,
@@ -668,7 +698,6 @@ fun EnrichedFilmographyListItem(
     }
 }
 
-// --- ¡COMPONENTE MODIFICADO PARA ITEMS NO DISPONIBLES! ---
 @Composable
 fun FilmographyListItem(
     item: FilmographyItem,
@@ -715,7 +744,6 @@ fun FilmographyListItem(
     }
 }
 
-// --- ¡DIÁLOGO COMPLETAMENTE REDISEÑADO! ---
 @Composable
 fun UnavailableItemDetailsDialog(
     isLoading: Boolean,
@@ -724,11 +752,15 @@ fun UnavailableItemDetailsDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp)
         ) {
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else if (details != null) {
@@ -738,11 +770,15 @@ fun UnavailableItemDetailsDialog(
                             model = details.backdropUrl,
                             contentDescription = "Backdrop",
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxWidth().height(180.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
                         )
-                        Box(modifier = Modifier.matchParentSize().background(Brush.verticalGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent, Color.Black.copy(alpha = 0.8f))
-                        )))
+                        Box(modifier = Modifier
+                            .matchParentSize()
+                            .background(Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                            )))
                         IconButton(onClick = onDismiss) {
                             Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White,
                                 modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape))
@@ -777,7 +813,9 @@ fun UnavailableItemDetailsDialog(
                             }
                         }
                         details.rating?.let {
-                            if (it > 0) RatingBar(rating = it / 2, maxRating = 5, modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally))
+                            if (it > 0) RatingBar(rating = it / 2, maxRating = 5, modifier = Modifier
+                                .padding(top = 8.dp)
+                                .align(Alignment.CenterHorizontally))
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(
