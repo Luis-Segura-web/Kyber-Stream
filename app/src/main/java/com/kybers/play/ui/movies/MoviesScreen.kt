@@ -52,7 +52,6 @@ fun MoviesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = rememberLazyListState()
 
-    // ... (LaunchedEffect para el scroll sigue igual)
     LaunchedEffect(Unit) {
         viewModel.scrollToItemEvent.collectLatest { categoryId ->
             val categoryIndex = uiState.categories.indexOfFirst { it.category.categoryId == categoryId }
@@ -72,7 +71,6 @@ fun MoviesScreen(
 
     Scaffold(
         topBar = {
-            // ... (La TopAppBar sigue igual)
             TopAppBar(
                 title = {
                     Row(
@@ -178,7 +176,11 @@ fun MoviesScreen(
                             val movieRows = expandableCategory.movies.chunked(3)
                             items(
                                 items = movieRows,
-                                key = { row -> row.joinToString { it.streamId.toString() } }
+                                // --- ¡NUEVA CLAVE MEJORADA! ---
+                                // Formato: movie-{num}-{categoryId}-{streamId}
+                                key = { row ->
+                                    row.joinToString("-") { "movie-${it.num}-${it.categoryId}-${it.streamId}" }
+                                }
                             ) { rowMovies ->
                                 Row(
                                     modifier = Modifier
@@ -189,8 +191,6 @@ fun MoviesScreen(
                                     rowMovies.forEach { movie ->
                                         Box(modifier = Modifier.weight(1f)) {
                                             MoviePosterItem(
-                                                // --- ¡CAMBIO CLAVE! ---
-                                                // Pasamos el viewModel para usar el selector inteligente de carátulas.
                                                 viewModel = viewModel,
                                                 movie = movie,
                                                 isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
@@ -212,7 +212,6 @@ fun MoviesScreen(
     }
 
     if (uiState.showSortMenu) {
-        // ... (El diálogo de ordenación sigue igual)
         SortOptionsDialog(
             currentCategorySortOrder = uiState.categorySortOrder,
             currentItemSortOrder = uiState.movieSortOrder,
@@ -227,7 +226,7 @@ fun MoviesScreen(
 
 @Composable
 fun MoviePosterItem(
-    viewModel: MoviesViewModel, // Necesitamos el viewModel para la nueva función
+    viewModel: MoviesViewModel,
     movie: Movie,
     isFavorite: Boolean,
     onPosterClick: () -> Unit,
@@ -245,8 +244,6 @@ fun MoviePosterItem(
             modifier = Modifier.fillMaxSize()
         ) {
             AsyncImage(
-                // --- ¡CAMBIO CLAVE! ---
-                // Usamos el selector inteligente para obtener la mejor URL de carátula.
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(viewModel.getBestPosterUrl(movie))
                     .crossfade(true)
@@ -257,7 +254,6 @@ fun MoviePosterItem(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // ... (El resto del diseño del póster, con las barras y botones, sigue igual)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

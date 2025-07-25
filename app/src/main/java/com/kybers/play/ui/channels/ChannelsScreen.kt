@@ -383,7 +383,11 @@ private fun ChannelListSection(
                         )
                     }
                 } else {
-                    items(favoriteChannels, key = { "fav-${it.streamId}" }) { channel ->
+                    items(
+                        items = favoriteChannels,
+                        // --- ¡CLAVE ÚNICA PARA FAVORITOS! ---
+                        key = { channel -> "fav-${channel.num}-${channel.categoryId}-${channel.streamId}" }
+                    ) { channel ->
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
@@ -405,7 +409,11 @@ private fun ChannelListSection(
                     )
                 }
                 if (expandableCategory.isExpanded) {
-                    items(expandableCategory.channels, key = { "channel-${it.streamId}" }) { channel ->
+                    items(
+                        items = expandableCategory.channels,
+                        // --- ¡CLAVE ÚNICA PARA CANALES NORMALES! ---
+                        key = { channel -> "channel-${channel.num}-${channel.categoryId}-${channel.streamId}" }
+                    ) { channel ->
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
