@@ -1,7 +1,6 @@
 package com.kybers.play.ui.main
 
 import android.app.Application
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -35,7 +34,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
-import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.ContentViewModelFactory
@@ -62,7 +60,6 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
-    // --- ¡NUEVA RUTA PARA DETALLES DE SERIES! ---
     object SeriesDetails : Screen("series_details/{seriesId}") {
         fun createRoute(seriesId: Int) = "series_details/$seriesId"
     }
@@ -82,8 +79,7 @@ fun MainScreen(
     vodRepository: VodRepository,
     detailsRepository: DetailsRepository,
     preferenceManager: PreferenceManager,
-    currentUser: User,
-    syncManager: SyncManager
+    currentUser: User
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -149,8 +145,6 @@ fun MainScreen(
                 )
             }
             composable(Screen.Series.route) {
-                // --- ¡CONEXIÓN! ---
-                // Ahora creamos el ViewModel de verdad y le pasamos el callback de navegación.
                 val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
                 SeriesScreen(
                     viewModel = seriesViewModel,
@@ -186,28 +180,26 @@ fun MainScreen(
                 )
             }
 
-            // --- ¡NUEVO DESTINO DE NAVEGACIÓN! ---
             composable(
                 route = Screen.SeriesDetails.route,
                 arguments = listOf(navArgument("seriesId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val seriesId = backStackEntry.arguments?.getInt("seriesId") ?: 0
 
-                // Usamos nuestra nueva fábrica para crear el ViewModel.
                 val detailsViewModel: SeriesDetailsViewModel = viewModel(
                     factory = SeriesDetailsViewModelFactory(
+                        application = application,
+                        preferenceManager = preferenceManager,
                         vodRepository = vodRepository,
                         currentUser = currentUser,
                         seriesId = seriesId
                     )
                 )
+                // --- ¡CORRECCIÓN FINAL! ---
+                // Se elimina el parámetro 'onPlayEpisode' que ya no existe.
                 SeriesDetailsScreen(
                     viewModel = detailsViewModel,
-                    onNavigateUp = { navController.popBackStack() },
-                    onPlayEpisode = { episode ->
-                        // TODO: Lanzar el reproductor de video para el episodio.
-                        Toast.makeText(context, "Reproduciendo: ${episode.title}", Toast.LENGTH_SHORT).show()
-                    }
+                    onNavigateUp = { navController.popBackStack() }
                 )
             }
         }

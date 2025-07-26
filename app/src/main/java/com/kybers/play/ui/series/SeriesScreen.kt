@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -36,7 +38,6 @@ import com.kybers.play.data.remote.model.Series
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.SearchBar
 import com.kybers.play.ui.movies.SortOptionsDialog
-import com.kybers.play.ui.movies.toLocalizedName
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -48,7 +49,6 @@ fun SeriesScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = rememberLazyListState()
 
-    // Este efecto se encarga de hacer scroll a la categoría que el usuario acaba de expandir.
     LaunchedEffect(Unit) {
         viewModel.scrollToItemEvent.collectLatest { categoryId ->
             val categoryIndex = uiState.categories.indexOfFirst { it.category.categoryId == categoryId }
@@ -57,7 +57,6 @@ fun SeriesScreen(
                 for (i in 0 until categoryIndex) {
                     targetIndex++ // Por la cabecera de la categoría
                     if (uiState.categories[i].isExpanded) {
-                        // Sumamos el número de filas que ocupa esta categoría
                         targetIndex += uiState.categories[i].series.chunked(3).size
                     }
                 }
@@ -183,13 +182,15 @@ fun SeriesScreen(
                                 ) {
                                     rowSeries.forEach { series ->
                                         Box(modifier = Modifier.weight(1f)) {
+                                            // --- ¡LLAMADA AL COMPONENTE ACTUALIZADA! ---
                                             SeriesPosterItem(
                                                 series = series,
-                                                onPosterClick = { onNavigateToDetails(series.seriesId) }
+                                                isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
+                                                onPosterClick = { onNavigateToDetails(series.seriesId) },
+                                                onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
                                             )
                                         }
                                     }
-                                    // Añade espaciadores para que la última fila se alinee a la izquierda si no está llena.
                                     repeat(3 - rowSeries.size) {
                                         Spacer(Modifier.weight(1f))
                                     }
@@ -215,14 +216,17 @@ fun SeriesScreen(
     }
 }
 
+// --- ¡COMPONENTE DEL PÓSTER ACTUALIZADO! ---
 @Composable
 fun SeriesPosterItem(
     series: Series,
-    onPosterClick: () -> Unit
+    isFavorite: Boolean,
+    onPosterClick: () -> Unit,
+    onFavoriteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .aspectRatio(2f / 3f) // Proporción típica de un póster
+            .aspectRatio(2f / 3f)
             .clickable(onClick = onPosterClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
@@ -241,28 +245,45 @@ fun SeriesPosterItem(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Calificación en la esquina superior izquierda
-            if (series.rating5Based > 0) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            // Fila superior para calificación y favorito
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (series.rating5Based > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = "Calificación",
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "%.1f".format(series.rating5Based),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    // Espaciador para mantener el botón de favorito alineado a la derecha
+                    Spacer(modifier = Modifier.height(1.dp))
+                }
+
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
-                        Icons.Filled.Star,
-                        contentDescription = "Calificación",
-                        tint = Color(0xFFFFC107),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "%.1f".format(series.rating5Based),
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = "Añadir a favoritos",
+                        tint = if (isFavorite) Color(0xFFE91E63) else Color.White
                     )
                 }
             }

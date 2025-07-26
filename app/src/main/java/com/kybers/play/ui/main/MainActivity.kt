@@ -86,14 +86,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Una vez tenemos todo, mostramos la pantalla principal.
+                        // --- ¡LLAMADA CORREGIDA! ---
+                        // Se elimina el parámetro 'syncManager' que ya no es necesario.
                         MainScreen(
                             contentViewModelFactory = contentViewModelFactory,
                             vodRepository = vodRepository,
                             detailsRepository = detailsRepository,
                             preferenceManager = appContainer.preferenceManager,
-                            currentUser = user!!,
-                            syncManager = appContainer.syncManager
+                            currentUser = user!!
                         )
                     }
                     else -> {

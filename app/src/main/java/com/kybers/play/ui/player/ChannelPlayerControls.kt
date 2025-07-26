@@ -1,15 +1,11 @@
 package com.kybers.play.ui.player
 
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
@@ -17,17 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.PopupProperties
 
+/**
+ * --- ¡ARCHIVO REFACTORIZADO! ---
+ * Este composable gestiona los controles específicos para la reproducción de TV en vivo.
+ * Ahora es mucho más ligero, ya que reutiliza los componentes comunes de PlayerControlsCommon.kt.
+ */
 @Composable
 fun ChannelPlayerControls(
     isVisible: Boolean,
@@ -70,7 +63,8 @@ fun ChannelPlayerControls(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.6f))
         ) {
-            TopChannelControls(
+            // Usamos el componente común para la barra superior
+            TopControls(
                 modifier = Modifier.align(Alignment.TopCenter),
                 streamTitle = streamTitle,
                 isFavorite = isFavorite,
@@ -80,6 +74,7 @@ fun ChannelPlayerControls(
                 onRequestPipMode = { onRequestPipMode(); onAnyInteraction() }
             )
 
+            // Controles centrales específicos para Canales
             CenterChannelControls(
                 modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
@@ -89,6 +84,7 @@ fun ChannelPlayerControls(
                 onPrevious = { onPrevious(); onAnyInteraction() }
             )
 
+            // Controles inferiores específicos para Canales
             BottomChannelControls(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 isMuted = isMuted,
@@ -106,6 +102,7 @@ fun ChannelPlayerControls(
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
+            // Usamos el componente común para los deslizadores laterales
             if (isFullScreen) {
                 SideSliders(
                     modifier = Modifier.fillMaxSize(),
@@ -115,57 +112,6 @@ fun ChannelPlayerControls(
                     isMuted = isMuted,
                     onSetVolume = { onSetVolume(it); onAnyInteraction() },
                     onSetBrightness = { onSetBrightness(it); onAnyInteraction() }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TopChannelControls(
-    modifier: Modifier,
-    streamTitle: String,
-    isFavorite: Boolean,
-    isFullScreen: Boolean,
-    onClose: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onRequestPipMode: () -> Unit
-) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onClose) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White, modifier = Modifier.size(iconSize))
-        }
-        Text(
-            text = streamTitle,
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp)
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = onRequestPipMode) {
-                    Icon(Icons.Default.PictureInPictureAlt, "Modo Picture-in-Picture", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
-            }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    "Favorito",
-                    tint = if (isFavorite) Color.Red else Color.White,
-                    modifier = Modifier.size(iconSize)
                 )
             }
         }
@@ -230,15 +176,12 @@ private fun BottomChannelControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Botón de Silenciar a la izquierda
         IconButton(onClick = onToggleMute) {
             Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
         }
 
-        // Espaciador para empujar los botones de la derecha
         Spacer(modifier = Modifier.weight(1f))
 
-        // Botones de ajustes y pantalla completa a la derecha
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -260,108 +203,5 @@ private fun BottomChannelControls(
                 Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
             }
         }
-    }
-}
-
-@Composable
-private fun SideSliders(
-    modifier: Modifier,
-    volume: Int,
-    maxVolume: Int,
-    brightness: Float,
-    isMuted: Boolean,
-    onSetVolume: (Int) -> Unit,
-    onSetBrightness: (Float) -> Unit
-) {
-    Row(
-        modifier = modifier.padding(horizontal = 32.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        VerticalSlider(value = brightness, onValueChange = onSetBrightness, icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) })
-        VerticalSlider(value = volume.toFloat() / maxVolume.toFloat(), onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()) }, icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) })
-    }
-}
-
-@Composable
-private fun VerticalSlider(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    icon: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxHeight(0.7f),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(modifier = Modifier.height(200.dp), contentAlignment = Alignment.Center) {
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .width(200.dp)
-                    .rotate(-90f),
-                colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        icon()
-    }
-}
-
-@Composable
-private fun TrackMenu(
-    showMenu: Boolean,
-    onToggleMenu: (Boolean) -> Unit,
-    tracks: List<TrackInfo>,
-    onSelectTrack: (Int) -> Unit,
-    icon: @Composable () -> Unit
-) {
-    Box {
-        Box(modifier = Modifier.clickable { onToggleMenu(true) }) {
-            icon()
-        }
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { onToggleMenu(false) },
-            properties = PopupProperties(focusable = true),
-            modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.85f))
-                .clip(RoundedCornerShape(8.dp))
-        ) {
-            tracks.forEach { track ->
-                DropdownMenuItem(
-                    text = { Text(track.name) },
-                    onClick = {
-                        onSelectTrack(track.id)
-                        onToggleMenu(false)
-                    },
-                    colors = MenuDefaults.itemColors(
-                        textColor = Color.White,
-                        trailingIconColor = MaterialTheme.colorScheme.primary
-                    ),
-                    trailingIcon = { if (track.isSelected) { Icon(Icons.Default.Check, null) } }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ControlIconButton(
-    icon: ImageVector,
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    iconSize: Dp,
-    tint: Color = Color.White
-) {
-    IconButton(onClick = onClick, modifier = modifier) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = tint,
-            modifier = Modifier.size(iconSize)
-        )
     }
 }

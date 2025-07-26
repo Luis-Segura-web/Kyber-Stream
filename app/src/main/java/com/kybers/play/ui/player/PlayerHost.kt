@@ -1,8 +1,6 @@
 package com.kybers.play.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -17,12 +15,16 @@ import kotlinx.coroutines.delay
 import org.videolan.libvlc.MediaPlayer
 
 /**
- * El "marco" o "anfitrión" del reproductor.
+ * --- ¡ARCHIVO REFACTORIZADO Y CORREGIDO! ---
+ * El "anfitrión" del reproductor. Su responsabilidad es gestionar el estado general
+ * del reproductor (como la visibilidad de los controles) y proporcionar un "slot"
+ * para que se puedan insertar diferentes tipos de controles (para películas, canales, etc.).
  *
- * @param onEnterPipMode Un callback que se ejecutará para entrar en modo PiP,
- * después de que el Host se haya encargado de ocultar los controles.
- * @param controls Un slot que define la UI de los controles. Ahora recibe un
- * callback `onRequestPipMode` para iniciar la transición.
+ * @param mediaPlayer La instancia del MediaPlayer de VLC.
+ * @param playerStatus El estado actual del reproductor (reproduciendo, pausado, etc.).
+ * @param onEnterPipMode Callback para iniciar el modo Picture-in-Picture.
+ * @param controls Un slot Composable que recibe el estado de visibilidad y los callbacks
+ * necesarios para que los controles específicos funcionen.
  */
 @Composable
 fun PlayerHost(
@@ -42,24 +44,29 @@ fun PlayerHost(
 
     val controlTimeoutMillis = 5000L
 
+    // Efecto para gestionar la transición a modo Picture-in-Picture.
+    // Oculta los controles suavemente antes de activar el modo PiP.
     LaunchedEffect(pipRequest) {
         if (pipRequest) {
             controlsVisible = false
-            delay(300)
+            delay(300) // Espera a que la animación de ocultar termine
             onEnterPipMode()
             pipRequest = false
         }
     }
 
+    // Efecto para ocultar los controles automáticamente después de un tiempo de inactividad.
     LaunchedEffect(controlsVisible, playerStatus, lastInteractionTime) {
         if (controlsVisible && playerStatus == PlayerStatus.PLAYING) {
             delay(controlTimeoutMillis)
+            // Comprueba si ha pasado suficiente tiempo sin interacción para ocultar los controles.
             if (System.currentTimeMillis() - lastInteractionTime >= controlTimeoutMillis) {
                 controlsVisible = false
             }
         }
     }
 
+    // Callback que los controles pueden invocar para reiniciar el temporizador de ocultación.
     val resetControlTimer: () -> Unit = {
         if (!controlsVisible) controlsVisible = true
         lastInteractionTime = System.currentTimeMillis()
@@ -69,24 +76,27 @@ fun PlayerHost(
         modifier = modifier
             .background(Color.Black)
             .pointerInput(Unit) {
+                // Detecta un toque en cualquier parte de la pantalla para mostrar/ocultar los controles.
                 detectTapGestures(onTap = {
                     controlsVisible = !controlsVisible
                     lastInteractionTime = System.currentTimeMillis()
                 })
             }
     ) {
+        // El reproductor de video de VLC que se muestra en el fondo.
         VLCPlayer(
             mediaPlayer = mediaPlayer,
             modifier = Modifier.fillMaxSize()
         )
 
-        // ¡CORRECCIÓN! Se eliminan los nombres de los argumentos al llamar a la función 'controls'.
+        // --- ¡CORRECCIÓN APLICADA! ---
+        // Se mueve el último argumento (la lambda) fuera de los paréntesis.
         controls(
             controlsVisible,
-            resetControlTimer,
-            { pipRequest = true }
-        )
+            resetControlTimer
+        ) { pipRequest = true }
 
+        // Muestra un indicador de carga mientras el reproductor está en estado de buffering.
         AnimatedVisibility(
             visible = playerStatus == PlayerStatus.BUFFERING,
             modifier = Modifier.align(Alignment.Center)

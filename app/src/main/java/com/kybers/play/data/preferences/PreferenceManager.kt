@@ -17,6 +17,8 @@ class PreferenceManager(context: Context) {
         private const val KEY_SORT_ORDER_PREFIX = "sort_order_"
         private const val KEY_ASPECT_RATIO_MODE = "aspect_ratio_mode"
         private const val KEY_FAVORITE_MOVIE_IDS = "favorite_movie_ids"
+        // --- ¡NUEVA CLAVE AÑADIDA! ---
+        private const val KEY_FAVORITE_SERIES_IDS = "favorite_series_ids"
         private const val KEY_PLAYBACK_POSITION_PREFIX = "playback_position_"
         private const val KEY_MOVIES_DOWNLOADED_COUNT = "movies_downloaded_count"
         private const val KEY_MOVIES_CACHED_COUNT = "movies_cached_count"
@@ -55,6 +57,29 @@ class PreferenceManager(context: Context) {
         return sharedPreferences.getStringSet(KEY_FAVORITE_MOVIE_IDS, emptySet()) ?: emptySet()
     }
 
+    // --- ¡NUEVAS FUNCIONES AÑADIDAS! ---
+
+    /**
+     * Guarda el conjunto de IDs de las series favoritas.
+     * @param ids Un Set de Strings, donde cada String es el ID de una serie.
+     */
+    fun saveFavoriteSeriesIds(ids: Set<String>) {
+        with(sharedPreferences.edit()) {
+            putStringSet(KEY_FAVORITE_SERIES_IDS, ids)
+            apply()
+        }
+    }
+
+    /**
+     * Obtiene el conjunto de IDs de las series favoritas.
+     * @return Un Set de Strings con los IDs de las series favoritas. Devuelve un conjunto vacío si no hay ninguna.
+     */
+    fun getFavoriteSeriesIds(): Set<String> {
+        return sharedPreferences.getStringSet(KEY_FAVORITE_SERIES_IDS, emptySet()) ?: emptySet()
+    }
+
+    // --- FIN DE LAS NUEVAS FUNCIONES ---
+
     fun savePlaybackPosition(contentId: String, position: Long) {
         with(sharedPreferences.edit()) {
             putLong(KEY_PLAYBACK_POSITION_PREFIX + contentId, position)
@@ -80,11 +105,6 @@ class PreferenceManager(context: Context) {
         return Pair(downloaded, cached)
     }
 
-    // --- ¡NUEVA FUNCIÓN! ---
-    /**
-     * Devuelve un mapa con todos los IDs de películas y sus posiciones de reproducción guardadas.
-     * @return Un mapa donde la clave es el ID de la película y el valor es la posición en milisegundos.
-     */
     fun getAllPlaybackPositions(): Map<String, Long> {
         return sharedPreferences.all.mapNotNull { (key, value) ->
             if (key.startsWith(KEY_PLAYBACK_POSITION_PREFIX) && value is Long) {

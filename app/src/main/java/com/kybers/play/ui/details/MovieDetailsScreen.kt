@@ -232,51 +232,52 @@ fun MoviePlayerSection(
                             )
                         }
                     },
-                    controls = { isVisible, onAnyInteraction, onRequestPipMode ->
-                        MoviePlayerControls(
-                            isVisible = isVisible,
-                            onAnyInteraction = onAnyInteraction,
-                            onRequestPipMode = onRequestPipMode,
-                            isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
-                            isMuted = uiState.isMuted,
-                            isFavorite = uiState.isFavorite,
-                            isFullScreen = uiState.isFullScreen,
-                            streamTitle = uiState.title,
-                            systemVolume = uiState.systemVolume,
-                            maxSystemVolume = uiState.maxSystemVolume,
-                            screenBrightness = uiState.screenBrightness,
-                            audioTracks = uiState.availableAudioTracks,
-                            subtitleTracks = uiState.availableSubtitleTracks,
-                            videoTracks = emptyList(),
-                            showAudioMenu = uiState.showAudioMenu,
-                            showSubtitleMenu = uiState.showSubtitleMenu,
-                            showVideoMenu = false,
-                            currentPosition = uiState.currentPosition,
-                            duration = uiState.duration,
-                            onClose = {
-                                if (uiState.isFullScreen) {
-                                    (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                                } else {
-                                    viewModel.hidePlayer()
-                                }
-                            },
-                            onPlayPause = viewModel::togglePlayPause,
-                            onToggleMute = { viewModel.onToggleMute(audioManager) },
-                            onToggleFavorite = viewModel::toggleFavorite,
-                            onToggleFullScreen = onToggleFullScreen,
-                            onSetVolume = { vol -> viewModel.setSystemVolume(vol, audioManager) },
-                            onSetBrightness = viewModel::setScreenBrightness,
-                            onToggleAudioMenu = viewModel::toggleAudioMenu,
-                            onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                            onToggleVideoMenu = {},
-                            onSelectAudioTrack = viewModel::selectAudioTrack,
-                            onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
-                            onSelectVideoTrack = {},
-                            onToggleAspectRatio = viewModel::toggleAspectRatio,
-                            onSeek = viewModel::seekTo
-                        )
-                    }
-                )
+                ) { isVisible, onAnyInteraction, onRequestPipMode ->
+                    // --- ¡LLAMADA A LOS CONTROLES CORREGIDA! ---
+                    MoviePlayerControls(
+                        isVisible = isVisible,
+                        onAnyInteraction = onAnyInteraction,
+                        onRequestPipMode = onRequestPipMode,
+                        isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
+                        isMuted = uiState.isMuted,
+                        isFavorite = uiState.isFavorite,
+                        isFullScreen = uiState.isFullScreen,
+                        streamTitle = uiState.title,
+                        systemVolume = uiState.systemVolume,
+                        maxSystemVolume = uiState.maxSystemVolume,
+                        screenBrightness = uiState.screenBrightness,
+                        audioTracks = uiState.availableAudioTracks,
+                        subtitleTracks = uiState.availableSubtitleTracks,
+                        showAudioMenu = uiState.showAudioMenu,
+                        showSubtitleMenu = uiState.showSubtitleMenu,
+                        currentPosition = uiState.currentPosition,
+                        duration = uiState.duration,
+                        showNextPreviousButtons = false, // Para películas, mostramos avance/retroceso
+                        onClose = {
+                            if (uiState.isFullScreen) {
+                                (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            } else {
+                                viewModel.hidePlayer()
+                            }
+                        },
+                        onPlayPause = viewModel::togglePlayPause,
+                        onNext = { /* No aplica para películas */ },
+                        onPrevious = { /* No aplica para películas */ },
+                        onSeekForward = { viewModel.seekTo(uiState.currentPosition + 10000) },
+                        onSeekBackward = { viewModel.seekTo(uiState.currentPosition - 10000) },
+                        onToggleMute = { viewModel.onToggleMute(audioManager) },
+                        onToggleFavorite = viewModel::toggleFavorite,
+                        onToggleFullScreen = onToggleFullScreen,
+                        onSetVolume = { vol -> viewModel.setSystemVolume(vol, audioManager) },
+                        onSetBrightness = viewModel::setScreenBrightness,
+                        onToggleAudioMenu = viewModel::toggleAudioMenu,
+                        onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                        onSelectAudioTrack = viewModel::selectAudioTrack,
+                        onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
+                        onToggleAspectRatio = viewModel::toggleAspectRatio,
+                        onSeek = viewModel::seekTo
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier
@@ -465,7 +466,7 @@ fun CastSection(cast: List<TMDbCastMember>, onActorClick: (TMDbCastMember) -> Un
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(member.getFullProfileUrl())
                             .crossfade(true)
-                            .fallback(R.drawable.ic_person_placeholder) // --- ¡CORRECCIÓN! ---
+                            .fallback(R.drawable.ic_person_placeholder)
                             .error(R.drawable.ic_person_placeholder)
                             .placeholder(R.drawable.ic_person_placeholder)
                             .build(),

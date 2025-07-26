@@ -2,16 +2,15 @@ package com.kybers.play.ui.player
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,26 +18,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+// --- ¡CORRECCIÓN! Se añaden las importaciones que faltaban ---
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+// --- FIN DE LA CORRECCIÓN ---
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Hd
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,17 +41,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.concurrent.TimeUnit
-import com.kybers.play.ui.player.TrackInfo
 
+/**
+ * --- ¡ARCHIVO REFACTORIZADO! ---
+ * Este es el composable de controles genérico, ahora simplificado.
+ * También reutiliza los componentes de PlayerControlsCommon.kt.
+ */
 @Composable
 fun PlayerControls(
     modifier: Modifier = Modifier,
@@ -102,32 +93,33 @@ fun PlayerControls(
     AnimatedVisibility(
         modifier = modifier,
         visible = isVisible,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(durationMillis = 200)),
-        exit = fadeOut(animationSpec = androidx.compose.animation.core.tween(durationMillis = 200))
+        enter = fadeIn(animationSpec = tween(durationMillis = 200)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 200))
     ) {
         Box(modifier = Modifier.background(Color.Black.copy(alpha = 0.6f))) {
 
+            // Componente común
             TopControls(
                 modifier = Modifier.align(Alignment.TopCenter),
                 streamTitle = streamTitle,
                 isFavorite = isFavorite,
                 isFullScreen = isFullScreen,
-                onClose = onClose,
-                onToggleFavorite = onToggleFavorite,
-                onPictureInPicture = onPictureInPicture,
-                onAnyInteraction = onAnyInteraction
+                onClose = { onClose(); onAnyInteraction() },
+                onToggleFavorite = { onToggleFavorite(); onAnyInteraction() },
+                onRequestPipMode = { onPictureInPicture(); onAnyInteraction() }
             )
 
+            // Componente específico de este archivo
             CenterControls(
                 modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
-                isFullScreen = isFullScreen, // Pasa isFullScreen para ajustar tamaño
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                onPrevious = onPrevious,
-                onAnyInteraction = onAnyInteraction
+                isFullScreen = isFullScreen,
+                onPlayPause = { onPlayPause(); onAnyInteraction() },
+                onNext = { onNext(); onAnyInteraction() },
+                onPrevious = { onPrevious(); onAnyInteraction() }
             )
 
+            // Componente específico de este archivo
             BottomControls(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 isMuted = isMuted,
@@ -138,21 +130,21 @@ fun PlayerControls(
                 showAudioMenu = showAudioMenu,
                 showSubtitleMenu = showSubtitleMenu,
                 showVideoMenu = showVideoMenu,
-                onToggleMute = onToggleMute,
-                onToggleAudioMenu = onToggleAudioMenu,
-                onToggleSubtitleMenu = onToggleSubtitleMenu,
-                onToggleVideoMenu = onToggleVideoMenu,
-                onSelectAudioTrack = onSelectAudioTrack,
-                onSelectSubtitleTrack = onSelectSubtitleTrack,
-                onSelectVideoTrack = onSelectVideoTrack,
+                onToggleMute = { onToggleMute(); onAnyInteraction() },
+                onToggleAudioMenu = { onToggleAudioMenu(it); onAnyInteraction() },
+                onToggleSubtitleMenu = { onToggleSubtitleMenu(it); onAnyInteraction() },
+                onToggleVideoMenu = { onToggleVideoMenu(it); onAnyInteraction() },
+                onSelectAudioTrack = { onSelectAudioTrack(it); onAnyInteraction() },
+                onSelectSubtitleTrack = { onSelectSubtitleTrack(it); onAnyInteraction() },
+                onSelectVideoTrack = { onSelectVideoTrack(it); onAnyInteraction() },
                 currentPosition = currentPosition,
                 duration = duration,
-                onSeek = onSeek,
-                onAnyInteraction = onAnyInteraction,
-                onToggleFullScreen = onToggleFullScreen,
-                onToggleAspectRatio = onToggleAspectRatio
+                onSeek = { onSeek(it); onAnyInteraction() },
+                onToggleFullScreen = { onToggleFullScreen(); onAnyInteraction() },
+                onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
+            // Componente común
             if (isFullScreen) {
                 SideSliders(
                     modifier = Modifier.fillMaxSize(),
@@ -160,89 +152,8 @@ fun PlayerControls(
                     maxVolume = maxSystemVolume,
                     brightness = screenBrightness,
                     isMuted = isMuted,
-                    onSetVolume = onSetVolume,
-                    onSetBrightness = onSetBrightness,
-                    onAnyInteraction = onAnyInteraction
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ControlIconButton(
-    icon: ImageVector,
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    iconSize: Dp,
-    showText: Boolean,
-    tint: Color = Color.White
-) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = tint,
-            modifier = Modifier.size(iconSize)
-        )
-        if (showText) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = text, color = tint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun TopControls(
-    modifier: Modifier,
-    streamTitle: String,
-    isFavorite: Boolean,
-    isFullScreen: Boolean,
-    onClose: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onPictureInPicture: () -> Unit,
-    onAnyInteraction: () -> Unit
-) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = { onClose(); onAnyInteraction() }) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White, modifier = Modifier.size(iconSize))
-        }
-        Text(
-            text = streamTitle,
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp)
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = { onPictureInPicture() }) { // No reiniciar temporizador
-                    Icon(Icons.Default.PictureInPictureAlt, "Modo Picture-in-Picture", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
-            }
-            IconButton(onClick = { onToggleFavorite(); onAnyInteraction() }) {
-                Icon(
-                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    "Favorito",
-                    tint = if (isFavorite) Color.Red else Color.White,
-                    modifier = Modifier.size(iconSize)
+                    onSetVolume = { onSetVolume(it); onAnyInteraction() },
+                    onSetBrightness = { onSetBrightness(it); onAnyInteraction() }
                 )
             }
         }
@@ -256,13 +167,11 @@ private fun CenterControls(
     isFullScreen: Boolean,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
-    onPrevious: () -> Unit,
-    onAnyInteraction: () -> Unit
+    onPrevious: () -> Unit
 ) {
-    // Tamaños de iconos y espaciado duplicados para fullscreen
-    val iconSize = if (isFullScreen) 96.dp else 40.dp // Doble de 48dp
-    val centerIconSize = if (isFullScreen) 128.dp else 56.dp // Doble de 64dp
-    val spacerWidth = if (isFullScreen) 64.dp else 32.dp // Doble de 32dp
+    val iconSize = if (isFullScreen) 96.dp else 40.dp
+    val centerIconSize = if (isFullScreen) 128.dp else 56.dp
+    val spacerWidth = if (isFullScreen) 64.dp else 32.dp
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -270,19 +179,19 @@ private fun CenterControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isFullScreen) Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = { onPrevious(); onAnyInteraction() }) {
+        IconButton(onClick = onPrevious) {
             Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(iconSize))
         }
 
         Spacer(modifier = Modifier.width(spacerWidth))
 
-        IconButton(onClick = { onPlayPause(); onAnyInteraction() }) {
+        IconButton(onClick = onPlayPause) {
             Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
         }
 
         Spacer(modifier = Modifier.width(spacerWidth))
 
-        IconButton(onClick = { onNext(); onAnyInteraction() }) {
+        IconButton(onClick = onNext) {
             Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(iconSize))
         }
         if (isFullScreen) Spacer(modifier = Modifier.weight(1f))
@@ -310,7 +219,6 @@ private fun BottomControls(
     currentPosition: Long,
     duration: Long,
     onSeek: (Long) -> Unit,
-    onAnyInteraction: () -> Unit,
     onToggleFullScreen: () -> Unit,
     onToggleAspectRatio: () -> Unit
 ) {
@@ -329,14 +237,13 @@ private fun BottomControls(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(onClick = { onToggleMute(); onAnyInteraction() }) {
+            IconButton(onClick = onToggleMute) {
                 Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
             }
 
             Slider(
                 value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
                 onValueChange = { progress ->
-                    onAnyInteraction()
                     onSeek((progress * duration).toLong())
                 },
                 modifier = Modifier
@@ -356,132 +263,41 @@ private fun BottomControls(
                 modifier = Modifier.padding(end = 8.dp)
             )
 
-            if (!isFullScreen) { // Controles en Portrait
-                IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
+            if (!isFullScreen) {
+                IconButton(onClick = onToggleAspectRatio) {
                     Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
-                IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
+                IconButton(onClick = onToggleFullScreen) {
                     Icon(Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
-            } else { // Controles adicionales en Landscape/Fullscreen
+            } else {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp), // Espaciado entre iconos
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (subtitleTracks.size > 1) {
-                        TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = { show -> onToggleSubtitleMenu(show); onAnyInteraction() }, tracks = subtitleTracks, onSelectTrack = { trackId -> onSelectSubtitleTrack(trackId); onAnyInteraction() }) {
-                            ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
+                            ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
                         }
                     }
                     if (audioTracks.size > 1) {
-                        TrackMenu(showMenu = showAudioMenu, onToggleMenu = { show -> onToggleAudioMenu(show); onAnyInteraction() }, tracks = audioTracks, onSelectTrack = { trackId -> onSelectAudioTrack(trackId); onAnyInteraction() }) {
-                            ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
+                            ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
                         }
                     }
                     if (videoTracks.size > 1) {
-                        TrackMenu(showMenu = showVideoMenu, onToggleMenu = { show -> onToggleVideoMenu(show); onAnyInteraction() }, tracks = videoTracks, onSelectTrack = { trackId -> onSelectVideoTrack(trackId); onAnyInteraction() }) {
-                            ControlIconButton(icon = Icons.Default.Hd, text = "Calidad", onClick = { onToggleVideoMenu(true); onAnyInteraction() }, showText = false, iconSize = iconSize)
+                        TrackMenu(showMenu = showVideoMenu, onToggleMenu = onToggleVideoMenu, tracks = videoTracks, onSelectTrack = onSelectVideoTrack) {
+                            ControlIconButton(icon = Icons.Default.Hd, text = "Calidad", onClick = { onToggleVideoMenu(true) }, iconSize = iconSize)
                         }
                     }
-                    IconButton(onClick = { onToggleAspectRatio(); onAnyInteraction() }) {
+                    IconButton(onClick = onToggleAspectRatio) {
                         Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
                     }
-                    IconButton(onClick = { onToggleFullScreen(); onAnyInteraction() }) {
+                    IconButton(onClick = onToggleFullScreen) {
                         Icon(Icons.Default.FullscreenExit, "Salir de Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SideSliders(
-    modifier: Modifier,
-    volume: Int,
-    maxVolume: Int,
-    brightness: Float,
-    isMuted: Boolean,
-    onSetVolume: (Int) -> Unit,
-    onSetBrightness: (Float) -> Unit,
-    onAnyInteraction: () -> Unit
-) {
-    Row(
-        modifier = modifier.padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        VerticalSlider(value = brightness, onValueChange = { br -> onSetBrightness(br); onAnyInteraction() }, icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) })
-        VerticalSlider(value = volume.toFloat() / maxVolume.toFloat(), onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()); onAnyInteraction() }, icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) })
-    }
-}
-
-@Composable
-private fun VerticalSlider(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    icon: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxHeight(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(modifier = Modifier.height(180.dp), contentAlignment = Alignment.Center) {
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .width(180.dp)
-                    .rotate(-90f),
-                colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        icon()
-    }
-}
-
-@Composable
-private fun TrackMenu(
-    showMenu: Boolean,
-    onToggleMenu: (Boolean) -> Unit,
-    tracks: List<TrackInfo>,
-    onSelectTrack: (Int) -> Unit,
-    icon: @Composable () -> Unit
-) {
-    Box {
-        Box(modifier = Modifier.clickable { onToggleMenu(true) }) {
-            icon()
-        }
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { onToggleMenu(false) },
-            modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-        ) {
-            tracks.forEach { track ->
-                DropdownMenuItem(
-                    text = { Text(track.name, color = MaterialTheme.colorScheme.onSurface) },
-                    onClick = {
-                        onSelectTrack(track.id)
-                        onToggleMenu(false) // Ocultar el menú al seleccionar
-                    },
-                    trailingIcon = { if (track.isSelected) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) } }
-                )
-            }
-        }
-    }
-}
-
-// ¡CORRECCIÓN! Se añade 'private' para resolver el conflicto.
-private fun formatTime(millis: Long): String {
-    val hours = TimeUnit.MILLISECONDS.toHours(millis)
-    val minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % TimeUnit.HOURS.toMinutes(1)
-    val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % TimeUnit.MINUTES.toSeconds(1)
-
-    return if (hours > 0) {
-        String.format("%02d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format("%02d:%02d", minutes, seconds)
     }
 }

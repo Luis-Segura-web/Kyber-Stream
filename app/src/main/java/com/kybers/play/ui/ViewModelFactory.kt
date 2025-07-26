@@ -58,8 +58,6 @@ class ContentViewModelFactory(
             modelClass.isAssignableFrom(MoviesViewModel::class.java) -> {
                 MoviesViewModel(vodRepository, detailsRepository, syncManager, preferenceManager, currentUser) as T
             }
-            // --- ¡NUEVO! ---
-            // Le enseñamos a crear el SeriesViewModel.
             modelClass.isAssignableFrom(SeriesViewModel::class.java) -> {
                 SeriesViewModel(vodRepository, syncManager, preferenceManager, currentUser) as T
             }
@@ -96,11 +94,15 @@ class MovieDetailsViewModelFactory(
 }
 
 /**
- * --- ¡NUEVA FÁBRICA! ---
+ * --- ¡FÁBRICA CORREGIDA! ---
  * Fábrica dedicada exclusivamente a crear el SeriesDetailsViewModel.
- * Necesita el ID de la serie específica para poder cargar sus detalles.
+ * Ahora acepta `application` y `preferenceManager` para pasárselos al ViewModel.
  */
 class SeriesDetailsViewModelFactory(
+    // --- ¡NUEVOS PARÁMETROS! ---
+    private val application: Application,
+    private val preferenceManager: PreferenceManager,
+    // ---
     private val vodRepository: VodRepository,
     private val currentUser: User,
     private val seriesId: Int
@@ -109,6 +111,10 @@ class SeriesDetailsViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SeriesDetailsViewModel::class.java)) {
             return SeriesDetailsViewModel(
+                // --- ¡SE PASAN LOS NUEVOS PARÁMETROS! ---
+                application = application,
+                preferenceManager = preferenceManager,
+                // ---
                 vodRepository = vodRepository,
                 currentUser = currentUser,
                 seriesId = seriesId

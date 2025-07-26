@@ -32,7 +32,7 @@ data class ExpandableSeriesCategory(
     val isExpanded: Boolean = false
 )
 
-// Data class para el estado de la UI de la pantalla de series.
+// --- ¡ESTADO DE LA UI ACTUALIZADO! ---
 data class SeriesUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -42,16 +42,15 @@ data class SeriesUiState(
     val totalSeriesCount: Int = 0,
     val categorySortOrder: SortOrder = SortOrder.DEFAULT,
     val seriesSortOrder: SortOrder = SortOrder.DEFAULT,
-    val showSortMenu: Boolean = false
+    val showSortMenu: Boolean = false,
+    // --- ¡NUEVO! ---
+    val favoriteSeriesIds: Set<String> = emptySet()
 )
 
 /**
+ * --- ¡VIEWMODEL ACTUALIZADO! ---
  * ViewModel para la pantalla de Series.
- *
- * @property vodRepository Repositorio para obtener listas de series y categorías.
- * @property syncManager Gestiona los timestamps de sincronización.
- * @property preferenceManager Gestiona las preferencias del usuario (como el orden).
- * @property currentUser El perfil del usuario actual.
+ * Ahora gestiona la lógica de favoritos.
  */
 class SeriesViewModel(
     private val vodRepository: VodRepository,
@@ -63,24 +62,24 @@ class SeriesViewModel(
     private val _uiState = MutableStateFlow(SeriesUiState())
     val uiState: StateFlow<SeriesUiState> = _uiState.asStateFlow()
 
-    // Listas maestras para evitar ir a la base de datos constantemente.
     private var allSeries: List<Series> = emptyList()
     private var officialCategories: List<Category> = emptyList()
-    // Guardamos el estado de expansión de cada categoría.
     private val expansionState = mutableMapOf<String, Boolean>()
 
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
     init {
-        // Cargamos las preferencias de ordenación guardadas.
         val savedCategorySortOrder = preferenceManager.getSortOrder("series_category").toSortOrder()
         val savedSeriesSortOrder = preferenceManager.getSortOrder("series_item").toSortOrder()
+        // --- ¡NUEVO! Cargamos los favoritos al iniciar ---
+        val favoriteIds = preferenceManager.getFavoriteSeriesIds()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
-                seriesSortOrder = savedSeriesSortOrder
+                seriesSortOrder = savedSeriesSortOrder,
+                favoriteSeriesIds = favoriteIds
             )
         }
         loadInitialData()
@@ -91,7 +90,6 @@ class SeriesViewModel(
             _uiState.update { it.copy(isLoading = true) }
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
-            // Cargamos series y categorías en paralelo.
             val seriesJob = async { allSeries = vodRepository.getAllSeries(currentUser.id).first() }
             val categoriesJob = async { officialCategories = vodRepository.getSeriesCategories(currentUser.username, currentUser.password) }
             awaitAll(seriesJob, categoriesJob)
@@ -114,7 +112,6 @@ class SeriesViewModel(
                 vodRepository.cacheSeries(currentUser.username, currentUser.password, currentUser.id)
                 syncManager.saveLastSyncTimestamp(currentUser.id)
 
-                // Refrescamos los datos locales después de la sincronización.
                 allSeries = vodRepository.getAllSeries(currentUser.id).first()
                 val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)
                 updateUiWithFilteredData()
@@ -130,6 +127,21 @@ class SeriesViewModel(
         }
     }
 
+    // --- ¡NUEVA FUNCIÓN PARA GESTIONAR FAVORITOS! ---
+    fun toggleFavoriteStatus(seriesId: Int) {
+        val currentFavorites = preferenceManager.getFavoriteSeriesIds().toMutableSet()
+        val seriesStringId = seriesId.toString()
+        if (currentFavorites.contains(seriesStringId)) {
+            currentFavorites.remove(seriesStringId)
+        } else {
+            currentFavorites.add(seriesStringId)
+        }
+        preferenceManager.saveFavoriteSeriesIds(currentFavorites)
+        _uiState.update { it.copy(favoriteSeriesIds = currentFavorites) }
+        // Actualizamos la UI para que refleje el cambio inmediatamente
+        updateUiWithFilteredData()
+    }
+
     fun onSearchQueryChanged(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         updateUiWithFilteredData()
@@ -138,9 +150,11 @@ class SeriesViewModel(
     fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
             val isNowExpanding = !(expansionState[categoryId] ?: false)
-            // Si vamos a expandir una, contraemos todas las demás.
             if (isNowExpanding) {
-                expansionState.keys.forEach { expansionState[it] = false }
+                // Si es una categoría normal, contraemos las demás (incluida favoritos)
+                if (categoryId != "favorites") {
+                    expansionState.keys.forEach { expansionState[it] = false }
+                }
             }
             expansionState[categoryId] = isNowExpanding
             updateUiWithFilteredData()
@@ -159,6 +173,7 @@ class SeriesViewModel(
         _uiState.update { it.copy(categories = filteredList) }
     }
 
+    // --- ¡LÓGICA DE FILTRADO Y ORDENACIÓN ACTUALIZADA! ---
     private fun filterAndSort(
         officialCategories: List<Category>,
         allSeries: List<Series>,
@@ -168,16 +183,34 @@ class SeriesViewModel(
     ): List<ExpandableSeriesCategory> {
         val lowercasedQuery = query.lowercase().trim()
 
-        // 1. Filtrar series según la búsqueda
         val seriesToDisplay = if (lowercasedQuery.isBlank()) allSeries else allSeries.filter {
             it.name.lowercase().contains(lowercasedQuery)
+        }
+
+        val specialCategories = mutableListOf<ExpandableSeriesCategory>()
+        val regularCategories = mutableListOf<ExpandableSeriesCategory>()
+
+        // 1. Crear categoría de Favoritos si aplica
+        if (lowercasedQuery.isBlank()) {
+            val favoriteIds = _uiState.value.favoriteSeriesIds
+            if (favoriteIds.isNotEmpty()) {
+                val favoriteSeries = allSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
+                if (favoriteSeries.isNotEmpty()) {
+                    specialCategories.add(
+                        ExpandableSeriesCategory(
+                            category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
+                            series = favoriteSeries,
+                            isExpanded = expansionState.getOrPut("favorites") { true }
+                        )
+                    )
+                }
+            }
         }
 
         // 2. Agrupar series por su ID de categoría
         val seriesByCategoryId = seriesToDisplay.groupBy { it.categoryId }
 
-        // 3. Crear la lista de categorías expandibles, asegurando que solo se muestren
-        //    categorías que contienen series (o si la búsqueda está vacía).
+        // 3. Crear la lista de categorías regulares
         val categoriesWithContent = officialCategories.mapNotNull { category ->
             seriesByCategoryId[category.categoryId]?.let { seriesInCategory ->
                 ExpandableSeriesCategory(
@@ -188,15 +221,16 @@ class SeriesViewModel(
             }
         }
 
-        // 4. Ordenar las categorías
-        val sortedCategories = when (categorySortOrder) {
+        // 4. Ordenar las categorías regulares
+        val sortedRegularCategories = when (categorySortOrder) {
             SortOrder.AZ -> categoriesWithContent.sortedBy { it.category.categoryName }
             SortOrder.ZA -> categoriesWithContent.sortedByDescending { it.category.categoryName }
             SortOrder.DEFAULT -> categoriesWithContent
         }
 
-        // 5. Ordenar las series dentro de cada categoría
-        return sortedCategories.map { expandableCategory ->
+        // 5. Unir las listas y ordenar las series dentro de cada categoría
+        val allCategories = specialCategories + sortedRegularCategories
+        return allCategories.map { expandableCategory ->
             val sortedSeries = when (seriesSortOrder) {
                 SortOrder.AZ -> expandableCategory.series.sortedBy { it.name }
                 SortOrder.ZA -> expandableCategory.series.sortedByDescending { it.name }
