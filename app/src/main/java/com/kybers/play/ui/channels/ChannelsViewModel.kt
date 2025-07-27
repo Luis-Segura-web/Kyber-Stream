@@ -21,6 +21,7 @@ import com.kybers.play.ui.player.TrackInfo
 import com.kybers.play.ui.player.toAspectRatioMode
 import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +38,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Data class para representar una categoría de canales que puede expandirse o contraerse.
 data class ExpandableCategory(
     val category: Category,
     val channels: List<LiveStream> = emptyList(),
@@ -45,7 +45,7 @@ data class ExpandableCategory(
     val epgLoaded: Boolean = false
 )
 
-// Data class que representa el estado completo de la UI de la pantalla de canales.
+// --- ¡ESTADO DE LA UI ACTUALIZADO! ---
 data class ChannelsUiState(
     val isLoading: Boolean = true,
     val searchQuery: String = "",
@@ -73,16 +73,13 @@ data class ChannelsUiState(
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
     val isInPipMode: Boolean = false,
     val lastUpdatedTimestamp: Long = 0L,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val isEpgUpdating: Boolean = false,
+    val epgUpdateMessage: String? = null,
+    // --- ¡NUEVO ESTADO PARA EL TÍTULO! ---
+    val totalChannelCount: Int = 0
 )
 
-/**
- * --- ¡VIEWMODEL ACTUALIZADO! ---
- * ViewModel para la pantalla de Canales.
- * Ahora depende de [LiveRepository] para toda la lógica de obtención de datos en vivo.
- *
- * @property liveRepository El repositorio especializado en contenido en vivo.
- */
 open class ChannelsViewModel(
     application: Application,
     private val liveRepository: LiveRepository,
@@ -314,12 +311,18 @@ open class ChannelsViewModel(
         }
     }
 
+    // --- ¡FUNCIÓN DE REFRESCO MANUAL ACTUALIZADA! ---
     fun refreshChannelsManually() {
         viewModelScope.launch {
-            Log.d("ChannelsViewModel", "Iniciando refresco manual de canales...")
+            Log.d("ChannelsViewModel", "Iniciando refresco manual de canales y EPG...")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
+                // 1. Refresca la lista de canales.
                 liveRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
+                // 2. ¡NUEVO! Refresca también la guía de canales (EPG).
+                liveRepository.cacheEpgData(currentUser.username, currentUser.password, currentUser.id)
+
+                // 3. Recarga toda la información en la UI.
                 loadInitialChannelsAndPreloadEpg()
                 syncManager.saveLastSyncTimestamp(currentUser.id)
                 _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
@@ -409,7 +412,7 @@ open class ChannelsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val categories = liveRepository.getLiveCategories(currentUser.username, currentUser.password)
+                val categories = liveRepository.getLiveCategories(currentUser.username, currentUser.password, currentUser.id)
                 val allChannels = liveRepository.getRawLiveStreams(currentUser.id).first()
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
                 val expandableCategories = categories.map { category ->
@@ -420,11 +423,22 @@ open class ChannelsViewModel(
                 }
                 _originalCategories.value = expandableCategories
                 filterAndSortCategories()
-                _uiState.update { it.copy(isLoading = false) }
+                // --- ¡ACTUALIZACIÓN! Guardamos el número total de canales ---
+                _uiState.update { it.copy(isLoading = false, totalChannelCount = allChannels.size) }
 
-                Log.d("ChannelsViewModel", "Iniciando precarga de EPG en memoria...")
                 epgCacheMap = liveRepository.getAllEpgMapForUser(currentUser.id)
-                Log.d("ChannelsViewModel", "Precarga de EPG completada. ${epgCacheMap.size} canales tienen EPG.")
+
+                if (liveRepository.isEpgDataStale(currentUser.id)) {
+                    Log.d("ChannelsViewModel", "La EPG está desactualizada. Iniciando actualización automática.")
+                    launch {
+                        _uiState.update { it.copy(isEpgUpdating = true, epgUpdateMessage = "Actualizando guía de canales...") }
+                        liveRepository.cacheEpgData(currentUser.username, currentUser.password, currentUser.id)
+                        epgCacheMap = liveRepository.getAllEpgMapForUser(currentUser.id)
+                        _uiState.update { it.copy(isEpgUpdating = false, epgUpdateMessage = "¡Guía actualizada!") }
+                        delay(3000)
+                        _uiState.update { it.copy(epgUpdateMessage = null) }
+                    }
+                }
 
             } catch (e: Exception) {
                 Log.e("ChannelsViewModel", "Error en loadInitialChannelsAndPreloadEpg(): ${e.message}", e)

@@ -92,6 +92,10 @@ data class MovieDetailsUiState(
     val isInPipMode: Boolean = false
 )
 
+/**
+ * --- ¡VIEWMODEL CON GUARDADO SEGURO! ---
+ * Ahora guarda el progreso de la película periódicamente.
+ */
 class MovieDetailsViewModel(
     application: Application,
     private val vodRepository: VodRepository,
@@ -109,10 +113,10 @@ class MovieDetailsViewModel(
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
     private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
 
-    // --- ¡NUEVO! ---
-    // Mapa para guardar en memoria todos los detalles de películas que ya tenemos en la BD local.
     private var cachedDetailsMap: Map<Int, MovieDetailsCache> = emptyMap()
 
+    private var lastSaveTimeMillis: Long = 0L
+    private val saveIntervalMillis: Long = 15000 // Guardar cada 15 segundos
 
     init {
         loadInitialData()
@@ -123,13 +127,11 @@ class MovieDetailsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true) }
 
-            // --- ¡CAMBIO! ---
-            // Precargamos todos los detalles cacheados al mismo tiempo que la película actual.
             val movieJob = async { vodRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId } }
             val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
 
             val movie = movieJob.await()
-            cacheJob.await() // Nos aseguramos de que el mapa esté listo.
+            cacheJob.await()
 
             if (movie != null) {
                 val favoriteIds = preferenceManager.getFavoriteMovieIds()
@@ -193,14 +195,10 @@ class MovieDetailsViewModel(
             val availableTmdbIds = filmography.availableItems.map { it.id }.toSet()
             val availableLocalMovies = allMovies.filter { availableTmdbIds.contains(it.tmdbId?.toIntOrNull()) }
 
-
-            // --- ¡GRAN OPTIMIZACIÓN AQUÍ! ---
-            // Ya no hacemos llamadas de red en bucle. Usamos el mapa que cargamos al inicio.
             val enrichedMovies = availableLocalMovies.map { movie ->
                 val details = cachedDetailsMap[movie.streamId]
                 EnrichedActorMovie(movie, MovieWithDetails(movie, details))
             }
-
 
             _uiState.update {
                 it.copy(
@@ -285,6 +283,7 @@ class MovieDetailsViewModel(
     fun onRecommendationSelected(movie: Movie) {
         viewModelScope.launch { _navigationEvent.emit(movie.streamId) }
     }
+
     private fun setupMediaPlayer() {
         mediaPlayer.setEventListener { event ->
             val currentState = _uiState.value.playerStatus
@@ -296,6 +295,11 @@ class MovieDetailsViewModel(
                 MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
                 MediaPlayer.Event.TimeChanged -> {
                     _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastSaveTimeMillis > saveIntervalMillis) {
+                        saveCurrentProgress()
+                        lastSaveTimeMillis = currentTime
+                    }
                     null
                 }
                 else -> null
@@ -308,28 +312,14 @@ class MovieDetailsViewModel(
             }
         }
     }
-    fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
-        _uiState.update {
-            it.copy(
-                systemVolume = volume,
-                maxSystemVolume = maxVolume,
-                originalBrightness = brightness,
-                screenBrightness = if (brightness >= 0) brightness else 0.5f
-            )
+
+    private fun saveCurrentProgress() {
+        val currentMovieId = _uiState.value.movie?.streamId?.toString() ?: return
+        if (mediaPlayer.time > 0 && mediaPlayer.isPlaying) {
+            preferenceManager.savePlaybackPosition(currentMovieId, mediaPlayer.time)
         }
     }
-    fun toggleFavorite() {
-        val movie = _uiState.value.movie ?: return
-        val currentFavorites = preferenceManager.getFavoriteMovieIds().toMutableSet()
-        val isCurrentlyFavorite = currentFavorites.contains(movie.streamId.toString())
-        if (isCurrentlyFavorite) {
-            currentFavorites.remove(movie.streamId.toString())
-        } else {
-            currentFavorites.add(movie.streamId.toString())
-        }
-        preferenceManager.saveFavoriteMovieIds(currentFavorites)
-        _uiState.update { it.copy(isFavorite = !isCurrentlyFavorite) }
-    }
+
     fun startPlayback(continueFromLastPosition: Boolean) {
         val movie = _uiState.value.movie ?: return
         val streamUrl = buildStreamUrl(movie)
@@ -344,11 +334,12 @@ class MovieDetailsViewModel(
         }
         _uiState.update { it.copy(isPlayerVisible = true, playerStatus = PlayerStatus.BUFFERING) }
     }
+
     fun hidePlayer() {
         if (mediaPlayer.isPlaying) {
-            preferenceManager.savePlaybackPosition(movieId.toString(), mediaPlayer.time)
-            mediaPlayer.stop()
+            saveCurrentProgress()
         }
+        mediaPlayer.stop()
         mediaPlayer.media?.release()
         mediaPlayer.media = null
         _uiState.update {
@@ -359,9 +350,23 @@ class MovieDetailsViewModel(
             )
         }
     }
+
     fun togglePlayPause() {
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
+
+    // --- ¡FUNCIÓN AÑADIDA! ---
+    fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
+        _uiState.update {
+            it.copy(
+                systemVolume = volume,
+                maxSystemVolume = maxVolume,
+                originalBrightness = brightness,
+                screenBrightness = if (brightness >= 0) brightness else 0.5f
+            )
+        }
+    }
+
     fun setInPipMode(inPip: Boolean) {
         _uiState.update { it.copy(isInPipMode = inPip) }
     }
@@ -423,11 +428,23 @@ class MovieDetailsViewModel(
     override fun onCleared() {
         super.onCleared()
         if (mediaPlayer.isPlaying) {
-            preferenceManager.savePlaybackPosition(movieId.toString(), mediaPlayer.time)
+            saveCurrentProgress()
         }
         mediaPlayer.stop()
         mediaPlayer.media?.release()
         mediaPlayer.release()
         libVLC.release()
+    }
+    fun toggleFavorite() {
+        val movie = _uiState.value.movie ?: return
+        val currentFavorites = preferenceManager.getFavoriteMovieIds().toMutableSet()
+        val isCurrentlyFavorite = currentFavorites.contains(movie.streamId.toString())
+        if (isCurrentlyFavorite) {
+            currentFavorites.remove(movie.streamId.toString())
+        } else {
+            currentFavorites.add(movie.streamId.toString())
+        }
+        preferenceManager.saveFavoriteMovieIds(currentFavorites)
+        _uiState.update { it.copy(isFavorite = !isCurrentlyFavorite) }
     }
 }

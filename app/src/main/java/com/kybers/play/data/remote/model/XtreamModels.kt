@@ -81,6 +81,7 @@ data class Movie(
 @Entity(tableName = "series", primaryKeys = ["seriesId", "userId"])
 data class Series(
     @Json(name = "series_id") val seriesId: Int,
+    @Json(name = "tmdb_id") val tmdbId: String?,
     @Json(name = "num") val num: Int,
     @Json(name = "name") val name: String,
     @Json(name = "cover") val cover: String?,
@@ -143,12 +144,6 @@ data class EpgEvent(
     val stopTimestamp: Long
 )
 
-// --- ¡MODELOS PARA SERIES CORREGIDOS! ---
-
-/**
- * Esta clase representa el objeto "info" que viene en la respuesta de la API get_series_info.
- * Es diferente de nuestra entidad `Series` porque no contiene `series_id` ni `num`.
- */
 data class SeriesInfo(
     val name: String?,
     val cover: String?,
@@ -166,9 +161,6 @@ data class SeriesInfo(
     @Json(name = "category_id") val categoryId: String?
 )
 
-/**
- * La respuesta completa de la API. Ahora usa `SeriesInfo` para el campo `info`.
- */
 data class SeriesInfoResponse(
     val info: SeriesInfo,
     val seasons: List<Season>,
@@ -180,6 +172,7 @@ data class Season(
     val name: String
 )
 
+// --- ¡MODELO DE EPISODIO ACTUALIZADO! ---
 @Entity(tableName = "episodes", primaryKeys = ["id", "seriesId", "userId"])
 data class Episode(
     val id: String,
@@ -198,6 +191,10 @@ data class Episode(
     var rating: Float? = null
     var duration: String? = null
     var releaseDate: String? = null
+
+    // --- ¡NUEVO CAMPO! ---
+    // Guardará la duración total del episodio en milisegundos para un cálculo fiable.
+    var durationMillis: Long = 0L
 }
 
 data class EpisodeInfo(

@@ -3,6 +3,7 @@ package com.kybers.play.ui.series
 import android.app.Application
 import android.media.AudioManager
 import android.os.Build
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -11,10 +12,19 @@ import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.remote.model.Episode
 import com.kybers.play.data.remote.model.Season
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.data.remote.model.TMDbCastMember
+import com.kybers.play.data.remote.model.TMDbTvResult
+import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,9 +35,8 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import java.util.concurrent.TimeUnit
 
-// --- ¡NUEVO ESTADO AÑADIDO! ---
-// Data class para el estado de la UI de la pantalla de detalles de una serie.
 data class SeriesDetailsUiState(
     val isLoading: Boolean = true,
     val seriesInfo: Series? = null,
@@ -35,7 +44,16 @@ data class SeriesDetailsUiState(
     val episodesBySeason: Map<Int, List<Episode>> = emptyMap(),
     val selectedSeasonNumber: Int = 1,
     val error: String? = null,
-    // --- ESTADOS DEL REPRODUCTOR ---
+    val title: String = "",
+    val posterUrl: String? = null,
+    val backdropUrl: String? = null,
+    val firstAirYear: String? = null,
+    val rating: Double? = null,
+    val plot: String? = null,
+    val cast: List<TMDbCastMember> = emptyList(),
+    val availableRecommendations: List<Series> = emptyList(),
+    val certification: String? = null,
+    val selectedTabIndex: Int = 0,
     val currentlyPlayingEpisode: Episode? = null,
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
@@ -52,17 +70,14 @@ data class SeriesDetailsUiState(
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
-    val isInPipMode: Boolean = false
+    val isInPipMode: Boolean = false,
+    val playbackStates: Map<String, Pair<Long, Long>> = emptyMap()
 )
 
-/**
- * --- ¡VIEWMODEL COMPLETAMENTE RENOVADO! ---
- * ViewModel para la pantalla de Detalles de Series.
- * Ahora gestiona tanto los detalles de la serie como el estado completo del reproductor de video.
- */
 class SeriesDetailsViewModel(
     application: Application,
     private val vodRepository: VodRepository,
+    private val detailsRepository: DetailsRepository,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val seriesId: Int
@@ -74,6 +89,11 @@ class SeriesDetailsViewModel(
     private val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
     private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
+
+    private var lastSaveTimeMillis: Long = 0L
+    private val saveIntervalMillis: Long = 15000
+
+    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     init {
         loadSeriesDetails()
@@ -90,46 +110,126 @@ class SeriesDetailsViewModel(
                 return@launch
             }
 
+            val enrichedDetails = detailsRepository.getSeriesDetails(baseSeries)
+            val castList = parseCastJson(enrichedDetails?.castJson)
+            val recommendationsList = parseRecommendationsJson(enrichedDetails?.recommendationsJson)
+
+            _uiState.update {
+                it.copy(
+                    seriesInfo = baseSeries,
+                    title = baseSeries.name,
+                    plot = enrichedDetails?.plot ?: baseSeries.plot,
+                    posterUrl = enrichedDetails?.posterUrl ?: baseSeries.cover,
+                    backdropUrl = enrichedDetails?.backdropUrl ?: baseSeries.backdropPath?.firstOrNull(),
+                    firstAirYear = enrichedDetails?.firstAirYear ?: baseSeries.releaseDate?.substringBefore("-"),
+                    rating = enrichedDetails?.rating ?: (baseSeries.rating5Based.toDouble() * 2),
+                    certification = enrichedDetails?.certification,
+                    cast = castList
+                )
+            }
+
+            findAvailableRecommendations(recommendationsList)
+            loadEpisodes()
+        }
+    }
+
+    private fun loadEpisodes() {
+        viewModelScope.launch {
             vodRepository.getSeriesDetails(
                 user = currentUser.username,
                 pass = currentUser.password,
                 seriesId = seriesId,
                 userId = currentUser.id
             ).catch { e ->
-                _uiState.update { it.copy(isLoading = false, error = "Error al cargar detalles: ${e.message}") }
+                _uiState.update { it.copy(isLoading = false, error = "Error al cargar episodios: ${e.message}") }
             }.collect { seriesInfoResponse ->
                 if (seriesInfoResponse != null) {
-                    val episodesMappedByInt = seriesInfoResponse.episodes.mapKeys { it.key.toInt() }
-                    val updatedSeries = baseSeries.copy(
-                        plot = seriesInfoResponse.info.plot ?: baseSeries.plot,
-                        cast = seriesInfoResponse.info.cast ?: baseSeries.cast,
-                        director = seriesInfoResponse.info.director ?: baseSeries.director,
-                        genre = seriesInfoResponse.info.genre ?: baseSeries.genre,
-                        releaseDate = seriesInfoResponse.info.releaseDate ?: baseSeries.releaseDate,
-                        rating5Based = seriesInfoResponse.info.rating5Based ?: baseSeries.rating5Based,
-                        backdropPath = seriesInfoResponse.info.backdropPath ?: baseSeries.backdropPath,
-                    )
-                    _uiState.update {
-                        it.copy(
+                    val enrichedEpisodesMap = enrichEpisodesWithTmdbData(seriesInfoResponse.episodes)
+
+                    _uiState.update { currentState ->
+                        currentState.copy(
                             isLoading = false,
-                            seriesInfo = updatedSeries,
-                            seasons = seriesInfoResponse.seasons.sortedBy { s -> s.seasonNumber },
-                            episodesBySeason = episodesMappedByInt,
-                            selectedSeasonNumber = seriesInfoResponse.seasons.minOfOrNull { s -> s.seasonNumber } ?: 1
+                            seasons = seriesInfoResponse.seasons.sortedBy { season -> season.seasonNumber },
+                            episodesBySeason = enrichedEpisodesMap,
+                            selectedSeasonNumber = seriesInfoResponse.seasons.minOfOrNull { season -> season.seasonNumber } ?: 1
                         )
                     }
+                    loadPlaybackStatesForSeason(_uiState.value.selectedSeasonNumber)
                 } else {
-                    _uiState.update { it.copy(isLoading = false, seriesInfo = baseSeries, error = "No se encontraron detalles para esta serie.") }
+                    _uiState.update { it.copy(isLoading = false, error = "No se encontraron episodios para esta serie.") }
                 }
             }
         }
     }
 
-    fun selectSeason(seasonNumber: Int) {
-        _uiState.update { it.copy(selectedSeasonNumber = seasonNumber) }
+    private suspend fun enrichEpisodesWithTmdbData(originalEpisodes: Map<String, List<Episode>>): Map<Int, List<Episode>> {
+        val tmdbId = _uiState.value.seriesInfo?.tmdbId?.toIntOrNull() ?: return originalEpisodes.mapKeys { it.key.toInt() }
+
+        return coroutineScope {
+            val enrichedMap = mutableMapOf<Int, List<Episode>>()
+            originalEpisodes.forEach { (seasonNum, episodeList) ->
+                val deferredEnrichedList = episodeList.map { episode ->
+                    async {
+                        if (episode.imageUrl.isNullOrBlank()) {
+                            // --- ¡LLAMADA ACTUALIZADA A LA FUNCIÓN DE CACHÉ! ---
+                            val tmdbImage = detailsRepository.getEpisodeImageFromTMDb(
+                                tvId = tmdbId,
+                                seasonNumber = episode.season,
+                                episodeNumber = episode.episodeNum,
+                                episodeId = episode.id // Pasamos el ID para la clave de la caché
+                            )
+                            if (tmdbImage != null) {
+                                episode.imageUrl = tmdbImage
+                            }
+                        }
+                        episode
+                    }
+                }
+                enrichedMap[seasonNum.toInt()] = deferredEnrichedList.awaitAll()
+            }
+            enrichedMap
+        }
     }
 
-    // --- LÓGICA DEL REPRODUCTOR ---
+    private suspend fun findAvailableRecommendations(recommendations: List<TMDbTvResult>) {
+        val allLocalSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val availableRecs = allLocalSeries.filter { localSeries ->
+            recommendations.any { recommendation -> recommendation.id.toString() == localSeries.tmdbId }
+        }
+        _uiState.update { it.copy(availableRecommendations = availableRecs.distinctBy { series -> series.seriesId }) }
+    }
+
+    private fun parseCastJson(json: String?): List<TMDbCastMember> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val type = Types.newParameterizedType(List::class.java, TMDbCastMember::class.java)
+            val adapter = moshi.adapter<List<TMDbCastMember>>(type)
+            adapter.fromJson(json) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun parseRecommendationsJson(json: String?): List<TMDbTvResult> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val type = Types.newParameterizedType(List::class.java, TMDbTvResult::class.java)
+            val adapter = moshi.adapter<List<TMDbTvResult>>(type)
+            adapter.fromJson(json) ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
+    fun selectSeason(seasonNumber: Int) {
+        _uiState.update { it.copy(selectedSeasonNumber = seasonNumber) }
+        loadPlaybackStatesForSeason(seasonNumber)
+    }
+
+    private fun loadPlaybackStatesForSeason(seasonNumber: Int) {
+        val allStates = preferenceManager.getAllEpisodePlaybackStates()
+        _uiState.update { it.copy(playbackStates = allStates) }
+    }
+
+    fun onTabSelected(index: Int) {
+        _uiState.update { it.copy(selectedTabIndex = index) }
+    }
 
     private fun setupMediaPlayer() {
         mediaPlayer.setEventListener { event ->
@@ -140,12 +240,18 @@ class SeriesDetailsViewModel(
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
                 MediaPlayer.Event.EndReached -> {
-                    playNextEpisode() // ¡Reproducción automática del siguiente episodio!
-                    PlayerStatus.IDLE
+                    saveCurrentEpisodeProgress(markAsFinished = true)
+                    playNextEpisode()
+                    null
                 }
                 MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
                 MediaPlayer.Event.TimeChanged -> {
                     _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastSaveTimeMillis > saveIntervalMillis) {
+                        saveCurrentEpisodeProgress()
+                        lastSaveTimeMillis = currentTime
+                    }
                     null
                 }
                 else -> null
@@ -159,7 +265,12 @@ class SeriesDetailsViewModel(
         }
     }
 
-    fun playEpisode(episode: Episode, continueFromLastPosition: Boolean = false) {
+    fun playEpisode(episode: Episode) {
+        val previousEpisode = _uiState.value.currentlyPlayingEpisode
+        if (mediaPlayer.isPlaying && previousEpisode != null && previousEpisode.id != episode.id) {
+            saveCurrentEpisodeProgress()
+        }
+
         val streamUrl = buildStreamUrl(episode)
         val newMedia = Media(libVLC, streamUrl.toUri()).apply {
             vlcOptions.forEach { addOption(it) }
@@ -168,12 +279,11 @@ class SeriesDetailsViewModel(
         mediaPlayer.media = newMedia
         mediaPlayer.play()
 
-        val position = if (continueFromLastPosition) {
-            preferenceManager.getPlaybackPosition(episode.id)
-        } else {
-            0L
-        }
-        if (position > 0) {
+        // --- ¡LÓGICA DE REANUDACIÓN MEJORADA! ---
+        val (position, duration) = preferenceManager.getEpisodePlaybackState(episode.id)
+        val isFinished = duration > 0 && (duration - position) < 5000 // Considera terminado si faltan menos de 5s
+
+        if (position > 0 && !isFinished) {
             mediaPlayer.time = position
         }
 
@@ -186,7 +296,27 @@ class SeriesDetailsViewModel(
         }
     }
 
+    // --- ¡FUNCIÓN DE GUARDADO ACTUALIZADA! ---
+    private fun saveCurrentEpisodeProgress(markAsFinished: Boolean = false) {
+        val episode = _uiState.value.currentlyPlayingEpisode ?: return
+        val duration = mediaPlayer.length
+        // Solo guardamos si tenemos una duración real del video.
+        if (duration <= 0 && !markAsFinished) return
+
+        val position = mediaPlayer.time
+        val isConsideredFinished = markAsFinished || (duration > 0 && (duration - position) < 5000)
+        val finalPosition = if (isConsideredFinished) duration else position
+
+        // Guardamos la posición y la duración real.
+        preferenceManager.saveEpisodePlaybackState(episode.id, finalPosition, duration)
+        // Actualizamos el estado de la UI para que la barra de progreso se actualice al instante.
+        _uiState.update {
+            it.copy(playbackStates = it.playbackStates + (episode.id to (finalPosition to duration)))
+        }
+    }
+
     fun playNextEpisode() {
+        saveCurrentEpisodeProgress(markAsFinished = true)
         val currentEpisode = _uiState.value.currentlyPlayingEpisode ?: return
         val currentSeasonEpisodes = _uiState.value.episodesBySeason[_uiState.value.selectedSeasonNumber] ?: return
         val currentIndex = currentSeasonEpisodes.indexOf(currentEpisode)
@@ -195,7 +325,6 @@ class SeriesDetailsViewModel(
             val nextEpisode = currentSeasonEpisodes[currentIndex + 1]
             playEpisode(nextEpisode)
         } else {
-            // Opcional: pasar a la siguiente temporada o simplemente parar.
             hidePlayer()
         }
     }
@@ -212,10 +341,7 @@ class SeriesDetailsViewModel(
     }
 
     fun hidePlayer() {
-        val episodeId = _uiState.value.currentlyPlayingEpisode?.id
-        if (mediaPlayer.isPlaying && episodeId != null) {
-            preferenceManager.savePlaybackPosition(episodeId, mediaPlayer.time)
-        }
+        saveCurrentEpisodeProgress()
         mediaPlayer.stop()
         mediaPlayer.media?.release()
         mediaPlayer.media = null
@@ -247,12 +373,10 @@ class SeriesDetailsViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        hidePlayer() // Asegura que se guarde la posición al salir
+        hidePlayer()
         mediaPlayer.release()
         libVLC.release()
     }
-
-    // --- MÉTODOS DE CONTROL DE UI DEL REPRODUCTOR (similares a MovieDetailsViewModel) ---
 
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
         _uiState.update {
@@ -322,6 +446,12 @@ class SeriesDetailsViewModel(
 
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
-    fun selectAudioTrack(trackId: Int) { mediaPlayer.setAudioTrack(trackId); updateTrackInfo() }
-    fun selectSubtitleTrack(trackId: Int) { mediaPlayer.setSpuTrack(trackId); updateTrackInfo() }
+    fun selectAudioTrack(trackId: Int) {
+        mediaPlayer.setAudioTrack(trackId)
+        updateTrackInfo()
+    }
+    fun selectSubtitleTrack(trackId: Int) {
+        mediaPlayer.setSpuTrack(trackId)
+        updateTrackInfo()
+    }
 }

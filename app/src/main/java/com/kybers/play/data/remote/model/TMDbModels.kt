@@ -16,6 +16,11 @@ data class TMDbSearchResponse(
     val results: List<TMDbMovieResult>?
 )
 
+// --- ¡NUEVO! Respuesta de búsqueda para series ---
+data class TMDbTvSearchResponse(
+    val results: List<TMDbTvResult>?
+)
+
 // Representa una PELÍCULA en la filmografía
 data class TMDbMovieResult(
     override val id: Int,
@@ -44,15 +49,13 @@ data class TMDbMovieDetails(
     val credits: TMDbMovieCredits?,
     val recommendations: TMDbSearchResponse?,
     @Json(name = "alternative_titles") val alternativeTitles: TMDbAlternativeTitles?,
-    // --- ¡NUEVO! --- Para obtener la clasificación por edades
     @Json(name = "release_dates") val releaseDates: TMDbReleaseDatesResponse?
 ) {
     fun getFullPosterUrl(): String? = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
     fun getFullBackdropUrl(): String? = backdropPath?.let { "https://image.tmdb.org/t/p/w780$it" }
 }
 
-// --- ¡NUEVO! ---
-// Modelo para los detalles de una serie de TV
+// --- ¡MODELO DE DETALLES DE SERIE ACTUALIZADO! ---
 data class TMDbTvDetails(
     val id: Int,
     @Json(name = "name") val name: String?,
@@ -61,10 +64,20 @@ data class TMDbTvDetails(
     @Json(name = "backdrop_path") val backdropPath: String?,
     @Json(name = "first_air_date") val firstAirDate: String?,
     @Json(name = "vote_average") val voteAverage: Double?,
+    // --- ¡NUEVOS CAMPOS! ---
+    val credits: TMDbMovieCredits?, // Reutilizamos el modelo de créditos de películas
+    val recommendations: TMDbTvSearchResponse?,
     @Json(name = "content_ratings") val contentRatings: TMDbContentRatingsResponse?
 ) {
     fun getFullPosterUrl(): String? = posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
     fun getFullBackdropUrl(): String? = backdropPath?.let { "https://image.tmdb.org/t/p/w780$it" }
+}
+
+// --- ¡NUEVO MODELO PARA DETALLES DE EPISODIO! ---
+data class TMDbEpisodeDetails(
+    @Json(name = "still_path") val stillPath: String?
+) {
+    fun getFullStillUrl(): String? = stillPath?.let { "https://image.tmdb.org/t/p/w500$it" }
 }
 
 data class TMDbMovieCredits(
@@ -105,7 +118,6 @@ data class TMDbPersonMovieCredits(
     val cast: List<TMDbMovieResult>?
 )
 
-// --- ¡NUEVOS MODELOS PARA CLASIFICACIÓN! ---
 data class TMDbReleaseDatesResponse(
     val results: List<TMDbReleaseDateResults>?
 )

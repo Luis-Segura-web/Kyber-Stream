@@ -1,30 +1,108 @@
 package com.kybers.play.data.repository
 
 import android.util.Log
+import com.kybers.play.data.local.CategoryCacheDao
 import com.kybers.play.data.local.EpisodeDao
 import com.kybers.play.data.local.MovieDao
 import com.kybers.play.data.local.SeriesDao
+import com.kybers.play.data.local.model.CategoryCache
 import com.kybers.play.data.remote.XtreamApiService
+import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Episode
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.SeriesInfo
 import com.kybers.play.data.remote.model.SeriesInfoResponse
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
+/**
+ * --- ¡REPOSITORIO ACTUALIZADO CON CACHÉ DE CATEGORÍAS! ---
+ * Ahora, primero busca las categorías de películas y series en la base de datos local.
+ */
 class VodRepository(
     xtreamApiService: XtreamApiService,
     private val movieDao: MovieDao,
     private val seriesDao: SeriesDao,
-    private val episodeDao: EpisodeDao
+    private val episodeDao: EpisodeDao,
+    private val categoryCacheDao: CategoryCacheDao
 ) : BaseContentRepository(xtreamApiService) {
+
+    private val moshi: Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    private val categoryCacheExpiry = TimeUnit.HOURS.toMillis(4) // Categorías expiran cada 4 horas
+
+    override suspend fun getMovieCategories(user: String, pass: String, userId: Int): List<Category> {
+        val cached = categoryCacheDao.getCategories(userId, "movie")
+        if (cached != null && System.currentTimeMillis() - cached.lastUpdated < categoryCacheExpiry) {
+            Log.d("VodRepository", "Cargando categorías de Películas desde la caché.")
+            return try {
+                val type = Types.newParameterizedType(List::class.java, Category::class.java)
+                val adapter = moshi.adapter<List<Category>>(type)
+                adapter.fromJson(cached.categoriesJson) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+        Log.d("VodRepository", "Cargando categorías de Películas desde la red.")
+        return try {
+            val response = xtreamApiService.getMovieCategories(user = user, pass = pass)
+            val categories = response.body() ?: emptyList()
+            if (categories.isNotEmpty()) {
+                val type = Types.newParameterizedType(List::class.java, Category::class.java)
+                val adapter = moshi.adapter<List<Category>>(type)
+                val json = adapter.toJson(categories)
+                categoryCacheDao.insertOrUpdate(
+                    CategoryCache(userId = userId, type = "movie", categoriesJson = json, lastUpdated = System.currentTimeMillis())
+                )
+            }
+            categories
+        } catch (e: IOException) {
+            emptyList()
+        }
+    }
+
+    override suspend fun getSeriesCategories(user: String, pass: String, userId: Int): List<Category> {
+        val cached = categoryCacheDao.getCategories(userId, "series")
+        if (cached != null && System.currentTimeMillis() - cached.lastUpdated < categoryCacheExpiry) {
+            Log.d("VodRepository", "Cargando categorías de Series desde la caché.")
+            return try {
+                val type = Types.newParameterizedType(List::class.java, Category::class.java)
+                val adapter = moshi.adapter<List<Category>>(type)
+                adapter.fromJson(cached.categoriesJson) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+        Log.d("VodRepository", "Cargando categorías de Series desde la red.")
+        return try {
+            val response = xtreamApiService.getSeriesCategories(user = user, pass = pass)
+            val categories = response.body() ?: emptyList()
+            if (categories.isNotEmpty()) {
+                val type = Types.newParameterizedType(List::class.java, Category::class.java)
+                val adapter = moshi.adapter<List<Category>>(type)
+                val json = adapter.toJson(categories)
+                categoryCacheDao.insertOrUpdate(
+                    CategoryCache(userId = userId, type = "series", categoriesJson = json, lastUpdated = System.currentTimeMillis())
+                )
+            }
+            categories
+        } catch (e: IOException) {
+            emptyList()
+        }
+    }
 
     fun getAllMovies(userId: Int): Flow<List<Movie>> = movieDao.getAllMovies(userId)
 
     suspend fun cacheMovies(user: String, pass: String, userId: Int): Int {
-        val movieCategories = getMovieCategories(user, pass)
+        val movieCategories = getMovieCategories(user, pass, userId)
         var downloadedMoviesCount = 0
         Log.d("VodRepository", "Iniciando descarga de películas para ${movieCategories.size} categorías.")
 
@@ -40,7 +118,6 @@ class VodRepository(
                     movies.forEach { it.userId = userId }
                     downloadedMoviesCount += movies.size
                     movieDao.cacheMovies(movies, userId)
-                    Log.d("VodRepository", "Categoría '${category.categoryName}': ${movies.size} películas cacheadas.")
                 }
             } catch (e: Exception) {
                 Log.e("VodRepository", "Error al descargar películas de la categoría ${category.categoryId}", e)
@@ -53,7 +130,7 @@ class VodRepository(
     fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
 
     suspend fun cacheSeries(user: String, pass: String, userId: Int) {
-        val seriesCategories = getSeriesCategories(user, pass)
+        val seriesCategories = getSeriesCategories(user, pass, userId)
         val allSeriesForUser = mutableListOf<Series>()
         Log.d("VodRepository", "Iniciando descarga de series para ${seriesCategories.size} categorías.")
 
@@ -80,15 +157,12 @@ class VodRepository(
     fun getSeriesDetails(user: String, pass: String, seriesId: Int, userId: Int): Flow<SeriesInfoResponse?> = flow {
         val cachedEpisodes = episodeDao.getEpisodesForSeries(seriesId, userId).first()
         if (cachedEpisodes.isNotEmpty()) {
-            Log.d("VodRepository", "Detalles de la serie $seriesId encontrados en caché.")
             val seriesInfoFromDb = seriesDao.getAllSeries(userId).first().find { it.seriesId == seriesId }
             if (seriesInfoFromDb != null) {
                 val seasons = cachedEpisodes.map { it.season }.distinct().sorted()
                     .map { com.kybers.play.data.remote.model.Season(it, "Temporada $it") }
                 val episodesBySeason = cachedEpisodes.groupBy { it.season.toString() }
 
-                // --- ¡CORRECCIÓN! ---
-                // Creamos un objeto SeriesInfo a partir del Series que tenemos en la base de datos.
                 val seriesInfoForResponse = SeriesInfo(
                     name = seriesInfoFromDb.name,
                     cover = seriesInfoFromDb.cover,
@@ -110,13 +184,12 @@ class VodRepository(
             }
         }
 
-        Log.d("VodRepository", "No hay caché para la serie $seriesId. Solicitando a la red.")
         try {
             val response = xtreamApiService.getSeriesInfo(user, pass, seriesId = seriesId)
             if (response.isSuccessful) {
                 val seriesInfoResponse = response.body()
-                seriesInfoResponse?.let {
-                    val processedEpisodes = it.episodes.values.flatten().map { episode ->
+                seriesInfoResponse?.let { originalResponse ->
+                    val processedEpisodes = originalResponse.episodes.values.flatten().map { episode ->
                         episode.apply {
                             this.seriesId = seriesId
                             this.userId = userId
@@ -128,14 +201,14 @@ class VodRepository(
                         }
                     }
                     episodeDao.replaceAll(processedEpisodes, seriesId, userId)
-                    emit(it)
+                    val processedEpisodesBySeason = processedEpisodes.groupBy { it.season.toString() }
+                    val newResponse = originalResponse.copy(episodes = processedEpisodesBySeason)
+                    emit(newResponse)
                 }
             } else {
-                Log.e("VodRepository", "Error en la API al obtener detalles de la serie $seriesId: ${response.code()}")
                 emit(null)
             }
         } catch (e: Exception) {
-            Log.e("VodRepository", "Excepción al obtener detalles de la serie $seriesId", e)
             emit(null)
         }
     }

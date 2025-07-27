@@ -20,9 +20,6 @@ import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.sync.SyncViewModel
 
-/**
- * Fábrica para el LoginViewModel.
- */
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
@@ -33,10 +30,6 @@ class LoginViewModelFactory(private val userRepository: UserRepository) : ViewMo
     }
 }
 
-/**
- * --- ¡FÁBRICA ACTUALIZADA! ---
- * Fábrica para los ViewModels de contenido principal (Home, Canales, Películas, Series).
- */
 class ContentViewModelFactory(
     private val application: Application,
     private val vodRepository: VodRepository,
@@ -66,9 +59,6 @@ class ContentViewModelFactory(
     }
 }
 
-/**
- * Fábrica dedicada para crear el MovieDetailsViewModel.
- */
 class MovieDetailsViewModelFactory(
     private val application: Application,
     private val vodRepository: VodRepository,
@@ -94,16 +84,15 @@ class MovieDetailsViewModelFactory(
 }
 
 /**
- * --- ¡FÁBRICA CORREGIDA! ---
- * Fábrica dedicada exclusivamente a crear el SeriesDetailsViewModel.
- * Ahora acepta `application` y `preferenceManager` para pasárselos al ViewModel.
+ * --- ¡FÁBRICA ACTUALIZADA! ---
+ * Ahora sabe cómo construir el nuevo SeriesDetailsViewModel con todas sus dependencias.
  */
 class SeriesDetailsViewModelFactory(
-    // --- ¡NUEVOS PARÁMETROS! ---
     private val application: Application,
     private val preferenceManager: PreferenceManager,
-    // ---
     private val vodRepository: VodRepository,
+    // --- ¡NUEVA DEPENDENCIA! ---
+    private val detailsRepository: DetailsRepository,
     private val currentUser: User,
     private val seriesId: Int
 ) : ViewModelProvider.Factory {
@@ -111,11 +100,11 @@ class SeriesDetailsViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SeriesDetailsViewModel::class.java)) {
             return SeriesDetailsViewModel(
-                // --- ¡SE PASAN LOS NUEVOS PARÁMETROS! ---
                 application = application,
                 preferenceManager = preferenceManager,
-                // ---
                 vodRepository = vodRepository,
+                // --- ¡SE PASA LA NUEVA DEPENDENCIA! ---
+                detailsRepository = detailsRepository,
                 currentUser = currentUser,
                 seriesId = seriesId
             ) as T
@@ -125,9 +114,6 @@ class SeriesDetailsViewModelFactory(
 }
 
 
-/**
- * Fábrica para el SyncViewModel.
- */
 class SyncViewModelFactory(
     private val liveRepository: LiveRepository,
     private val vodRepository: VodRepository,
@@ -143,10 +129,6 @@ class SyncViewModelFactory(
     }
 }
 
-
-/**
- * Fábrica para el PlayerViewModel.
- */
 class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {

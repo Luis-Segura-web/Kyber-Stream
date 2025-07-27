@@ -1,6 +1,7 @@
 package com.kybers.play.data.remote
 
 import com.kybers.play.data.remote.model.OMDbMovieDetail
+import com.kybers.play.data.remote.model.TMDbEpisodeDetails
 import com.kybers.play.data.remote.model.TMDbMovieDetails
 import com.kybers.play.data.remote.model.TMDbPerson
 import com.kybers.play.data.remote.model.TMDbPersonMovieCredits
@@ -22,15 +23,25 @@ interface ExternalApiService {
         @Query("language") language: String = "es-ES"
     ): Response<TMDbMovieDetails>
 
-    // --- ¡NUEVO ENDPOINT AÑADIDO! ---
-    // Para obtener los detalles de una serie de TV, incluyendo su clasificación por edades.
+    // --- ¡ENDPOINT ACTUALIZADO! ---
+    // Ahora también pide 'credits' (reparto) y 'recommendations' (series similares).
     @GET("tv/{tv_id}")
     suspend fun getTvDetailsTMDb(
         @Path("tv_id") tvId: Int,
         @Query("api_key") apiKey: String,
         @Query("language") language: String = "es-ES",
-        @Query("append_to_response") appendToResponse: String = "content_ratings"
+        @Query("append_to_response") appendToResponse: String = "content_ratings,credits,recommendations"
     ): Response<TMDbTvDetails>
+
+    // --- ¡NUEVO ENDPOINT PARA DETALLES DE EPISODIOS! ---
+    @GET("tv/{tv_id}/season/{season_number}/episode/{episode_number}")
+    suspend fun getEpisodeDetailsTMDb(
+        @Path("tv_id") tvId: Int,
+        @Path("season_number") seasonNumber: Int,
+        @Path("episode_number") episodeNumber: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-ES"
+    ): Response<TMDbEpisodeDetails>
 
     @GET("person/{person_id}")
     suspend fun getPersonDetails(

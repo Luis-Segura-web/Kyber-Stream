@@ -197,8 +197,29 @@ fun ChannelsScreen(
                                 Icon(imageVector = Icons.Filled.LiveTv, contentDescription = "TV en Vivo", tint = Color.White, modifier = Modifier.size(28.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
-                                    Text(text = "TV en Vivo", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text(text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                                    Text(
+                                        text = "TV en Vivo (${uiState.totalChannelCount})",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
+                                    // Guardamos el mensaje en una variable local para asegurar que no sea nulo.
+                                    val epgMessage = uiState.epgUpdateMessage
+                                    if (epgMessage != null) {
+                                        Text(
+                                            text = epgMessage,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.9f)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Últ. act.: ${viewModel.formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                    }
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
@@ -385,7 +406,6 @@ private fun ChannelListSection(
                 } else {
                     items(
                         items = favoriteChannels,
-                        // --- ¡CLAVE ÚNICA PARA FAVORITOS! ---
                         key = { channel -> "fav-${channel.num}-${channel.categoryId}-${channel.streamId}" }
                     ) { channel ->
                         ChannelListItem(
@@ -411,7 +431,6 @@ private fun ChannelListSection(
                 if (expandableCategory.isExpanded) {
                     items(
                         items = expandableCategory.channels,
-                        // --- ¡CLAVE ÚNICA PARA CANALES NORMALES! ---
                         key = { channel -> "channel-${channel.num}-${channel.categoryId}-${channel.streamId}" }
                     ) { channel ->
                         ChannelListItem(

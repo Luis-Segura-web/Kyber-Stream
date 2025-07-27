@@ -85,8 +85,9 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
 }
 
 /**
+ * --- ¡CONTENEDOR ACTUALIZADO! ---
  * Contenedor de dependencias para la aplicación.
- * Gestiona la creación y provisión de instancias de repositorios y otros servicios.
+ * Ahora proporciona todos los DAOs de caché necesarios al DetailsRepository.
  */
 class AppContainer(context: Context) {
 
@@ -100,7 +101,11 @@ class AppContainer(context: Context) {
     val detailsRepository by lazy {
         DetailsRepository(
             tmdbApiService = tmdbApiService,
-            movieDetailsCacheDao = database.movieDetailsCacheDao()
+            movieDetailsCacheDao = database.movieDetailsCacheDao(),
+            seriesDetailsCacheDao = database.seriesDetailsCacheDao(),
+            // --- ¡DEPENDENCIAS DE CACHÉ AÑADIDAS! ---
+            actorDetailsCacheDao = database.actorDetailsCacheDao(),
+            episodeDetailsCacheDao = database.episodeDetailsCacheDao()
         )
     }
 
@@ -109,25 +114,19 @@ class AppContainer(context: Context) {
         return LiveRepository(
             xtreamApiService = xtreamApiService,
             liveStreamDao = database.liveStreamDao(),
-            epgEventDao = database.epgEventDao()
+            epgEventDao = database.epgEventDao(),
+            categoryCacheDao = database.categoryCacheDao() // Añadido para caché de categorías
         )
     }
 
-    /**
-     * FÁBRICA para crear un VodRepository.
-     *
-     * @param baseUrl La URL del servidor del usuario.
-     * @return Una nueva instancia de [VodRepository].
-     */
     fun createVodRepository(baseUrl: String): VodRepository {
         val xtreamApiService = RetrofitClient.create(baseUrl)
         return VodRepository(
             xtreamApiService = xtreamApiService,
             movieDao = database.movieDao(),
             seriesDao = database.seriesDao(),
-            // --- ¡CORRECCIÓN! ---
-            // Añadimos el episodeDao que faltaba al constructor.
-            episodeDao = database.episodeDao()
+            episodeDao = database.episodeDao(),
+            categoryCacheDao = database.categoryCacheDao() // Añadido para caché de categorías
         )
     }
 }

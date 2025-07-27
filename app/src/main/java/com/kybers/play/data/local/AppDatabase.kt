@@ -5,8 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.kybers.play.data.local.model.ActorDetailsCache
+import com.kybers.play.data.local.model.CategoryCache
+import com.kybers.play.data.local.model.EpisodeDetailsCache
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.local.model.MovieDetailsCache
+import com.kybers.play.data.local.model.SeriesDetailsCache
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
@@ -21,10 +25,15 @@ import com.kybers.play.data.remote.model.Episode
         LiveStream::class,
         EpgEvent::class,
         MovieDetailsCache::class,
-        Episode::class // --- ¡NUEVA ENTIDAD AÑADIDA! ---
+        Episode::class,
+        SeriesDetailsCache::class,
+        // --- ¡NUEVAS ENTIDADES AÑADIDAS! ---
+        ActorDetailsCache::class,
+        EpisodeDetailsCache::class,
+        CategoryCache::class
     ],
-    // --- ¡VERSIÓN INCREMENTADA A 2! ---
-    version = 2,
+    // --- ¡VERSIÓN INCREMENTADA A 4! ---
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -36,7 +45,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun liveStreamDao(): LiveStreamDao
     abstract fun epgEventDao(): EpgEventDao
     abstract fun movieDetailsCacheDao(): MovieDetailsCacheDao
-    abstract fun episodeDao(): EpisodeDao // --- ¡NUEVO DAO AÑADIDO! ---
+    abstract fun episodeDao(): EpisodeDao
+    abstract fun seriesDetailsCacheDao(): SeriesDetailsCacheDao
+
+    // --- ¡NUEVOS DAOs AÑADIDOS! ---
+    abstract fun actorDetailsCacheDao(): ActorDetailsCacheDao
+    abstract fun episodeDetailsCacheDao(): EpisodeDetailsCacheDao
+    abstract fun categoryCacheDao(): CategoryCacheDao
 
     companion object {
         @Volatile
@@ -49,10 +64,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // --- ¡CORRECCIÓN! ---
-                    // Se reemplaza la llamada obsoleta por la nueva, siendo explícitos
-                    // en que queremos que todas las tablas se eliminen en la migración.
-                    .fallbackToDestructiveMigration(true)
+                    // Esta opción destruirá y reconstruirá la base de datos si cambiamos la versión.
+                    // Es útil durante el desarrollo, pero para una app en producción se usaría una migración real.
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

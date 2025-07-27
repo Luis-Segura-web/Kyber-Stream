@@ -3,12 +3,10 @@ package com.kybers.play.ui.movies
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -22,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.R
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.SearchBar
@@ -176,8 +174,6 @@ fun MoviesScreen(
                             val movieRows = expandableCategory.movies.chunked(3)
                             items(
                                 items = movieRows,
-                                // --- ¡NUEVA CLAVE MEJORADA! ---
-                                // Formato: movie-{num}-{categoryId}-{streamId}
                                 key = { row ->
                                     row.joinToString("-") { "movie-${it.num}-${it.categoryId}-${it.streamId}" }
                                 }
@@ -243,11 +239,15 @@ fun MoviePosterItem(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
+            // --- ¡CAMBIO CLAVE! Usamos la nueva lógica para la imagen ---
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(viewModel.getBestPosterUrl(movie))
+                    // 1. Llama a la función inteligente del ViewModel.
+                    .data(viewModel.getFinalPosterUrl(movie))
                     .crossfade(true)
-                    .error(android.R.drawable.stat_notify_error)
+                    // 2. Si todo falla, muestra una imagen genérica.
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
                     .build(),
                 contentDescription = movie.name,
                 contentScale = ContentScale.Crop,

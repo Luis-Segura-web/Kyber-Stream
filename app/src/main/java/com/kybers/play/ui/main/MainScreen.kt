@@ -51,7 +51,6 @@ import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesScreen
 import com.kybers.play.ui.series.SeriesViewModel
 
-// Definición de las rutas de navegación
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
@@ -65,7 +64,6 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     }
 }
 
-// Lista de items para la barra de navegación inferior
 private val items = listOf(
     Screen.Home,
     Screen.Channels,
@@ -191,15 +189,21 @@ fun MainScreen(
                         application = application,
                         preferenceManager = preferenceManager,
                         vodRepository = vodRepository,
+                        detailsRepository = detailsRepository,
                         currentUser = currentUser,
                         seriesId = seriesId
                     )
                 )
-                // --- ¡CORRECCIÓN FINAL! ---
-                // Se elimina el parámetro 'onPlayEpisode' que ya no existe.
+                // --- ¡LLAMADA CORREGIDA! ---
                 SeriesDetailsScreen(
                     viewModel = detailsViewModel,
-                    onNavigateUp = { navController.popBackStack() }
+                    onNavigateUp = { navController.popBackStack() },
+                    onNavigateToSeries = { newSeriesId ->
+                        // Lógica para navegar a otra serie desde las recomendaciones
+                        navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
+                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
+                        }
+                    }
                 )
             }
         }

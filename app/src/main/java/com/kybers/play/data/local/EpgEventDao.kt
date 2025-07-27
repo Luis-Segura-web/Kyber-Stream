@@ -43,4 +43,13 @@ interface EpgEventDao {
     @Query("SELECT COUNT(apiEventId) FROM epg_events WHERE userId = :userId")
     suspend fun getAllEventsCountForUser(userId: Int): Int
 
+    /**
+     * --- ¡NUEVA FUNCIÓN! ---
+     * Busca la fecha de finalización (stopTimestamp) más lejana en el futuro.
+     * Esto nos dice hasta cuándo tenemos información en la guía de canales.
+     * @param userId El ID del usuario.
+     * @return El timestamp más alto, o null si no hay eventos.
+     */
+    @Query("SELECT MAX(stopTimestamp) FROM epg_events WHERE userId = :userId")
+    suspend fun getLatestStopTimestamp(userId: Int): Long?
 }

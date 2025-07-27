@@ -43,17 +43,10 @@ data class MoviesUiState(
     val categorySortOrder: SortOrder = SortOrder.DEFAULT,
     val movieSortOrder: SortOrder = SortOrder.DEFAULT,
     val showSortMenu: Boolean = false,
-    val favoriteMovieIds: Set<String> = emptySet()
+    val favoriteMovieIds: Set<String> = emptySet(),
+    val enrichedPosters: Map<Int, String?> = emptyMap()
 )
 
-/**
- * --- ¡VIEWMODEL ACTUALIZADO! ---
- * ViewModel para la pantalla de Películas.
- * Ahora depende de [VodRepository] y [DetailsRepository].
- *
- * @property vodRepository Repositorio para obtener listas de películas y categorías.
- * @property detailsRepository Repositorio para obtener detalles cacheados (como pósters).
- */
 class MoviesViewModel(
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
@@ -93,9 +86,9 @@ class MoviesViewModel(
             _uiState.update { it.copy(isLoading = true) }
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
-            // Obtenemos los datos de los repositorios correspondientes.
             val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
-            val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password) }
+            // --- ¡CORRECCIÓN! Pasamos el currentUser.id a la llamada ---
+            val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
             val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
 
             awaitAll(moviesJob, categoriesJob, cacheJob)
@@ -111,20 +104,45 @@ class MoviesViewModel(
         }
     }
 
-    fun getBestPosterUrl(movie: Movie): String? {
+    fun getFinalPosterUrl(movie: Movie): String? {
+        if (_uiState.value.enrichedPosters.containsKey(movie.streamId)) {
+            return _uiState.value.enrichedPosters[movie.streamId]
+        }
         val cachedPoster = cachedDetailsMap[movie.streamId]?.posterUrl
-        return if (!cachedPoster.isNullOrBlank()) cachedPoster else movie.streamIcon
+        if (!cachedPoster.isNullOrBlank()) {
+            return cachedPoster
+        }
+        return movie.streamIcon
+    }
+
+    private fun enrichMoviePosters(movies: List<Movie>) {
+        viewModelScope.launch {
+            val moviesToEnrich = movies.filter { movie ->
+                val finalUrl = getFinalPosterUrl(movie)
+                finalUrl.isNullOrBlank() && movie.tmdbId != null
+            }
+
+            if (moviesToEnrich.isEmpty()) return@launch
+
+            val newPosters = mutableMapOf<Int, String?>()
+            moviesToEnrich.forEach { movie ->
+                val details = detailsRepository.getMovieDetails(movie)
+                newPosters[movie.streamId] = details.details?.posterUrl
+            }
+
+            _uiState.update {
+                it.copy(enrichedPosters = it.enrichedPosters + newPosters)
+            }
+        }
     }
 
     fun refreshMoviesManually() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                // Llama al método de cacheo en el VodRepository.
                 vodRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
                 syncManager.saveLastSyncTimestamp(currentUser.id)
 
-                // Refresca los datos locales después de la sincronización.
                 val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
                 val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
                 awaitAll(moviesJob, cacheJob)
@@ -169,7 +187,12 @@ class MoviesViewModel(
             }
             expansionState[categoryId] = isNowExpanding
             updateUiWithFilteredData()
-            if (isNowExpanding) _scrollToItemEvent.emit(categoryId)
+
+            if (isNowExpanding) {
+                _scrollToItemEvent.emit(categoryId)
+                val category = _uiState.value.categories.find { it.category.categoryId == categoryId }
+                category?.let { enrichMoviePosters(it.movies) }
+            }
         }
     }
 
