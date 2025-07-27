@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
                                     application = application,
                                     vodRepository = vodRepository,
                                     detailsRepository = appContainer.detailsRepository,
+                                    externalApiService = appContainer.tmdbApiService,
                                     preferenceManager = appContainer.preferenceManager,
                                     currentUser = user!!,
                                     movieId = movieId
@@ -90,11 +91,13 @@ class MainActivity : ComponentActivity() {
 
                         val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
                             remember(seriesId) {
+                                // --- ¡CORRECCIÓN! Se añade el externalApiService que faltaba ---
                                 SeriesDetailsViewModelFactory(
                                     application = application,
                                     preferenceManager = appContainer.preferenceManager,
                                     vodRepository = vodRepository,
                                     detailsRepository = appContainer.detailsRepository,
+                                    externalApiService = appContainer.tmdbApiService,
                                     currentUser = user!!,
                                     seriesId = seriesId
                                 )

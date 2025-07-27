@@ -15,6 +15,7 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,22 +27,18 @@ sealed class HomeContentItem {
     data class MovieItem(val movie: Movie) : HomeContentItem()
     data class SeriesItem(val series: Series) : HomeContentItem()
     data class LiveChannelItem(val channel: LiveStream) : HomeContentItem()
-    data class ContinueWatchingItem(
-        val item: Any,
-        val progress: Float,
-        val streamId: Int
-    ) : HomeContentItem()
 }
+
+data class HomeCarousel(
+    val title: String,
+    val items: List<HomeContentItem>
+)
 
 data class HomeUiState(
     val isLoading: Boolean = true,
     val userName: String = "",
     val bannerContent: List<Pair<Movie, String?>> = emptyList(),
-    val continueWatchingItems: List<HomeContentItem.ContinueWatchingItem> = emptyList(),
-    val liveNowItems: List<HomeContentItem.LiveChannelItem> = emptyList(),
-    val recentlyAddedMovies: List<HomeContentItem.MovieItem> = emptyList(),
-    val recentlyAddedSeries: List<HomeContentItem.SeriesItem> = emptyList(),
-    val favoriteItems: List<HomeContentItem> = emptyList()
+    val carousels: List<HomeCarousel> = emptyList()
 )
 
 class HomeViewModel(
@@ -65,33 +62,54 @@ class HomeViewModel(
             _uiState.update { it.copy(isLoading = true, userName = currentUser.profileName) }
 
             try {
-                val bannerJob = async { loadBannerContent() }
-                val continueWatchingJob = async { loadContinueWatching() }
-                val liveNowJob = async { loadLiveNow() }
-                val recentMoviesJob = async { loadRecentlyAddedMovies() }
-                val recentSeriesJob = async { loadRecentlyAddedSeries() }
-                val favoritesJob = async { loadFavorites() }
+                // --- ADVERTENCIA CORREGIDA: Usamos coroutineScope para seguridad ---
+                coroutineScope {
+                    val bannerJob = async { loadBannerContent() }
+                    val carouselsJob = async { loadCarousels() }
 
-                val results = awaitAll(
-                    bannerJob, continueWatchingJob, liveNowJob, recentMoviesJob, recentSeriesJob, favoritesJob
-                )
+                    val bannerContent = bannerJob.await()
+                    val carousels = carouselsJob.await()
 
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        bannerContent = results[0] as List<Pair<Movie, String?>>,
-                        continueWatchingItems = results[1] as List<HomeContentItem.ContinueWatchingItem>,
-                        liveNowItems = results[2] as List<HomeContentItem.LiveChannelItem>,
-                        recentlyAddedMovies = results[3] as List<HomeContentItem.MovieItem>,
-                        recentlyAddedSeries = results[4] as List<HomeContentItem.SeriesItem>,
-                        favoriteItems = results[5] as List<HomeContentItem>
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            bannerContent = bannerContent,
+                            carousels = carousels
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("HomeViewModel", "Error al cargar el contenido de la pantalla de inicio", e)
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
+    }
+
+    private suspend fun loadCarousels(): List<HomeCarousel> = coroutineScope {
+        val carousels = mutableListOf<HomeCarousel>()
+
+        val continueMoviesJob = async { loadContinueMovies() }
+        val liveNowJob = async { loadLiveNow() }
+        val recentMoviesJob = async { loadRecentlyAddedMovies() }
+        val recentSeriesJob = async { loadRecentlyAddedSeries() }
+        val favMoviesJob = async { loadFavoriteMovies() }
+        val favSeriesJob = async { loadFavoriteSeries() }
+
+        val continueMovies = continueMoviesJob.await()
+        val liveNow = liveNowJob.await()
+        val recentMovies = recentMoviesJob.await()
+        val recentSeries = recentSeriesJob.await()
+        val favMovies = favMoviesJob.await()
+        val favSeries = favSeriesJob.await()
+
+        if (continueMovies.isNotEmpty()) carousels.add(HomeCarousel("Continuar Viendo Películas", continueMovies))
+        if (liveNow.isNotEmpty()) carousels.add(HomeCarousel("En Directo Ahora", liveNow))
+        if (recentMovies.isNotEmpty()) carousels.add(HomeCarousel("Películas Recientes", recentMovies))
+        if (recentSeries.isNotEmpty()) carousels.add(HomeCarousel("Series Recientes", recentSeries))
+        if (favMovies.isNotEmpty()) carousels.add(HomeCarousel("Mis Películas Favoritas", favMovies))
+        if (favSeries.isNotEmpty()) carousels.add(HomeCarousel("Mis Series Favoritas", favSeries))
+
+        return@coroutineScope carousels
     }
 
     private suspend fun loadBannerContent(): List<Pair<Movie, String?>> {
@@ -121,19 +139,16 @@ class HomeViewModel(
         return emptyList()
     }
 
-    private suspend fun loadContinueWatching(): List<HomeContentItem.ContinueWatchingItem> {
+    private suspend fun loadContinueMovies(): List<HomeContentItem.MovieItem> {
         val moviePositions = preferenceManager.getAllPlaybackPositions()
-        val resumeMovies = if (moviePositions.isNotEmpty()) {
+        return if (moviePositions.isNotEmpty()) {
             val allMovies = vodRepository.getAllMovies(currentUser.id).first()
-            moviePositions.mapNotNull { (id, position) ->
-                val movie = allMovies.find { it.streamId.toString() == id }
-                if (movie != null && position > 10000) {
-                    HomeContentItem.ContinueWatchingItem(movie, 0.5f, movie.streamId)
-                } else null
-            }
+            moviePositions
+                .filter { (_, position) -> position > 10000 }
+                .mapNotNull { (id, _) -> allMovies.find { it.streamId.toString() == id } }
+                .map { HomeContentItem.MovieItem(it) }
+                .take(10)
         } else emptyList()
-
-        return resumeMovies.take(10)
     }
 
     private suspend fun loadLiveNow(): List<HomeContentItem.LiveChannelItem> {
@@ -164,22 +179,21 @@ class HomeViewModel(
             .map { HomeContentItem.SeriesItem(it) }
     }
 
-    private suspend fun loadFavorites(): List<HomeContentItem> {
+    private suspend fun loadFavoriteMovies(): List<HomeContentItem.MovieItem> {
         val favMovieIds = preferenceManager.getFavoriteMovieIds()
-        val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
-
-        val favMovies = if (favMovieIds.isNotEmpty()) {
+        return if (favMovieIds.isNotEmpty()) {
             vodRepository.getAllMovies(currentUser.id).first()
                 .filter { favMovieIds.contains(it.streamId.toString()) }
                 .map { HomeContentItem.MovieItem(it) }
         } else emptyList()
+    }
 
-        val favSeries = if (favSeriesIds.isNotEmpty()) {
+    private suspend fun loadFavoriteSeries(): List<HomeContentItem.SeriesItem> {
+        val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
+        return if (favSeriesIds.isNotEmpty()) {
             vodRepository.getAllSeries(currentUser.id).first()
                 .filter { favSeriesIds.contains(it.seriesId.toString()) }
                 .map { HomeContentItem.SeriesItem(it) }
         } else emptyList()
-
-        return (favMovies + favSeries).shuffled().take(10)
     }
 }

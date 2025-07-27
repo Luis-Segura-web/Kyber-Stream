@@ -3,25 +3,25 @@ package com.kybers.play.ui.details
 import android.app.Application
 import android.media.AudioManager
 import android.os.Build
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kybers.play.data.local.model.MovieDetailsCache
+import com.kybers.play.BuildConfig
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.model.MovieWithDetails
 import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.data.repository.ActorFilmography
+import com.kybers.play.data.remote.model.TMDbCollectionDetails
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,22 +36,7 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
-// Los data classes de estado de la UI no necesitan cambios.
-data class EnrichedActorMovie(
-    val movie: Movie,
-    val details: MovieWithDetails
-)
-
-data class UnavailableItemDetails(
-    val title: String?,
-    val posterUrl: String?,
-    val backdropUrl: String?,
-    val releaseYear: String?,
-    val rating: Double?,
-    val certification: String?,
-    val overview: String?
-)
-
+// --- ¡ESTADO DE LA UI ACTUALIZADO! ---
 data class MovieDetailsUiState(
     val isLoadingDetails: Boolean = true,
     val movie: Movie? = null,
@@ -62,9 +47,15 @@ data class MovieDetailsUiState(
     val rating: Double? = null,
     val plot: String? = null,
     val cast: List<TMDbCastMember> = emptyList(),
-    val availableRecommendations: List<Movie> = emptyList(),
     val isFavorite: Boolean = false,
     val playbackPosition: Long = 0L,
+    // Nuevas listas para colecciones, recomendadas y similares
+    val collection: TMDbCollectionDetails? = null,
+    val availableCollectionMovies: List<Movie> = emptyList(),
+    val unavailableCollectionMovies: List<com.kybers.play.data.remote.model.TMDbMovieResult> = emptyList(),
+    val availableRecommendedMovies: List<Movie> = emptyList(),
+    val availableSimilarMovies: List<Movie> = emptyList(),
+    // Estados para los diálogos
     val showActorMoviesDialog: Boolean = false,
     val selectedActorName: String = "",
     val selectedActorBio: String? = null,
@@ -74,6 +65,7 @@ data class MovieDetailsUiState(
     val showUnavailableDetailsDialog: Boolean = false,
     val unavailableItemDetails: UnavailableItemDetails? = null,
     val isUnavailableItemLoading: Boolean = false,
+    // Estados del reproductor
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
@@ -92,14 +84,26 @@ data class MovieDetailsUiState(
     val isInPipMode: Boolean = false
 )
 
-/**
- * --- ¡VIEWMODEL CON GUARDADO SEGURO! ---
- * Ahora guarda el progreso de la película periódicamente.
- */
+data class EnrichedActorMovie(
+    val movie: Movie,
+    val details: MovieWithDetails
+)
+
+data class UnavailableItemDetails(
+    val title: String?,
+    val posterUrl: String?,
+    val backdropUrl: String?,
+    val releaseYear: String?,
+    val rating: Double?,
+    val certification: String?,
+    val overview: String?
+)
+
 class MovieDetailsViewModel(
     application: Application,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
+    private val externalApiService: ExternalApiService, // ¡Nueva dependencia!
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val movieId: Int
@@ -109,14 +113,12 @@ class MovieDetailsViewModel(
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
     private val _navigationEvent = MutableSharedFlow<Int>()
     val navigationEvent: SharedFlow<Int> = _navigationEvent.asSharedFlow()
-    private val libVLC: LibVLC = LibVLC(application)
+    val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
     private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
 
-    private var cachedDetailsMap: Map<Int, MovieDetailsCache> = emptyMap()
-
     private var lastSaveTimeMillis: Long = 0L
-    private val saveIntervalMillis: Long = 15000 // Guardar cada 15 segundos
+    private val saveIntervalMillis: Long = 15000
 
     init {
         loadInitialData()
@@ -127,11 +129,7 @@ class MovieDetailsViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true) }
 
-            val movieJob = async { vodRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId } }
-            val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
-
-            val movie = movieJob.await()
-            cacheJob.await()
+            val movie = vodRepository.getAllMovies(currentUser.id).firstOrNull()?.find { it.streamId == movieId }
 
             if (movie != null) {
                 val favoriteIds = preferenceManager.getFavoriteMovieIds()
@@ -154,28 +152,84 @@ class MovieDetailsViewModel(
     private fun fetchEnrichedDetails(movie: Movie) {
         viewModelScope.launch(Dispatchers.IO) {
             val detailsWrapper = detailsRepository.getMovieDetails(movie)
-            val latinCharsRegex = "^[\\p{L}\\p{M}\\p{N}\\p{P}\\p{Z}\\s]*$".toRegex()
-            val filteredCast = detailsWrapper.getCastList().filter { latinCharsRegex.matches(it.name) }
+            val allLocalMovies = vodRepository.getAllMovies(currentUser.id).first()
+
             _uiState.update {
                 it.copy(
                     isLoadingDetails = false,
-                    title = movie.name,
                     posterUrl = detailsWrapper.details?.posterUrl ?: movie.streamIcon,
                     backdropUrl = detailsWrapper.details?.backdropUrl,
                     releaseYear = detailsWrapper.details?.releaseYear,
                     rating = detailsWrapper.details?.rating,
                     plot = detailsWrapper.details?.plot,
-                    cast = filteredCast
+                    cast = detailsWrapper.getCastList()
                 )
             }
-            launch {
-                val allLocalMovies = vodRepository.getAllMovies(currentUser.id).first()
-                val tmdbRecs = detailsWrapper.getRecommendationList()
-                val availableRecs = allLocalMovies.filter { localMovie ->
-                    tmdbRecs.any { it.id.toString() == localMovie.tmdbId }
+
+            val collectionId = detailsWrapper.getCollectionId()
+            var collectionMovieTmdbIds = emptySet<String>()
+
+            if (collectionId != null) {
+                val collectionDetails = fetchCollection(collectionId)
+                if (collectionDetails != null) {
+                    val localTmdbIds = allLocalMovies.mapNotNull { it.tmdbId }.toSet()
+
+                    val sortedParts = collectionDetails.parts.sortedBy { it.releaseDate }
+                    val (available, unavailable) = sortedParts.partition {
+                        localTmdbIds.contains(it.id.toString())
+                    }
+
+                    val availableMovies = available
+                        .mapNotNull { tmdbMovie -> allLocalMovies.find { it.tmdbId == tmdbMovie.id.toString() } }
+
+                    collectionMovieTmdbIds = availableMovies.mapNotNull { it.tmdbId }.toSet()
+
+                    _uiState.update {
+                        it.copy(
+                            collection = collectionDetails,
+                            availableCollectionMovies = availableMovies,
+                            unavailableCollectionMovies = unavailable
+                        )
+                    }
                 }
-                _uiState.update { it.copy(availableRecommendations = availableRecs.distinctBy { it.streamId }) }
             }
+
+            processRecommendationsAndSimilar(detailsWrapper, allLocalMovies, collectionMovieTmdbIds)
+        }
+    }
+
+    private suspend fun fetchCollection(collectionId: Int): TMDbCollectionDetails? {
+        return try {
+            val response = externalApiService.getCollectionDetails(collectionId, BuildConfig.TMDB_API_KEY)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("MovieDetailsVM", "Error al buscar detalles de la colección", e)
+            null
+        }
+    }
+
+    private fun processRecommendationsAndSimilar(
+        detailsWrapper: MovieWithDetails,
+        allLocalMovies: List<Movie>,
+        excludeIds: Set<String>
+    ) {
+        val localTmdbIds = allLocalMovies.mapNotNull { it.tmdbId }.toSet()
+
+        val recommended = detailsWrapper.getRecommendationList()
+            .filter { !excludeIds.contains(it.id.toString()) && localTmdbIds.contains(it.id.toString()) }
+            .mapNotNull { tmdbMovie -> allLocalMovies.find { it.tmdbId == tmdbMovie.id.toString() } }
+            .distinctBy { it.streamId }
+
+        val similar = detailsWrapper.getSimilarList()
+            .filter { !excludeIds.contains(it.id.toString()) && localTmdbIds.contains(it.id.toString()) }
+            .mapNotNull { tmdbMovie -> allLocalMovies.find { it.tmdbId == tmdbMovie.id.toString() } }
+            .distinctBy { it.streamId }
+
+        _uiState.update {
+            it.copy(
+                availableRecommendedMovies = recommended,
+                availableSimilarMovies = similar
+            )
         }
     }
 
@@ -196,8 +250,7 @@ class MovieDetailsViewModel(
             val availableLocalMovies = allMovies.filter { availableTmdbIds.contains(it.tmdbId?.toIntOrNull()) }
 
             val enrichedMovies = availableLocalMovies.map { movie ->
-                val details = cachedDetailsMap[movie.streamId]
-                EnrichedActorMovie(movie, MovieWithDetails(movie, details))
+                EnrichedActorMovie(movie, detailsRepository.getMovieDetails(movie))
             }
 
             _uiState.update {
@@ -256,7 +309,6 @@ class MovieDetailsViewModel(
         }
     }
 
-
     fun onDismissActorMoviesDialog() {
         _uiState.update {
             it.copy(
@@ -269,7 +321,6 @@ class MovieDetailsViewModel(
         }
     }
 
-
     fun onDismissUnavailableDetailsDialog() {
         _uiState.update {
             it.copy(
@@ -278,7 +329,6 @@ class MovieDetailsViewModel(
             )
         }
     }
-
 
     fun onRecommendationSelected(movie: Movie) {
         viewModelScope.launch { _navigationEvent.emit(movie.streamId) }
@@ -355,7 +405,6 @@ class MovieDetailsViewModel(
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
 
-    // --- ¡FUNCIÓN AÑADIDA! ---
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
         _uiState.update {
             it.copy(

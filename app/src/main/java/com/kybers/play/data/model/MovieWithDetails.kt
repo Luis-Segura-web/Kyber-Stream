@@ -9,23 +9,17 @@ import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 /**
- * Una clase de datos que une la información original de la Película
- * con sus detalles enriquecidos y cacheados.
- * ¡AHORA CON FUNCIONES AUXILIARES INTELIGENTES!
+ * --- ¡CLASE ACTUALIZADA! ---
+ * Ahora tiene funciones de ayuda para acceder a toda la nueva información de la caché.
  */
 data class MovieWithDetails(
     val movie: Movie,
     val details: MovieDetailsCache?
 ) {
-    // ¡CAMBIO CLAVE! Usamos Moshi para una gestión de JSON unificada.
     private val moshi: Moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
 
-    /**
-     * ¡NUEVO Y CORREGIDO! Convierte el string JSON del reparto en una lista de objetos TMDbCastMember usando Moshi.
-     * Si no hay datos, devuelve una lista vacía.
-     */
     fun getCastList(): List<TMDbCastMember> {
         if (details?.castJson.isNullOrBlank()) return emptyList()
         return try {
@@ -37,10 +31,6 @@ data class MovieWithDetails(
         }
     }
 
-    /**
-     * ¡NUEVO Y CORREGIDO! Convierte el string JSON de recomendaciones en una lista de objetos TMDbMovieResult usando Moshi.
-     * Si no hay datos, devuelve una lista vacía.
-     */
     fun getRecommendationList(): List<TMDbMovieResult> {
         if (details?.recommendationsJson.isNullOrBlank()) return emptyList()
         return try {
@@ -50,5 +40,20 @@ data class MovieWithDetails(
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    fun getSimilarList(): List<TMDbMovieResult> {
+        if (details?.similarJson.isNullOrBlank()) return emptyList()
+        return try {
+            val type = Types.newParameterizedType(List::class.java, TMDbMovieResult::class.java)
+            val adapter = moshi.adapter<List<TMDbMovieResult>>(type)
+            adapter.fromJson(details.similarJson!!) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getCollectionId(): Int? {
+        return details?.collectionId
     }
 }

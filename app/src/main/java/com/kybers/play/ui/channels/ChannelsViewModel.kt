@@ -141,7 +141,7 @@ open class ChannelsViewModel(
             )
         }
         loadInitialChannelsAndPreloadEpg()
-        startEpgUpdater() // --- ¡NUEVO! Iniciamos el actualizador en tiempo real ---
+        startEpgUpdater()
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
@@ -150,24 +150,17 @@ open class ChannelsViewModel(
         }
     }
 
-    /**
-     * --- ¡NUEVA FUNCIÓN! ---
-     * Inicia un temporizador que actualiza la información de la EPG para las
-     * categorías visibles cada 30 segundos.
-     */
     private fun startEpgUpdater() {
         viewModelScope.launch {
             while (isActive) {
-                delay(30_000L) // Espera 30 segundos
+                delay(30_000L)
 
                 val currentState = _uiState.value
-                // No hacemos nada si la app está cargando o no hay ninguna categoría expandida
                 if (currentState.isLoading || (!currentState.isFavoritesCategoryExpanded && currentState.categories.none { it.isExpanded })) {
                     continue
                 }
 
                 var changed = false
-                // Actualizamos las categorías normales
                 val newCategories = currentState.categories.map { category ->
                     if (category.isExpanded && category.epgLoaded) {
                         val newEnrichedChannels = liveRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
@@ -178,7 +171,6 @@ open class ChannelsViewModel(
                     }
                 }
 
-                // Si hubo cambios, actualizamos el estado para que la UI se redibuje
                 if (changed) {
                     _uiState.update { it.copy(categories = newCategories) }
                 }
@@ -216,6 +208,8 @@ open class ChannelsViewModel(
                 vlcOptions.forEach { addOption(it) }
             }
 
+            // --- ¡CORRECCIÓN! Liberamos el recurso anterior antes de asignar el nuevo ---
+            mediaPlayer.media?.release()
             mediaPlayer.media = media
             mediaPlayer.play()
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
@@ -296,6 +290,8 @@ open class ChannelsViewModel(
         super.onCleared()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
+        // --- ¡CORRECCIÓN! Nos aseguramos de liberar el media object ---
+        mediaPlayer.media?.release()
         mediaPlayer.release()
         libVLC.release()
     }
@@ -336,6 +332,9 @@ open class ChannelsViewModel(
         if (mediaPlayer.isPlaying) {
             mediaPlayer.stop()
         }
+        // --- ¡CORRECCIÓN! Liberamos el media object al ocultar el reproductor ---
+        mediaPlayer.media?.release()
+        mediaPlayer.media = null
 
         _uiState.update {
             it.copy(

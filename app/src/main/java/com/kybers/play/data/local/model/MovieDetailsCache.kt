@@ -4,20 +4,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * ¡MODELO ACTUALIZADO!
- * Representa la tabla de caché para los detalles de películas.
- *
- * @param streamId El ID de la película de nuestro proveedor. Es la clave primaria.
- * @param tmdbId El ID único de la película en la base de datos de TMDb.
- * @param plot La sinopsis de la película.
- * @param posterUrl La URL del póster de la película.
- * @param backdropUrl La URL de la imagen de fondo (backdrop).
- * @param releaseYear El año de lanzamiento.
- * @param rating La calificación de la película (sobre 10).
- * @param certification La clasificación por edades (ej. "PG-13", "R").
- * @param castJson La lista del reparto principal, guardada como un string en formato JSON.
- * @param recommendationsJson La lista de películas recomendadas, en formato JSON.
- * @param lastUpdated Timestamp de la última actualización para controlar la caducidad del caché.
+ * --- ¡MODELO DE CACHÉ ACTUALIZADO! ---
+ * Ahora guarda también la información de la colección y las películas similares.
  */
 @Entity(tableName = "movie_details_cache")
 data class MovieDetailsCache(
@@ -29,9 +17,11 @@ data class MovieDetailsCache(
     val backdropUrl: String?,
     val releaseYear: String?,
     val rating: Double?,
-    // --- ¡NUEVO CAMPO! ---
     val certification: String?,
     val castJson: String?,
     val recommendationsJson: String?,
+    val similarJson: String?,
+    val collectionId: Int?,
+    val collectionName: String?,
     val lastUpdated: Long
 )

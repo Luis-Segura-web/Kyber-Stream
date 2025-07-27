@@ -27,12 +27,10 @@ import com.kybers.play.data.remote.model.Episode
         MovieDetailsCache::class,
         Episode::class,
         SeriesDetailsCache::class,
-        // --- ¡NUEVAS ENTIDADES AÑADIDAS! ---
         ActorDetailsCache::class,
         EpisodeDetailsCache::class,
         CategoryCache::class
     ],
-    // --- ¡VERSIÓN INCREMENTADA A 4! ---
     version = 4,
     exportSchema = false
 )
@@ -47,8 +45,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun movieDetailsCacheDao(): MovieDetailsCacheDao
     abstract fun episodeDao(): EpisodeDao
     abstract fun seriesDetailsCacheDao(): SeriesDetailsCacheDao
-
-    // --- ¡NUEVOS DAOs AÑADIDOS! ---
     abstract fun actorDetailsCacheDao(): ActorDetailsCacheDao
     abstract fun episodeDetailsCacheDao(): EpisodeDetailsCacheDao
     abstract fun categoryCacheDao(): CategoryCacheDao
@@ -64,9 +60,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // Esta opción destruirá y reconstruirá la base de datos si cambiamos la versión.
-                    // Es útil durante el desarrollo, pero para una app en producción se usaría una migración real.
-                    .fallbackToDestructiveMigration()
+                    // --- ADVERTENCIA CORREGIDA: Usamos la nueva versión de la función ---
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

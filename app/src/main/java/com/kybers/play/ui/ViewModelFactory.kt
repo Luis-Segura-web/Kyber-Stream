@@ -48,8 +48,7 @@ class ContentViewModelFactory(
                 HomeViewModel(
                     vodRepository = vodRepository,
                     liveRepository = liveRepository,
-                    // --- ¡CORRECCIÓN! Pasamos la dependencia que faltaba ---
-                    detailsRepository = detailsRepository,
+                    detailsRepository = detailsRepository, // --- ¡ERROR CORREGIDO! ---
                     externalApiService = externalApiService,
                     preferenceManager = preferenceManager,
                     currentUser = currentUser
@@ -73,6 +72,7 @@ class MovieDetailsViewModelFactory(
     private val application: Application,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
+    private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val movieId: Int
@@ -81,12 +81,13 @@ class MovieDetailsViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MovieDetailsViewModel::class.java)) {
             return MovieDetailsViewModel(
-                application,
-                vodRepository,
-                detailsRepository,
-                preferenceManager,
-                currentUser,
-                movieId
+                application = application,
+                vodRepository = vodRepository,
+                detailsRepository = detailsRepository,
+                externalApiService = externalApiService,
+                preferenceManager = preferenceManager,
+                currentUser = currentUser,
+                movieId = movieId
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -98,6 +99,7 @@ class SeriesDetailsViewModelFactory(
     private val preferenceManager: PreferenceManager,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
+    private val externalApiService: ExternalApiService,
     private val currentUser: User,
     private val seriesId: Int
 ) : ViewModelProvider.Factory {

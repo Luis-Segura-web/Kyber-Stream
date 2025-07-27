@@ -90,18 +90,11 @@ fun HomeScreen(
                     }
                 }
 
-                val carousels = listOf(
-                    "Continuar Viendo" to uiState.continueWatchingItems,
-                    "En Directo Ahora" to uiState.liveNowItems,
-                    "Películas Recientes" to uiState.recentlyAddedMovies,
-                    "Series Recientes" to uiState.recentlyAddedSeries,
-                    "Mis Favoritos" to uiState.favoriteItems
-                ).filter { it.second.isNotEmpty() }
-
-                items(carousels) { (title, items) ->
+                // Renderiza dinámicamente cada carrusel de la lista.
+                items(uiState.carousels) { carousel ->
                     ContentRow(
-                        title = title,
-                        items = items,
+                        title = carousel.title,
+                        items = carousel.items,
                         onMovieClick = onMovieClick,
                         onSeriesClick = onSeriesClick,
                         onChannelClick = onChannelClick
@@ -141,8 +134,7 @@ fun BannerPager(content: List<Pair<Movie, String?>>, onMovieClick: (Movie) -> Un
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    // --- ¡CAMBIO! Usamos la URL del backdrop ---
-                    .data(backdropUrl ?: movie.streamIcon)
+                    .data(backdropUrl ?: movie.streamIcon) // Usa el backdrop, o el póster como fallback
                     .crossfade(true)
                     .fallback(R.drawable.ic_launcher_background)
                     .error(R.drawable.ic_launcher_background)
@@ -198,9 +190,8 @@ fun ContentRow(
                 when (item) {
                     is HomeContentItem.MovieItem -> MoviePosterItem(item.movie) { onMovieClick(item.movie.streamId) }
                     is HomeContentItem.SeriesItem -> SeriesPosterItem(item.series) { onSeriesClick(item.series.seriesId) }
-                    // --- ¡NUEVO! Conectamos el carrusel de TV en vivo ---
                     is HomeContentItem.LiveChannelItem -> LiveChannelCardItem(item.channel) { onChannelClick(item.channel) }
-                    else -> {}
+                    else -> {} // Placeholder para ContinueWatchingItem
                 }
             }
         }
@@ -253,10 +244,6 @@ fun SeriesPosterItem(series: Series, onClick: () -> Unit) {
     }
 }
 
-/**
- * --- ¡NUEVO COMPONENTE! ---
- * Muestra una tarjeta para un canal en el carrusel "En Directo Ahora".
- */
 @Composable
 fun LiveChannelCardItem(channel: LiveStream, onClick: () -> Unit) {
     Card(
@@ -267,7 +254,6 @@ fun LiveChannelCardItem(channel: LiveStream, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Box(Modifier.fillMaxSize()) {
-            // Fondo con el logo del canal (si lo hay)
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(channel.streamIcon)
@@ -279,7 +265,6 @@ fun LiveChannelCardItem(channel: LiveStream, onClick: () -> Unit) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            // Degradado para que el texto sea legible
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -290,7 +275,6 @@ fun LiveChannelCardItem(channel: LiveStream, onClick: () -> Unit) {
                         )
                     )
             )
-            // Información del programa actual
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)

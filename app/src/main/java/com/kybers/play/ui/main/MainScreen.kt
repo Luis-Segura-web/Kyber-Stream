@@ -38,6 +38,7 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
+import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsScreen
 import com.kybers.play.ui.details.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeScreen
@@ -125,8 +126,6 @@ fun MainScreen(
                         navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
                     },
                     onChannelClick = { channel ->
-                        // Navegamos a la pantalla de canales y le pasamos el ID para que empiece a reproducir.
-                        // Esta es una mejora futura, por ahora solo navegamos.
                         navController.navigate(Screen.Channels.route)
                     },
                     onSettingsClick = {
@@ -135,8 +134,9 @@ fun MainScreen(
                 )
             }
             composable(Screen.Channels.route) {
+                val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
                 ChannelsScreen(
-                    viewModel = viewModel(factory = contentViewModelFactory),
+                    viewModel = channelsViewModel,
                     onPlayerUiStateChanged = { isFull, isPip ->
                         isPlayerFullScreen = isFull
                         isPlayerInPipMode = isPip
@@ -144,16 +144,18 @@ fun MainScreen(
                 )
             }
             composable(Screen.Movies.route) {
+                val moviesViewModel: MoviesViewModel = viewModel(factory = contentViewModelFactory)
                 MoviesScreen(
-                    viewModel = viewModel(factory = contentViewModelFactory),
+                    viewModel = moviesViewModel,
                     onNavigateToDetails = { movieId ->
                         navController.navigate(Screen.MovieDetails.createRoute(movieId))
                     }
                 )
             }
             composable(Screen.Series.route) {
+                val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
                 SeriesScreen(
-                    viewModel = viewModel(factory = contentViewModelFactory),
+                    viewModel = seriesViewModel,
                     onNavigateToDetails = { seriesId ->
                         navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
                     }

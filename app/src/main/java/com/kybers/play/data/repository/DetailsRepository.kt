@@ -42,10 +42,6 @@ class DetailsRepository(
     private val episodeDetailsCacheDao: EpisodeDetailsCacheDao
 ) {
 
-    // --- ¡INSTANCIA DE MOSHI ACTUALIZADA! ---
-    // Le añadimos un "adaptador polimórfico". Esto le enseña a Moshi cómo manejar
-    // la clase sellada FilmographyItem, usando el campo "mediaType" para saber si
-    // se trata de una película ("movie") o una serie ("tv").
     private val moshi = Moshi.Builder()
         .add(
             PolymorphicJsonAdapterFactory.of(FilmographyItem::class.java, "mediaType")
@@ -126,6 +122,7 @@ class DetailsRepository(
                 val certification = findMovieCertification(details)
                 val castList: List<TMDbCastMember> = details.credits?.cast ?: emptyList()
                 val recommendations: List<TMDbMovieResult> = details.recommendations?.results?.take(10) ?: emptyList()
+                val similar: List<TMDbMovieResult> = details.similar?.results?.take(10) ?: emptyList()
 
                 val castAdapter = moshi.adapter<List<TMDbCastMember>>(Types.newParameterizedType(List::class.java, TMDbCastMember::class.java))
                 val recommendationsAdapter = moshi.adapter<List<TMDbMovieResult>>(Types.newParameterizedType(List::class.java, TMDbMovieResult::class.java))
@@ -141,6 +138,9 @@ class DetailsRepository(
                     certification = certification,
                     castJson = castAdapter.toJson(castList),
                     recommendationsJson = recommendationsAdapter.toJson(recommendations),
+                    similarJson = recommendationsAdapter.toJson(similar), // Usamos el mismo adaptador
+                    collectionId = details.collection?.id,
+                    collectionName = details.collection?.name,
                     lastUpdated = System.currentTimeMillis()
                 )
             }
