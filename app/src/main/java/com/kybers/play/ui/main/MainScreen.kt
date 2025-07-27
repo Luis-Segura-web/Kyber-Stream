@@ -1,6 +1,6 @@
 package com.kybers.play.ui.main
 
-import android.app.Application
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -32,10 +33,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.kybers.play.data.local.model.User
-import com.kybers.play.data.preferences.PreferenceManager
-import com.kybers.play.data.repository.DetailsRepository
-import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
@@ -74,22 +72,18 @@ private val items = listOf(
 @Composable
 fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
-    vodRepository: VodRepository,
-    detailsRepository: DetailsRepository,
-    preferenceManager: PreferenceManager,
-    currentUser: User
+    movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
+    seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val context = LocalContext.current
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
     val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
-
-    val context = LocalContext.current
-    val application = context.applicationContext as Application
 
     Scaffold(
         bottomBar = {
@@ -122,7 +116,23 @@ fun MainScreen(
         NavHost(navController, startDestination = Screen.Home.route, Modifier.padding(innerPadding)) {
             composable(Screen.Home.route) {
                 val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
-                HomeScreen(homeViewModel)
+                HomeScreen(
+                    homeViewModel = homeViewModel,
+                    onMovieClick = { movieId ->
+                        navController.navigate(Screen.MovieDetails.createRoute(movieId))
+                    },
+                    onSeriesClick = { seriesId ->
+                        navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
+                    },
+                    onChannelClick = { channel ->
+                        // Navegamos a la pantalla de canales y le pasamos el ID para que empiece a reproducir.
+                        // Esta es una mejora futura, por ahora solo navegamos.
+                        navController.navigate(Screen.Channels.route)
+                    },
+                    onSettingsClick = {
+                        Toast.makeText(context, "Ajustes próximamente", Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
             composable(Screen.Channels.route) {
                 ChannelsScreen(
@@ -134,18 +144,16 @@ fun MainScreen(
                 )
             }
             composable(Screen.Movies.route) {
-                val moviesViewModel: MoviesViewModel = viewModel(factory = contentViewModelFactory)
                 MoviesScreen(
-                    viewModel = moviesViewModel,
+                    viewModel = viewModel(factory = contentViewModelFactory),
                     onNavigateToDetails = { movieId ->
                         navController.navigate(Screen.MovieDetails.createRoute(movieId))
                     }
                 )
             }
             composable(Screen.Series.route) {
-                val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
                 SeriesScreen(
-                    viewModel = seriesViewModel,
+                    viewModel = viewModel(factory = contentViewModelFactory),
                     onNavigateToDetails = { seriesId ->
                         navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
                     }
@@ -156,19 +164,10 @@ fun MainScreen(
                 arguments = listOf(navArgument("movieId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val movieId = backStackEntry.arguments?.getInt("movieId") ?: 0
-
-                val detailsViewModel: MovieDetailsViewModel = viewModel(
-                    factory = MovieDetailsViewModelFactory(
-                        application = application,
-                        vodRepository = vodRepository,
-                        detailsRepository = detailsRepository,
-                        preferenceManager = preferenceManager,
-                        currentUser = currentUser,
-                        movieId = movieId
-                    )
-                )
+                val factory = movieDetailsViewModelFactoryProvider(movieId)
+                val viewModel: MovieDetailsViewModel = viewModel(factory = factory)
                 MovieDetailsScreen(
-                    viewModel = detailsViewModel,
+                    viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToMovie = { newMovieId ->
                         navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
@@ -183,23 +182,12 @@ fun MainScreen(
                 arguments = listOf(navArgument("seriesId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val seriesId = backStackEntry.arguments?.getInt("seriesId") ?: 0
-
-                val detailsViewModel: SeriesDetailsViewModel = viewModel(
-                    factory = SeriesDetailsViewModelFactory(
-                        application = application,
-                        preferenceManager = preferenceManager,
-                        vodRepository = vodRepository,
-                        detailsRepository = detailsRepository,
-                        currentUser = currentUser,
-                        seriesId = seriesId
-                    )
-                )
-                // --- ¡LLAMADA CORREGIDA! ---
+                val factory = seriesDetailsViewModelFactoryProvider(seriesId)
+                val viewModel: SeriesDetailsViewModel = viewModel(factory = factory)
                 SeriesDetailsScreen(
-                    viewModel = detailsViewModel,
+                    viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToSeries = { newSeriesId ->
-                        // Lógica para navegar a otra serie desde las recomendaciones
                         navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
                             popUpTo(navController.currentDestination!!.id) { inclusive = true }
                         }

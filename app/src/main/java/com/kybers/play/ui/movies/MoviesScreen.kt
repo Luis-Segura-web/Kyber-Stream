@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -172,12 +172,11 @@ fun MoviesScreen(
 
                         if (expandableCategory.isExpanded) {
                             val movieRows = expandableCategory.movies.chunked(3)
-                            items(
+                            // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
+                            itemsIndexed(
                                 items = movieRows,
-                                key = { row ->
-                                    row.joinToString("-") { "movie-${it.num}-${it.categoryId}-${it.streamId}" }
-                                }
-                            ) { rowMovies ->
+                                key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
+                            ) { _, rowMovies ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -239,13 +238,10 @@ fun MoviePosterItem(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            // --- ¡CAMBIO CLAVE! Usamos la nueva lógica para la imagen ---
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    // 1. Llama a la función inteligente del ViewModel.
                     .data(viewModel.getFinalPosterUrl(movie))
                     .crossfade(true)
-                    // 2. Si todo falla, muestra una imagen genérica.
                     .fallback(R.drawable.ic_launcher_background)
                     .error(R.drawable.ic_launcher_background)
                     .build(),

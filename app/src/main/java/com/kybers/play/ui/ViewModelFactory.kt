@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
+import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
@@ -35,6 +36,7 @@ class ContentViewModelFactory(
     private val vodRepository: VodRepository,
     private val liveRepository: LiveRepository,
     private val detailsRepository: DetailsRepository,
+    private val externalApiService: ExternalApiService,
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager
@@ -43,7 +45,15 @@ class ContentViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(HomeViewModel::class.java) -> {
-                HomeViewModel(vodRepository, currentUser) as T
+                HomeViewModel(
+                    vodRepository = vodRepository,
+                    liveRepository = liveRepository,
+                    // --- ¡CORRECCIÓN! Pasamos la dependencia que faltaba ---
+                    detailsRepository = detailsRepository,
+                    externalApiService = externalApiService,
+                    preferenceManager = preferenceManager,
+                    currentUser = currentUser
+                ) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
                 ChannelsViewModel(application, liveRepository, currentUser, preferenceManager, syncManager) as T
@@ -83,15 +93,10 @@ class MovieDetailsViewModelFactory(
     }
 }
 
-/**
- * --- ¡FÁBRICA ACTUALIZADA! ---
- * Ahora sabe cómo construir el nuevo SeriesDetailsViewModel con todas sus dependencias.
- */
 class SeriesDetailsViewModelFactory(
     private val application: Application,
     private val preferenceManager: PreferenceManager,
     private val vodRepository: VodRepository,
-    // --- ¡NUEVA DEPENDENCIA! ---
     private val detailsRepository: DetailsRepository,
     private val currentUser: User,
     private val seriesId: Int
@@ -103,7 +108,6 @@ class SeriesDetailsViewModelFactory(
                 application = application,
                 preferenceManager = preferenceManager,
                 vodRepository = vodRepository,
-                // --- ¡SE PASA LA NUEVA DEPENDENCIA! ---
                 detailsRepository = detailsRepository,
                 currentUser = currentUser,
                 seriesId = seriesId

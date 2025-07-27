@@ -15,6 +15,7 @@ import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.ExternalApiRetrofitClient
+import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
@@ -23,13 +24,8 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.work.CacheWorker
 import java.util.concurrent.TimeUnit
 
-/**
- * Clase principal de la aplicación.
- * Responsable de inicializar dependencias globales y el contenedor de dependencias (AppContainer).
- */
 class MainApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
-    // Contenedor de dependencias disponible en toda la aplicación.
     lateinit var container: AppContainer
         private set
 
@@ -44,20 +40,17 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
 
-    /**
-     * Crea una instancia única y optimizada de ImageLoader para Coil.
-     */
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.25) // Usa hasta el 25% de la RAM disponible
+                    .maxSizePercent(0.25)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(this.cacheDir.resolve("image_cache"))
-                    .maxSizePercent(0.02) // Usa hasta el 2% del almacenamiento
+                    .maxSizePercent(0.02)
                     .build()
             }
             .respectCacheHeaders(false)
@@ -65,9 +58,6 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
             .build()
     }
 
-    /**
-     * Programa el Worker en segundo plano para sincronizar el contenido periódicamente.
-     */
     private fun scheduleCacheWorker() {
         val syncRequest = PeriodicWorkRequestBuilder<CacheWorker>(
             12, TimeUnit.HOURS
@@ -84,15 +74,11 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
     }
 }
 
-/**
- * --- ¡CONTENEDOR ACTUALIZADO! ---
- * Contenedor de dependencias para la aplicación.
- * Ahora proporciona todos los DAOs de caché necesarios al DetailsRepository.
- */
 class AppContainer(context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
-    private val tmdbApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
+    // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
+    val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
 
     val userRepository by lazy { UserRepository(database.userDao()) }
     val syncManager by lazy { SyncManager(context) }
@@ -103,7 +89,6 @@ class AppContainer(context: Context) {
             tmdbApiService = tmdbApiService,
             movieDetailsCacheDao = database.movieDetailsCacheDao(),
             seriesDetailsCacheDao = database.seriesDetailsCacheDao(),
-            // --- ¡DEPENDENCIAS DE CACHÉ AÑADIDAS! ---
             actorDetailsCacheDao = database.actorDetailsCacheDao(),
             episodeDetailsCacheDao = database.episodeDetailsCacheDao()
         )
@@ -115,7 +100,7 @@ class AppContainer(context: Context) {
             xtreamApiService = xtreamApiService,
             liveStreamDao = database.liveStreamDao(),
             epgEventDao = database.epgEventDao(),
-            categoryCacheDao = database.categoryCacheDao() // Añadido para caché de categorías
+            categoryCacheDao = database.categoryCacheDao()
         )
     }
 
@@ -126,7 +111,7 @@ class AppContainer(context: Context) {
             movieDao = database.movieDao(),
             seriesDao = database.seriesDao(),
             episodeDao = database.episodeDao(),
-            categoryCacheDao = database.categoryCacheDao() // Añadido para caché de categorías
+            categoryCacheDao = database.categoryCacheDao()
         )
     }
 }

@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -170,10 +170,11 @@ fun SeriesScreen(
 
                         if (expandableCategory.isExpanded) {
                             val seriesRows = expandableCategory.series.chunked(3)
-                            items(
+                            // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
+                            itemsIndexed(
                                 items = seriesRows,
-                                key = { row -> row.joinToString("-") { "series-${it.num}-${it.categoryId}-${it.seriesId}" } }
-                            ) { rowSeries ->
+                                key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
+                            ) { _, rowSeries ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -182,7 +183,6 @@ fun SeriesScreen(
                                 ) {
                                     rowSeries.forEach { series ->
                                         Box(modifier = Modifier.weight(1f)) {
-                                            // --- ¡LLAMADA AL COMPONENTE ACTUALIZADA! ---
                                             SeriesPosterItem(
                                                 series = series,
                                                 isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
@@ -216,7 +216,6 @@ fun SeriesScreen(
     }
 }
 
-// --- ¡COMPONENTE DEL PÓSTER ACTUALIZADO! ---
 @Composable
 fun SeriesPosterItem(
     series: Series,
@@ -245,7 +244,6 @@ fun SeriesPosterItem(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Fila superior para calificación y favorito
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -272,7 +270,6 @@ fun SeriesPosterItem(
                         )
                     }
                 } else {
-                    // Espaciador para mantener el botón de favorito alineado a la derecha
                     Spacer(modifier = Modifier.height(1.dp))
                 }
 
@@ -288,7 +285,6 @@ fun SeriesPosterItem(
                 }
             }
 
-            // Título en la parte inferior con un degradado
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

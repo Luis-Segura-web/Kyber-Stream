@@ -15,6 +15,14 @@ import retrofit2.http.Query
 
 interface ExternalApiService {
 
+    @GET("movie/popular")
+    suspend fun getPopularMoviesTMDb(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-ES",
+        // --- ¡CORRECCIÓN! Se eliminó el punto extra ---
+        @Query("page") page: Int = 1
+    ): Response<TMDbSearchResponse>
+
     @GET("movie/{movie_id}")
     suspend fun getMovieDetailsTMDb(
         @Path("movie_id") movieId: Int,
@@ -23,8 +31,6 @@ interface ExternalApiService {
         @Query("language") language: String = "es-ES"
     ): Response<TMDbMovieDetails>
 
-    // --- ¡ENDPOINT ACTUALIZADO! ---
-    // Ahora también pide 'credits' (reparto) y 'recommendations' (series similares).
     @GET("tv/{tv_id}")
     suspend fun getTvDetailsTMDb(
         @Path("tv_id") tvId: Int,
@@ -33,7 +39,6 @@ interface ExternalApiService {
         @Query("append_to_response") appendToResponse: String = "content_ratings,credits,recommendations"
     ): Response<TMDbTvDetails>
 
-    // --- ¡NUEVO ENDPOINT PARA DETALLES DE EPISODIOS! ---
     @GET("tv/{tv_id}/season/{season_number}/episode/{episode_number}")
     suspend fun getEpisodeDetailsTMDb(
         @Path("tv_id") tvId: Int,

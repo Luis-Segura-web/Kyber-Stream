@@ -1,84 +1,110 @@
 package com.kybers.play.ui.home
 
-import android.util.Log
-import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.R
+import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
+import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(homeViewModel: HomeViewModel) {
-    // Observamos el estado de la UI desde el ViewModel.
-    // La UI se recompondrá automáticamente cuando este estado cambie.
+fun HomeScreen(
+    homeViewModel: HomeViewModel,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    onSettingsClick: () -> Unit
+) {
     val uiState by homeViewModel.uiState.collectAsState()
-    val context = LocalContext.current // Obtenemos el contexto para el Toast
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (uiState.isLoading) {
-            // Si está cargando, mostramos un indicador de progreso en el centro.
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-        } else {
-            // Cuando la carga termina, mostramos el contenido.
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
-                // Fila para las películas recomendadas
-                item {
-                    ContentRow(
-                        title = "Películas Recomendadas",
-                        items = uiState.recommendedMovies,
-                        itemContent = { movie ->
-                            ContentPoster(
-                                imageUrl = movie.streamIcon,
-                                contentDescription = movie.name,
-                                onClick = {
-                                    // Placeholder para la navegación de películas
-                                    Log.d("HomeScreen", "Clic en película: ${movie.name}")
-                                    Toast.makeText(context, "Próximamente: Detalles de ${movie.name}", Toast.LENGTH_SHORT).show()
-                                    // En el futuro, esto navegará a la pantalla de detalles de la película.
-                                }
-                            )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Inicio", fontWeight = FontWeight.Bold) },
+                actions = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Perfil")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(uiState.userName, fontSize = 14.sp)
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
                         }
-                    )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                )
+            )
+        }
+    ) { paddingValues ->
+        if (uiState.isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                if (uiState.bannerContent.isNotEmpty()) {
+                    item {
+                        BannerPager(
+                            content = uiState.bannerContent,
+                            onMovieClick = { onMovieClick(it.streamId) }
+                        )
+                    }
                 }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
+                val carousels = listOf(
+                    "Continuar Viendo" to uiState.continueWatchingItems,
+                    "En Directo Ahora" to uiState.liveNowItems,
+                    "Películas Recientes" to uiState.recentlyAddedMovies,
+                    "Series Recientes" to uiState.recentlyAddedSeries,
+                    "Mis Favoritos" to uiState.favoriteItems
+                ).filter { it.second.isNotEmpty() }
 
-                // Fila para las series recomendadas
-                item {
+                items(carousels) { (title, items) ->
                     ContentRow(
-                        title = "Series Recomendadas",
-                        items = uiState.recommendedSeries,
-                        itemContent = { series ->
-                            ContentPoster(
-                                imageUrl = series.cover,
-                                contentDescription = series.name,
-                                onClick = {
-                                    // Placeholder para la navegación de series
-                                    Log.d("HomeScreen", "Clic en serie: ${series.name}")
-                                    Toast.makeText(context, "Próximamente: Detalles de ${series.name}", Toast.LENGTH_SHORT).show()
-                                    // En el futuro, esto navegará a la pantalla de detalles de la serie.
-                                }
-                            )
-                        }
+                        title = title,
+                        items = items,
+                        onMovieClick = onMovieClick,
+                        onSeriesClick = onSeriesClick,
+                        onChannelClick = onChannelClick
                     )
                 }
             }
@@ -86,16 +112,77 @@ fun HomeScreen(homeViewModel: HomeViewModel) {
     }
 }
 
-/**
- * Un Composable reutilizable para mostrar una fila horizontal de contenido con un título.
- */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun <T> ContentRow(
+fun BannerPager(content: List<Pair<Movie, String?>>, onMovieClick: (Movie) -> Unit) {
+    val pagerState = rememberPagerState(pageCount = { content.size })
+
+    LaunchedEffect(pagerState.pageCount) {
+        if (pagerState.pageCount > 1) {
+            while (true) {
+                delay(5000L)
+                val nextPage = (pagerState.currentPage + 1) % pagerState.pageCount
+                pagerState.animateScrollToPage(nextPage)
+            }
+        }
+    }
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+    ) { page ->
+        val (movie, backdropUrl) = content[page]
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { onMovieClick(movie) }
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    // --- ¡CAMBIO! Usamos la URL del backdrop ---
+                    .data(backdropUrl ?: movie.streamIcon)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = movie.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
+                            startY = 400f
+                        )
+                    )
+            )
+            Text(
+                text = movie.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun ContentRow(
     title: String,
-    items: List<T>,
-    itemContent: @Composable (T) -> Unit
+    items: List<HomeContentItem>,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit
 ) {
-    Column {
+    Column(modifier = Modifier.padding(top = 24.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
@@ -108,38 +195,145 @@ fun <T> ContentRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(items) { item ->
-                itemContent(item)
+                when (item) {
+                    is HomeContentItem.MovieItem -> MoviePosterItem(item.movie) { onMovieClick(item.movie.streamId) }
+                    is HomeContentItem.SeriesItem -> SeriesPosterItem(item.series) { onSeriesClick(item.series.seriesId) }
+                    // --- ¡NUEVO! Conectamos el carrusel de TV en vivo ---
+                    is HomeContentItem.LiveChannelItem -> LiveChannelCardItem(item.channel) { onChannelClick(item.channel) }
+                    else -> {}
+                }
             }
         }
     }
 }
 
-/**
- * Un Composable para mostrar una única portada de contenido (póster).
- */
 @Composable
-fun ContentPoster(
-    imageUrl: String?,
-    contentDescription: String?,
-    onClick: () -> Unit
-) {
+fun MoviePosterItem(movie: Movie, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .width(140.dp)
-            .height(210.dp)
+            .aspectRatio(2f / 3f)
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        // Usamos Coil para cargar la imagen desde la URL de forma asíncrona.
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(imageUrl)
-                .crossfade(true) // Efecto de fundido suave
-                .error(android.R.drawable.stat_notify_error) // Imagen de error si falla la carga
+                .data(movie.streamIcon)
+                .crossfade(true)
+                .fallback(R.drawable.ic_launcher_background)
+                .error(R.drawable.ic_launcher_background)
                 .build(),
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop, // Escala la imagen para llenar el espacio
+            contentDescription = movie.name,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
     }
+}
+
+@Composable
+fun SeriesPosterItem(series: Series, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(140.dp)
+            .aspectRatio(2f / 3f)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(series.cover)
+                .crossfade(true)
+                .fallback(R.drawable.ic_launcher_background)
+                .error(R.drawable.ic_launcher_background)
+                .build(),
+            contentDescription = series.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+/**
+ * --- ¡NUEVO COMPONENTE! ---
+ * Muestra una tarjeta para un canal en el carrusel "En Directo Ahora".
+ */
+@Composable
+fun LiveChannelCardItem(channel: LiveStream, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(240.dp)
+            .height(160.dp)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            // Fondo con el logo del canal (si lo hay)
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(channel.streamIcon)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = channel.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Degradado para que el texto sea legible
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                            startY = 200f
+                        )
+                    )
+            )
+            // Información del programa actual
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = channel.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                channel.currentEpgEvent?.let { event ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = event.title,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val progress = calculateEpgProgress(event.startTimestamp, event.stopTimestamp)
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun calculateEpgProgress(start: Long, end: Long): Float {
+    val now = System.currentTimeMillis() / 1000
+    if (now < start || start >= end) return 0f
+    if (now > end) return 1f
+    val totalDuration = (end - start).toFloat()
+    val elapsed = (now - start).toFloat()
+    return (elapsed / totalDuration).coerceIn(0f, 1f)
 }

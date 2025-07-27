@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
@@ -45,7 +46,6 @@ data class ExpandableCategory(
     val epgLoaded: Boolean = false
 )
 
-// --- ¡ESTADO DE LA UI ACTUALIZADO! ---
 data class ChannelsUiState(
     val isLoading: Boolean = true,
     val searchQuery: String = "",
@@ -76,7 +76,6 @@ data class ChannelsUiState(
     val isRefreshing: Boolean = false,
     val isEpgUpdating: Boolean = false,
     val epgUpdateMessage: String? = null,
-    // --- ¡NUEVO ESTADO PARA EL TÍTULO! ---
     val totalChannelCount: Int = 0
 )
 
@@ -142,10 +141,47 @@ open class ChannelsViewModel(
             )
         }
         loadInitialChannelsAndPreloadEpg()
+        startEpgUpdater() // --- ¡NUEVO! Iniciamos el actualizador en tiempo real ---
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
                 filterAndSortCategories()
+            }
+        }
+    }
+
+    /**
+     * --- ¡NUEVA FUNCIÓN! ---
+     * Inicia un temporizador que actualiza la información de la EPG para las
+     * categorías visibles cada 30 segundos.
+     */
+    private fun startEpgUpdater() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(30_000L) // Espera 30 segundos
+
+                val currentState = _uiState.value
+                // No hacemos nada si la app está cargando o no hay ninguna categoría expandida
+                if (currentState.isLoading || (!currentState.isFavoritesCategoryExpanded && currentState.categories.none { it.isExpanded })) {
+                    continue
+                }
+
+                var changed = false
+                // Actualizamos las categorías normales
+                val newCategories = currentState.categories.map { category ->
+                    if (category.isExpanded && category.epgLoaded) {
+                        val newEnrichedChannels = liveRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
+                        if (newEnrichedChannels != category.channels) changed = true
+                        category.copy(channels = newEnrichedChannels)
+                    } else {
+                        category
+                    }
+                }
+
+                // Si hubo cambios, actualizamos el estado para que la UI se redibuje
+                if (changed) {
+                    _uiState.update { it.copy(categories = newCategories) }
+                }
             }
         }
     }
@@ -311,18 +347,14 @@ open class ChannelsViewModel(
         }
     }
 
-    // --- ¡FUNCIÓN DE REFRESCO MANUAL ACTUALIZADA! ---
     fun refreshChannelsManually() {
         viewModelScope.launch {
             Log.d("ChannelsViewModel", "Iniciando refresco manual de canales y EPG...")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                // 1. Refresca la lista de canales.
                 liveRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
-                // 2. ¡NUEVO! Refresca también la guía de canales (EPG).
                 liveRepository.cacheEpgData(currentUser.username, currentUser.password, currentUser.id)
 
-                // 3. Recarga toda la información en la UI.
                 loadInitialChannelsAndPreloadEpg()
                 syncManager.saveLastSyncTimestamp(currentUser.id)
                 _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
@@ -423,7 +455,6 @@ open class ChannelsViewModel(
                 }
                 _originalCategories.value = expandableCategories
                 filterAndSortCategories()
-                // --- ¡ACTUALIZACIÓN! Guardamos el número total de canales ---
                 _uiState.update { it.copy(isLoading = false, totalChannelCount = allChannels.size) }
 
                 epgCacheMap = liveRepository.getAllEpgMapForUser(currentUser.id)
