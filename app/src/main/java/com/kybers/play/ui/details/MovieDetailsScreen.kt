@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -54,7 +53,6 @@ import com.kybers.play.R
 import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.ui.player.MoviePlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
@@ -62,10 +60,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.ceil
 import kotlin.math.floor
 
-/**
- * --- ¡PANTALLA COMPLETAMENTE REMODELADA! ---
- * Ahora muestra la colección, las recomendaciones y las películas similares en carruseles separados.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieDetailsScreen(
@@ -153,46 +147,41 @@ fun MovieDetailsScreen(
     }
 
     Scaffold { paddingValues ->
-        if (uiState.isLoadingDetails) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.movie == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Película no encontrada.", modifier = Modifier.padding(16.dp))
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
-            ) {
-                item {
-                    PlayerAndHeaderSection(
-                        viewModel = viewModel,
-                        audioManager = audioManager,
-                        onNavigateUp = onNavigateUp
-                    )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
+        ) {
+            if (uiState.isLoadingDetails) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
+            } else if (uiState.movie == null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Película no encontrada.", modifier = Modifier.padding(16.dp))
+                }
+            } else {
+                PlayerAndHeaderSection(
+                    viewModel = viewModel,
+                    audioManager = audioManager,
+                    onNavigateUp = onNavigateUp
+                )
 
-                item {
-                    AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
-                        Column {
-                            MovieInfo(uiState = uiState, viewModel = viewModel)
-
-                            CollectionCarousel(uiState = uiState, onMovieClick = onNavigateToMovie)
-                            MovieCarousel(
-                                title = "Recomendadas",
-                                movies = uiState.availableRecommendedMovies,
-                                onMovieClick = onNavigateToMovie
-                            )
-                            MovieCarousel(
-                                title = "Similares",
-                                movies = uiState.availableSimilarMovies,
-                                onMovieClick = onNavigateToMovie
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
+                AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        MovieInfo(uiState = uiState, viewModel = viewModel)
+                        CollectionCarousel(uiState = uiState, onMovieClick = onNavigateToMovie)
+                        MovieCarousel(
+                            title = "Recomendadas",
+                            movies = uiState.availableRecommendedMovies,
+                            onMovieClick = onNavigateToMovie
+                        )
+                        MovieCarousel(
+                            title = "Similares",
+                            movies = uiState.availableSimilarMovies,
+                            onMovieClick = onNavigateToMovie
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
@@ -253,7 +242,6 @@ fun PlayerAndHeaderSection(
                     }
                 }
             ) { isVisible, onAnyInteraction, onRequestPipMode ->
-                // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
                 MoviePlayerControls(
                     isVisible = isVisible,
                     onAnyInteraction = onAnyInteraction,
@@ -272,7 +260,7 @@ fun PlayerAndHeaderSection(
                     showSubtitleMenu = uiState.showSubtitleMenu,
                     currentPosition = uiState.currentPosition,
                     duration = uiState.duration,
-                    showNextPreviousButtons = false, // No hay siguiente/anterior para una película
+                    showNextPreviousButtons = false,
                     onClose = {
                         if (uiState.isFullScreen) {
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -281,10 +269,10 @@ fun PlayerAndHeaderSection(
                         }
                     },
                     onPlayPause = viewModel::togglePlayPause,
-                    onNext = {}, // No hace nada
-                    onPrevious = {}, // No hace nada
-                    onSeekForward = {},
-                    onSeekBackward = {},
+                    onNext = {},
+                    onPrevious = {},
+                    onSeekForward = viewModel::seekForward,
+                    onSeekBackward = viewModel::seekBackward,
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onToggleFullScreen = {

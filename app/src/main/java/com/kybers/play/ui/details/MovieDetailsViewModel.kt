@@ -405,6 +405,15 @@ class MovieDetailsViewModel(
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
 
+    // --- ¡NUEVAS FUNCIONES DE BÚSQUEDA! ---
+    fun seekForward() {
+        mediaPlayer.time = (mediaPlayer.time + 10000).coerceAtMost(mediaPlayer.length)
+    }
+
+    fun seekBackward() {
+        mediaPlayer.time = (mediaPlayer.time - 10000).coerceAtLeast(0)
+    }
+
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
         _uiState.update {
             it.copy(
