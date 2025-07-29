@@ -23,6 +23,7 @@ import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.theme.rememberThemeManager
 
 class MainActivity : ComponentActivity() {
 
@@ -33,7 +34,8 @@ class MainActivity : ComponentActivity() {
         val appContainer = (application as MainApplication).container
 
         setContent {
-            IPTVAppTheme {
+            val themeManager = rememberThemeManager(this@MainActivity)
+            IPTVAppTheme(themeManager = themeManager) {
                 var user by remember { mutableStateOf<User?>(null) }
                 var isLoading by remember { mutableStateOf(true) }
                 var error by remember { mutableStateOf<String?>(null) }

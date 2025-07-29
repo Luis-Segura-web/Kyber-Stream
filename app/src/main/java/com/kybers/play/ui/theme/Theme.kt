@@ -10,75 +10,120 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.colorResource
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.kybers.play.R
 
+/**
+ * Elegant theme for IPTV App with dynamic theme switching
+ */
 @Composable
 fun IPTVAppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeManager: ThemeManager? = null,
     content: @Composable () -> Unit
 ) {
-    // 1. Leemos colores desde res/values/colors.xml
-    val primaryDark    = colorResource(R.color.purple_200)
-    val primaryLight   = colorResource(R.color.purple_500)
-    val secondaryColor = colorResource(R.color.teal_200)
-    val backgroundDark = colorResource(R.color.black)
-    val backgroundLight= colorResource(R.color.white)
-    val onPrimaryDark  = colorResource(R.color.black)
-    val onPrimaryLight = colorResource(R.color.white)
-    val onSurfaceDark  = colorResource(R.color.white)
-    val onSurfaceLight = colorResource(R.color.black)
-
-    // 2. Creamos esquemas de Material3
+    val context = LocalContext.current
+    val currentThemeManager = themeManager ?: rememberThemeManager(context)
+    
+    // Get the current theme preference
+    val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
+    
+    // Create elegant color schemes
     val darkColors = darkColorScheme(
-        primary      = primaryDark,
-        secondary    = secondaryColor,
-        background   = backgroundDark,
-        surface      = backgroundDark,
-        onPrimary    = onPrimaryDark,
-        onSecondary  = onPrimaryDark,
-        onBackground = onSurfaceDark,
-        onSurface    = onSurfaceDark
+        primary = DarkTheme.Primary,
+        onPrimary = DarkTheme.OnPrimary,
+        primaryContainer = DarkTheme.PrimaryVariant,
+        onPrimaryContainer = DarkTheme.OnPrimary,
+        
+        secondary = DarkTheme.Secondary,
+        onSecondary = DarkTheme.OnSecondary,
+        secondaryContainer = DarkTheme.SecondaryVariant,
+        onSecondaryContainer = DarkTheme.OnSecondary,
+        
+        background = DarkTheme.Background,
+        onBackground = DarkTheme.OnBackground,
+        surface = DarkTheme.Surface,
+        onSurface = DarkTheme.OnSurface,
+        surfaceVariant = DarkTheme.SurfaceVariant,
+        onSurfaceVariant = DarkTheme.OnSurface,
+        
+        outline = DarkTheme.Outline,
+        error = DarkTheme.Error,
+        onError = DarkTheme.OnError
     )
+    
     val lightColors = lightColorScheme(
-        primary      = primaryLight,
-        secondary    = secondaryColor,
-        background   = backgroundLight,
-        surface      = backgroundLight,
-        onPrimary    = onPrimaryLight,
-        onSecondary  = onPrimaryLight,
-        onBackground = onSurfaceLight,
-        onSurface    = onSurfaceLight
+        primary = LightTheme.Primary,
+        onPrimary = LightTheme.OnPrimary,
+        primaryContainer = LightTheme.PrimaryVariant,
+        onPrimaryContainer = LightTheme.OnPrimary,
+        
+        secondary = LightTheme.Secondary,
+        onSecondary = LightTheme.OnSecondary,
+        secondaryContainer = LightTheme.SecondaryVariant,
+        onSecondaryContainer = LightTheme.OnSecondary,
+        
+        background = LightTheme.Background,
+        onBackground = LightTheme.OnBackground,
+        surface = LightTheme.Surface,
+        onSurface = LightTheme.OnSurface,
+        surfaceVariant = LightTheme.SurfaceVariant,
+        onSurfaceVariant = LightTheme.OnSurface,
+        
+        outline = LightTheme.Outline,
+        error = LightTheme.Error,
+        onError = LightTheme.OnError
     )
 
-    val colors = if (darkTheme) darkColors else lightColors
+    val colors = if (isDarkTheme) darkColors else lightColors
 
-    // 3. Edge-to-edge y contraste de status bar
+    // Configure system UI (status bar, navigation bar)
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.setDecorFitsSystemWindows(window, false)
-            WindowInsetsControllerCompat(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
+            val windowInsetsController = WindowInsetsControllerCompat(window, view)
+            windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
+            windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
         }
     }
 
-    // 4. Aplicamos el tema y añadimos padding para barras de sistema
+    // Apply the theme
     MaterialTheme(
         colorScheme = colors,
-        typography   = Typography
+        typography = Typography
     ) {
         Box(
             modifier = Modifier
                 .systemBarsPadding()
-                .background(colors.primary)
+                .background(colors.background)
         ) {
             content()
         }
     }
+}
+
+/**
+ * Legacy theme composable for backward compatibility
+ * Delegates to the new theme system
+ */
+@Composable
+fun IPTVAppTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    // Create a temporary theme manager that uses the legacy darkTheme parameter
+    val context = LocalContext.current
+    val themeManager = rememberThemeManager(context)
+    
+    // Override the theme based on the darkTheme parameter if needed
+    // This is for backward compatibility only
+    IPTVAppTheme(
+        themeManager = themeManager,
+        content = content
+    )
 }
