@@ -613,7 +613,7 @@ open class ChannelsViewModel(
 
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.forLanguageTag("es-ES"))
+        val sdf = SimpleDateFormat("dd/MM HH:mm", Locale.forLanguageTag("es-MX"))
         return sdf.format(Date(timestamp))
     }
 }

@@ -322,7 +322,7 @@ class MoviesViewModel(
     }
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-ES"))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         return sdf.format(Date(timestamp))
     }
 }

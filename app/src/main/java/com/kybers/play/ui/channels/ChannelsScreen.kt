@@ -658,7 +658,7 @@ private fun calculateEpgProgress(start: Long, end: Long): Float {
 }
 
 private fun formatTimestampToHour(timestamp: Long): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.forLanguageTag("es-ES")).apply {
+    val sdf = SimpleDateFormat("HH:mm", Locale.forLanguageTag("es-MX")).apply {
         timeZone = TimeZone.getDefault()
     }
     return sdf.format(Date(timestamp * 1000))

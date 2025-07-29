@@ -291,7 +291,7 @@ class SettingsViewModel(
 
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-ES"))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         sdf.timeZone = TimeZone.getDefault()
         return sdf.format(Date(timestamp))
     }
@@ -300,7 +300,7 @@ class SettingsViewModel(
         if (timestamp == null) return "No disponible"
         return try {
             val date = Date(timestamp.toLong() * 1000)
-            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-ES"))
+            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-MX"))
             sdf.format(date)
         } catch (e: Exception) {
             "Fecha inválida"
