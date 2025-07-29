@@ -379,12 +379,11 @@ private fun ChannelListSection(
             onClear = { viewModel.onSearchQueryChanged("") }
         )
 
-        Box(modifier = Modifier.weight(1f)) {
-            LazyColumn(
-                state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
+        LazyColumn(
+            state = lazyListState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
             stickyHeader(key = "favorites") {
                 CategoryHeader(
                     categoryName = "Favoritos",
@@ -445,13 +444,13 @@ private fun ChannelListSection(
                     }
                 }
             }
-            
-            // Add scroll indicator to show list progress
-            ScrollIndicator(
-                listState = lazyListState,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            )
         }
+        
+        // Add scroll indicator for better navigation
+        ScrollIndicator(
+            listState = lazyListState,
+            modifier = Modifier.padding(end = 4.dp)
+        )
     }
 }
 

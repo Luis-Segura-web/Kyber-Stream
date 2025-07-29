@@ -9,6 +9,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.BaseContentRepository
+import com.kybers.play.ui.theme.ThemeManager
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,7 +59,6 @@ sealed class SettingsEvent {
     object ShowPinChangeSuccess : SettingsEvent()
     object ShowPinChangeError : SettingsEvent()
     object ShowRecommendationsApplied : SettingsEvent()
-    object ParentalControlChanged : SettingsEvent()
 }
 
 /**
@@ -266,18 +266,6 @@ class SettingsViewModel(
     fun onBlockedCategoriesChanged(blockedIds: Set<String>) {
         preferenceManager.saveBlockedCategories(blockedIds)
         _uiState.update { it.copy(blockedCategories = blockedIds) }
-        // Immediately refresh content to apply parental control changes
-        refreshContentWithParentalControl()
-    }
-    
-    /**
-     * Refreshes content across all screens when parental control settings change
-     */
-    private fun refreshContentWithParentalControl() {
-        // This will trigger a refresh signal that can be observed by content ViewModels
-        viewModelScope.launch {
-            _events.emit(SettingsEvent.ParentalControlChanged)
-        }
     }
 
     fun verifyPin(pin: String): Boolean {
