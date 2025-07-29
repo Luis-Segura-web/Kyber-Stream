@@ -300,7 +300,7 @@ class SettingsViewModel(
         if (timestamp == null) return "No disponible"
         return try {
             val date = Date(timestamp.toLong() * 1000)
-            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale("es", "ES"))
+            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-ES"))
             sdf.format(date)
         } catch (e: Exception) {
             "Fecha inválida"

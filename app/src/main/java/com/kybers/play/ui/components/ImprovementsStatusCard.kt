@@ -3,6 +3,7 @@ package com.kybers.play.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -97,7 +98,7 @@ fun ImprovementsStatusCard(
                 )
                 
                 ImprovementItem(
-                    icon = Icons.Default.List,
+                    icon = Icons.AutoMirrored.Filled.List,
                     title = "Indicadores de Scroll",
                     description = "Indicadores visibles para orientación en listas"
                 )

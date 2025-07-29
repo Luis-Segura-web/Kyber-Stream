@@ -43,17 +43,17 @@ fun ScrollIndicator(
     }
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // Top scroll indicator
+        // Top scroll indicator (positioned on right side)
         AnimatedVisibility(
             visible = showTopIndicator,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp)
-                    .size(width = 40.dp, height = 4.dp)
+                    .padding(top = 8.dp, end = 8.dp)
+                    .size(width = 4.dp, height = 40.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
@@ -61,17 +61,17 @@ fun ScrollIndicator(
             )
         }
 
-        // Bottom scroll indicator
+        // Bottom scroll indicator (positioned on right side)
         AnimatedVisibility(
             visible = showBottomIndicator,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier.align(Alignment.BottomEnd)
         ) {
             Box(
                 modifier = Modifier
-                    .padding(bottom = 8.dp)
-                    .size(width = 40.dp, height = 4.dp)
+                    .padding(bottom = 8.dp, end = 8.dp)
+                    .size(width = 4.dp, height = 40.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)

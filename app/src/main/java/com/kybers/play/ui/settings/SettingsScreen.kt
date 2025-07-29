@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,17 +102,17 @@ fun SettingsScreen(
                     SettingsCard(title = "Gestión de Cuenta y Sincronización") {
                         val userInfo = uiState.userInfo
                         InfoSettingItem(icon = Icons.Default.Person, title = "Usuario", subtitle = userInfo?.username ?: "No disponible")
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         InfoSettingItem(icon = Icons.Default.CheckCircle, title = "Estado", subtitle = userInfo?.status?.replaceFirstChar { it.uppercase() } ?: "No disponible")
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         InfoSettingItem(icon = Icons.Default.Event, title = "Vencimiento", subtitle = viewModel.formatUnixTimestamp(userInfo?.expDate))
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         InfoSettingItem(icon = Icons.Default.Devices, title = "Conexiones permitidas", subtitle = userInfo?.maxConnections ?: "N/A")
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         InfoSettingItem(icon = Icons.Default.NetworkCheck, title = "Conexiones activas", subtitle = userInfo?.activeCons?.toString() ?: "N/A")
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         InfoSettingItem(icon = Icons.Default.Update, title = "Última Sincronización", subtitle = viewModel.formatTimestamp(uiState.lastSyncTimestamp))
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         DropdownSettingItem(
                             icon = Icons.Default.Schedule,
                             title = "Frecuencia de Sincronización",
@@ -143,9 +144,9 @@ fun SettingsScreen(
                 item {
                     SettingsCard(title = "Ajustes del Reproductor") {
                         DropdownSettingItem(icon = Icons.Default.Tune, title = "Formato de Stream", options = mapOf("AUTOMATIC" to "Automático", "TS" to "MPEG-TS (.ts)", "HLS" to "HLS (.m3u8)"), selectedKey = uiState.streamFormat, onOptionSelected = { viewModel.onStreamFormatChanged(it) })
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         DropdownSettingItem(icon = Icons.Default.NetworkCell, title = "Tamaño del Búfer de Red", options = mapOf("SMALL" to "Pequeño", "MEDIUM" to "Mediano", "LARGE" to "Grande"), selectedKey = uiState.networkBuffer, onOptionSelected = { viewModel.onNetworkBufferChanged(it) })
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         SwitchSettingItem(icon = Icons.Default.Hardware, title = "Aceleración por Hardware", subtitle = "Usar decodificación por hardware", checked = uiState.hwAccelerationEnabled, onCheckedChange = { viewModel.onHwAccelerationChanged(it) })
                     }
                 }
@@ -160,7 +161,7 @@ fun SettingsScreen(
                             selectedKey = uiState.recentlyWatchedLimit,
                             onOptionSelected = { viewModel.onRecentlyWatchedLimitChanged(it) }
                         )
-                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         ClickableSettingItem(
                             icon = Icons.Default.DeleteSweep,
                             title = "Limpiar historial de reproducción",
@@ -195,14 +196,14 @@ fun SettingsScreen(
                             }
                         )
                         if (uiState.parentalControlEnabled) {
-                            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             ClickableSettingItem(
                                 icon = Icons.Default.Password,
                                 title = "Cambiar PIN",
                                 subtitle = "Establece un nuevo PIN de seguridad",
                                 onClick = { showChangePinDialog = true }
                             )
-                            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             ClickableSettingItem(
                                 icon = Icons.Default.Block,
                                 title = "Bloquear Categorías",
@@ -412,7 +413,7 @@ fun <T> DropdownSettingItem(
             leadingIcon = { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor()
+                .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(
