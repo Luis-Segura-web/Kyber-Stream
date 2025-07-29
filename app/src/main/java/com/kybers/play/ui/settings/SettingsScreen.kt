@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.ui.login.LoginActivity
+import com.kybers.play.ui.theme.ThemeSelectionDialog
+import com.kybers.play.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +44,7 @@ fun SettingsScreen(
     var showCategoryBlockDialog by remember { mutableStateOf(false) }
     var showPinVerificationForCategories by remember { mutableStateOf(false) }
     var showPinVerificationForDisabling by remember { mutableStateOf(false) }
+    var showThemeSelectionDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -213,7 +216,12 @@ fun SettingsScreen(
                 // --- SECCIÓN: APARIENCIA ---
                 item {
                     SettingsCard(title = "Apariencia") {
-                        DropdownSettingItem(icon = Icons.Default.Palette, title = "Tema de la aplicación", options = mapOf("SYSTEM" to "Seguir el sistema", "LIGHT" to "Claro", "DARK" to "Oscuro"), selectedKey = uiState.appTheme, onOptionSelected = { viewModel.onAppThemeChanged(it) })
+                        ClickableSettingItem(
+                            icon = Icons.Default.Palette,
+                            title = "Tema de la aplicación",
+                            subtitle = getThemeDisplayName(uiState.appTheme),
+                            onClick = { showThemeSelectionDialog = true }
+                        )
                     }
                 }
 
@@ -285,6 +293,16 @@ fun SettingsScreen(
                 viewModel.onBlockedCategoriesChanged(newBlockedSet)
                 showCategoryBlockDialog = false
             }
+        )
+    }
+    
+    if (showThemeSelectionDialog) {
+        ThemeSelectionDialog(
+            currentTheme = stringToThemeMode(uiState.appTheme),
+            onThemeSelected = { themeMode ->
+                viewModel.onAppThemeChanged(themeModeToString(themeMode))
+            },
+            onDismiss = { showThemeSelectionDialog = false }
         )
     }
 }
@@ -765,5 +783,31 @@ private fun getNetworkDisplayName(networkType: String): String {
         "CELLULAR_3G" -> "3G"
         "UNKNOWN" -> "Desconocida"
         else -> networkType
+    }
+}
+
+private fun getThemeDisplayName(appTheme: String): String {
+    return when (appTheme) {
+        "LIGHT" -> "Claro"
+        "DARK" -> "Oscuro"
+        "SYSTEM" -> "Automático (Sistema)"
+        else -> appTheme
+    }
+}
+
+private fun stringToThemeMode(themeString: String): ThemeMode {
+    return when (themeString) {
+        "LIGHT" -> ThemeMode.LIGHT
+        "DARK" -> ThemeMode.DARK
+        "SYSTEM" -> ThemeMode.SYSTEM
+        else -> ThemeMode.SYSTEM
+    }
+}
+
+private fun themeModeToString(themeMode: ThemeMode): String {
+    return when (themeMode) {
+        ThemeMode.LIGHT -> "LIGHT"
+        ThemeMode.DARK -> "DARK"
+        ThemeMode.SYSTEM -> "SYSTEM"
     }
 }
