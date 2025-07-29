@@ -2,6 +2,8 @@ package com.kybers.play
 
 import android.app.Application
 import android.content.Context
+import android.content.res.Configuration
+import java.util.Locale
 import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -31,8 +33,17 @@ class MainApplication : Application(), Configuration.Provider, ImageLoaderFactor
 
     override fun onCreate() {
         super.onCreate()
+        setDefaultLocale()
         container = AppContainer(this)
         scheduleCacheWorker()
+    }
+
+    private fun setDefaultLocale() {
+        val locale = Locale("es", "ES")
+        Locale.setDefault(locale)
+        val config = Configuration()
+        config.setLocale(locale)
+        baseContext.resources.updateConfiguration(config, baseContext.resources.displayMetrics)
     }
 
     override val workManagerConfiguration: Configuration

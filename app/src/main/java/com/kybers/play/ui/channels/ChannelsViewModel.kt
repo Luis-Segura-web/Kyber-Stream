@@ -441,12 +441,23 @@ open class ChannelsViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val categories = liveRepository.getLiveCategories(currentUser.username, currentUser.password, currentUser.id)
+                Log.d("ChannelsViewModel", "Categorías cargadas: ${categories.size}")
+                categories.forEach { category ->
+                    Log.d("ChannelsViewModel", "Categoría: ${category.categoryName} (ID: ${category.categoryId})")
+                }
+                
                 val allChannels = liveRepository.getRawLiveStreams(currentUser.id).first()
+                Log.d("ChannelsViewModel", "Canales cargados: ${allChannels.size}")
+                
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
+                Log.d("ChannelsViewModel", "Canales agrupados por categoría: ${channelsByCategory.keys}")
+                
                 val expandableCategories = categories.map { category ->
+                    val channelsInCategory = channelsByCategory[category.categoryId] ?: emptyList()
+                    Log.d("ChannelsViewModel", "Categoría ${category.categoryName}: ${channelsInCategory.size} canales")
                     ExpandableCategory(
                         category = category,
-                        channels = channelsByCategory[category.categoryId] ?: emptyList()
+                        channels = channelsInCategory
                     )
                 }
                 _originalCategories.value = expandableCategories
@@ -480,15 +491,21 @@ open class ChannelsViewModel(
         val currentCategorySortOrder = _uiState.value.categorySortOrder
         val currentChannelSortOrder = _uiState.value.channelSortOrder
 
+        Log.d("ChannelsViewModel", "Filtrando categorías: ${masterList.size} categorías originales")
+
         // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
         val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
         val blockedCategoryIds = preferenceManager.getBlockedCategories()
+
+        Log.d("ChannelsViewModel", "Control parental habilitado: $parentalControlEnabled")
+        Log.d("ChannelsViewModel", "Categorías bloqueadas: $blockedCategoryIds")
 
         val categoriesToDisplay = if (parentalControlEnabled) {
             masterList.filter { !blockedCategoryIds.contains(it.category.categoryId) }
         } else {
             masterList
         }
+        Log.d("ChannelsViewModel", "Categorías después del filtro parental: ${categoriesToDisplay.size}")
         // --- FIN DE LA LÓGICA ---
 
         val filteredCategories = categoriesToDisplay.map { originalCategory ->
@@ -513,6 +530,11 @@ open class ChannelsViewModel(
             SortOrder.AZ -> sortedChannelsInCategories.sortedBy { it.category.categoryName }
             SortOrder.ZA -> sortedChannelsInCategories.sortedByDescending { it.category.categoryName }
             SortOrder.DEFAULT -> sortedChannelsInCategories
+        }
+
+        Log.d("ChannelsViewModel", "Categorías finales mostradas: ${finalSortedCategories.size}")
+        finalSortedCategories.forEach { category ->
+            Log.d("ChannelsViewModel", "- ${category.category.categoryName}: ${category.channels.size} canales")
         }
 
         _uiState.update { it.copy(categories = finalSortedCategories) }
