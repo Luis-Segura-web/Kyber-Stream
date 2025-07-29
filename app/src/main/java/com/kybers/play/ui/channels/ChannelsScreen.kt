@@ -54,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.ChannelPlayerControls
@@ -378,11 +379,12 @@ private fun ChannelListSection(
             onClear = { viewModel.onSearchQueryChanged("") }
         )
 
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
             stickyHeader(key = "favorites") {
                 CategoryHeader(
                     categoryName = "Favoritos",
@@ -443,6 +445,12 @@ private fun ChannelListSection(
                     }
                 }
             }
+            
+            // Add scroll indicator to show list progress
+            ScrollIndicator(
+                listState = lazyListState,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            )
         }
     }
 }

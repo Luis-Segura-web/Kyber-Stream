@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.SearchBar
 import com.kybers.play.ui.movies.SortOptionsDialog
@@ -153,53 +154,61 @@ fun SeriesScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                LazyColumn(
-                    state = lazyListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    uiState.categories.forEach { expandableCategory ->
-                        stickyHeader(key = expandableCategory.category.categoryId) {
-                            Surface(modifier = Modifier.fillParentMaxWidth()) {
-                                CategoryHeader(
-                                    categoryName = expandableCategory.category.categoryName,
-                                    isExpanded = expandableCategory.isExpanded,
-                                    onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
-                                    itemCount = expandableCategory.series.size
-                                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = lazyListState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        uiState.categories.forEach { expandableCategory ->
+                            stickyHeader(key = expandableCategory.category.categoryId) {
+                                Surface(modifier = Modifier.fillParentMaxWidth()) {
+                                    CategoryHeader(
+                                        categoryName = expandableCategory.category.categoryName,
+                                        isExpanded = expandableCategory.isExpanded,
+                                        onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
+                                        itemCount = expandableCategory.series.size
+                                    )
+                                }
                             }
-                        }
 
-                        if (expandableCategory.isExpanded) {
-                            val seriesRows = expandableCategory.series.chunked(3)
-                            // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
-                            itemsIndexed(
-                                items = seriesRows,
-                                key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
-                            ) { _, rowSeries ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowSeries.forEach { series ->
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            SeriesPosterItem(
-                                                series = series,
-                                                isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
-                                                onPosterClick = { onNavigateToDetails(series.seriesId) },
-                                                onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
-                                            )
+                            if (expandableCategory.isExpanded) {
+                                val seriesRows = expandableCategory.series.chunked(3)
+                                // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
+                                itemsIndexed(
+                                    items = seriesRows,
+                                    key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
+                                ) { _, rowSeries ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        rowSeries.forEach { series ->
+                                            Box(modifier = Modifier.weight(1f)) {
+                                                SeriesPosterItem(
+                                                    series = series,
+                                                    isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
+                                                    onPosterClick = { onNavigateToDetails(series.seriesId) },
+                                                    onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
+                                                )
+                                            }
                                         }
-                                    }
-                                    repeat(3 - rowSeries.size) {
-                                        Spacer(Modifier.weight(1f))
+                                        repeat(3 - rowSeries.size) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    
+                    // Add scroll indicator to show list progress
+                    ScrollIndicator(
+                        listState = lazyListState,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
                 }
             }
         }
