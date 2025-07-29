@@ -83,7 +83,6 @@ class SeriesViewModel(
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
             val seriesJob = async { allSeries = vodRepository.getAllSeries(currentUser.id).first() }
-            // --- ¡CORRECCIÓN! Pasamos el currentUser.id a la llamada ---
             val categoriesJob = async { officialCategories = vodRepository.getSeriesCategories(currentUser.username, currentUser.password, currentUser.id) }
             awaitAll(seriesJob, categoriesJob)
 
@@ -170,6 +169,17 @@ class SeriesViewModel(
         categorySortOrder: SortOrder,
         seriesSortOrder: SortOrder
     ): List<ExpandableSeriesCategory> {
+        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
+        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
+        val blockedCategoryIds = preferenceManager.getBlockedCategories()
+
+        val categoriesToDisplay = if (parentalControlEnabled) {
+            officialCategories.filter { !blockedCategoryIds.contains(it.categoryId) }
+        } else {
+            officialCategories
+        }
+        // --- FIN DE LA LÓGICA ---
+
         val lowercasedQuery = query.lowercase().trim()
 
         val seriesToDisplay = if (lowercasedQuery.isBlank()) allSeries else allSeries.filter {
@@ -177,7 +187,6 @@ class SeriesViewModel(
         }
 
         val specialCategories = mutableListOf<ExpandableSeriesCategory>()
-        val regularCategories = mutableListOf<ExpandableSeriesCategory>()
 
         if (lowercasedQuery.isBlank()) {
             val favoriteIds = _uiState.value.favoriteSeriesIds
@@ -197,7 +206,7 @@ class SeriesViewModel(
 
         val seriesByCategoryId = seriesToDisplay.groupBy { it.categoryId }
 
-        val categoriesWithContent = officialCategories.mapNotNull { category ->
+        val categoriesWithContent = categoriesToDisplay.mapNotNull { category ->
             seriesByCategoryId[category.categoryId]?.let { seriesInCategory ->
                 ExpandableSeriesCategory(
                     category = category,

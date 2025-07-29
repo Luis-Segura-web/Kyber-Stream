@@ -244,11 +244,7 @@ fun LoginForm(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
-
-    // Estado para la visibilidad de la contraseña
     var passwordVisible by remember { mutableStateOf(false) }
-
-    // ¡MEJORA! Nos permite controlar el foco del teclado
     val focusManager = LocalFocusManager.current
 
     val isFormValid by remember(profileName, url, username, password) {
@@ -271,7 +267,7 @@ fun LoginForm(
             onValueChange = { profileName = it },
             label = { Text("Nombre del Perfil (ej. Casa)") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+            singleLine = true, // Asegura que sea de una sola línea
             leadingIcon = { Icon(Icons.Outlined.AccountCircle, contentDescription = null) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
@@ -284,7 +280,7 @@ fun LoginForm(
             onValueChange = { username = it },
             label = { Text("Usuario") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+            singleLine = true, // Asegura que sea de una sola línea
             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) })
@@ -297,7 +293,7 @@ fun LoginForm(
             onValueChange = { password = it },
             label = { Text("Contraseña") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+            singleLine = true, // Asegura que sea de una sola línea
             leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
@@ -318,7 +314,7 @@ fun LoginForm(
             onValueChange = { url = it },
             label = { Text("URL del Servidor (ej. http://servidor.com:80)") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+            singleLine = true, // Asegura que sea de una sola línea
             leadingIcon = { Icon(Icons.Outlined.Dns, contentDescription = null) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
@@ -336,6 +332,7 @@ fun LoginForm(
             }
             Button(
                 onClick = {
+                    // Limpiamos los espacios antes de guardar
                     onUserAdded(profileName.trim(), url.trim(), username.trim(), password.trim())
                 },
                 modifier = Modifier.weight(1f),

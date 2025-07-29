@@ -14,7 +14,6 @@ import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,9 +61,6 @@ class HomeViewModel(
             _uiState.update { it.copy(isLoading = true, userName = currentUser.profileName) }
 
             try {
-                // --- ¡MEJORA DE ROBUSTEZ! ---
-                // Usamos coroutineScope para asegurar que todas las tareas internas
-                // (banner y carruseles) se completen o fallen juntas.
                 coroutineScope {
                     val bannerJob = async { loadBannerContent() }
                     val carouselsJob = async { loadCarousels() }
@@ -90,12 +86,15 @@ class HomeViewModel(
     private suspend fun loadCarousels(): List<HomeCarousel> = coroutineScope {
         val carousels = mutableListOf<HomeCarousel>()
 
-        val continueMoviesJob = async { loadContinueMovies() }
-        val liveNowJob = async { loadLiveNow() }
-        val recentMoviesJob = async { loadRecentlyAddedMovies() }
-        val recentSeriesJob = async { loadRecentlyAddedSeries() }
-        val favMoviesJob = async { loadFavoriteMovies() }
-        val favSeriesJob = async { loadFavoriteSeries() }
+        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
+        val blockedCategoryIds = preferenceManager.getBlockedCategories()
+
+        val continueMoviesJob = async { loadContinueMovies(parentalControlEnabled, blockedCategoryIds) }
+        val liveNowJob = async { loadLiveNow(parentalControlEnabled, blockedCategoryIds) }
+        val recentMoviesJob = async { loadRecentlyAddedMovies(parentalControlEnabled, blockedCategoryIds) }
+        val recentSeriesJob = async { loadRecentlyAddedSeries(parentalControlEnabled, blockedCategoryIds) }
+        val favMoviesJob = async { loadFavoriteMovies(parentalControlEnabled, blockedCategoryIds) }
+        val favSeriesJob = async { loadFavoriteSeries(parentalControlEnabled, blockedCategoryIds) }
 
         val continueMovies = continueMoviesJob.await()
         val liveNow = liveNowJob.await()
@@ -115,7 +114,11 @@ class HomeViewModel(
     }
 
     private suspend fun loadBannerContent(): List<Pair<Movie, String?>> {
+        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
+        val blockedCategoryIds = preferenceManager.getBlockedCategories()
         val localMovies = vodRepository.getAllMovies(currentUser.id).first()
+            .filter { if (parentalControlEnabled) !blockedCategoryIds.contains(it.categoryId) else true }
+
         val localTmdbIds = localMovies.mapNotNull { it.tmdbId?.toIntOrNull() }.toSet()
         if (localTmdbIds.isEmpty()) return emptyList()
 
@@ -141,20 +144,23 @@ class HomeViewModel(
         return emptyList()
     }
 
-    private suspend fun loadContinueMovies(): List<HomeContentItem.MovieItem> {
+    private suspend fun loadContinueMovies(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.MovieItem> {
+        val limit = preferenceManager.getRecentlyWatchedLimit()
         val moviePositions = preferenceManager.getAllPlaybackPositions()
         return if (moviePositions.isNotEmpty()) {
             val allMovies = vodRepository.getAllMovies(currentUser.id).first()
             moviePositions
                 .filter { (_, position) -> position > 10000 }
                 .mapNotNull { (id, _) -> allMovies.find { it.streamId.toString() == id } }
+                .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
+                .take(limit)
                 .map { HomeContentItem.MovieItem(it) }
-                .take(10)
         } else emptyList()
     }
 
-    private suspend fun loadLiveNow(): List<HomeContentItem.LiveChannelItem> {
+    private suspend fun loadLiveNow(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.LiveChannelItem> {
         val channels = liveRepository.getRawLiveStreams(currentUser.id).first()
+            .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
         if (channels.isEmpty()) return emptyList()
 
         val epgMap = liveRepository.getAllEpgMapForUser(currentUser.id)
@@ -167,34 +173,38 @@ class HomeViewModel(
             .map { HomeContentItem.LiveChannelItem(it) }
     }
 
-    private suspend fun loadRecentlyAddedMovies(): List<HomeContentItem.MovieItem> {
+    private suspend fun loadRecentlyAddedMovies(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.MovieItem> {
         return vodRepository.getAllMovies(currentUser.id).first()
+            .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
             .sortedByDescending { it.added }
             .take(10)
             .map { HomeContentItem.MovieItem(it) }
     }
 
-    private suspend fun loadRecentlyAddedSeries(): List<HomeContentItem.SeriesItem> {
+    private suspend fun loadRecentlyAddedSeries(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.SeriesItem> {
         return vodRepository.getAllSeries(currentUser.id).first()
+            .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
             .sortedByDescending { it.lastModified }
             .take(10)
             .map { HomeContentItem.SeriesItem(it) }
     }
 
-    private suspend fun loadFavoriteMovies(): List<HomeContentItem.MovieItem> {
+    private suspend fun loadFavoriteMovies(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.MovieItem> {
         val favMovieIds = preferenceManager.getFavoriteMovieIds()
         return if (favMovieIds.isNotEmpty()) {
             vodRepository.getAllMovies(currentUser.id).first()
                 .filter { favMovieIds.contains(it.streamId.toString()) }
+                .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
                 .map { HomeContentItem.MovieItem(it) }
         } else emptyList()
     }
 
-    private suspend fun loadFavoriteSeries(): List<HomeContentItem.SeriesItem> {
+    private suspend fun loadFavoriteSeries(parentalControlEnabled: Boolean, blockedIds: Set<String>): List<HomeContentItem.SeriesItem> {
         val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
         return if (favSeriesIds.isNotEmpty()) {
             vodRepository.getAllSeries(currentUser.id).first()
                 .filter { favSeriesIds.contains(it.seriesId.toString()) }
+                .filter { if (parentalControlEnabled) !blockedIds.contains(it.categoryId) else true }
                 .map { HomeContentItem.SeriesItem(it) }
         } else emptyList()
     }

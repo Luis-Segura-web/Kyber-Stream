@@ -1,29 +1,19 @@
 package com.kybers.play.ui.main
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.LiveTv
-import androidx.compose.material.icons.outlined.Movie
-import androidx.compose.material.icons.outlined.Slideshow
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -33,10 +23,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
+import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsScreen
@@ -49,12 +39,16 @@ import com.kybers.play.ui.series.SeriesDetailsScreen
 import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesScreen
 import com.kybers.play.ui.series.SeriesViewModel
+import com.kybers.play.ui.settings.SettingsScreen
+import com.kybers.play.ui.settings.SettingsViewModel
 
+// --- ¡ACTUALIZADO! Hacemos label e icon opcionales y añadimos la ruta de Ajustes ---
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
     object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
     object Series : Screen("series", "Series", Icons.Outlined.Slideshow)
+    object Settings : Screen("settings") // No necesita label ni icon para la barra inferior
     object MovieDetails : Screen("movie_details/{movieId}") {
         fun createRoute(movieId: Int) = "movie_details/$movieId"
     }
@@ -63,7 +57,7 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     }
 }
 
-private val items = listOf(
+private val bottomBarItems = listOf(
     Screen.Home,
     Screen.Channels,
     Screen.Movies,
@@ -74,17 +68,17 @@ private val items = listOf(
 fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
-    seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory
+    seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
+    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory // --- ¡NUEVO! ---
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val context = LocalContext.current
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
-    val isBottomBarVisible = items.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
+    val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
     Scaffold(
         bottomBar = {
@@ -94,7 +88,7 @@ fun MainScreen(
                 exit = slideOutVertically { it }
             ) {
                 NavigationBar {
-                    items.forEach { screen ->
+                    bottomBarItems.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon!!, contentDescription = screen.label) },
                             label = { Text(screen.label!!) },
@@ -119,18 +113,10 @@ fun MainScreen(
                 val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
                 HomeScreen(
                     homeViewModel = homeViewModel,
-                    onMovieClick = { movieId ->
-                        navController.navigate(Screen.MovieDetails.createRoute(movieId))
-                    },
-                    onSeriesClick = { seriesId ->
-                        navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
-                    },
-                    onChannelClick = { channel ->
-                        navController.navigate(Screen.Channels.route)
-                    },
-                    onSettingsClick = {
-                        Toast.makeText(context, "Ajustes próximamente", Toast.LENGTH_SHORT).show()
-                    }
+                    onMovieClick = { movieId -> navController.navigate(Screen.MovieDetails.createRoute(movieId)) },
+                    onSeriesClick = { seriesId -> navController.navigate(Screen.SeriesDetails.createRoute(seriesId)) },
+                    onChannelClick = { navController.navigate(Screen.Channels.route) },
+                    onSettingsClick = { navController.navigate(Screen.Settings.route) } // --- ¡ACTUALIZADO! ---
                 )
             }
             composable(Screen.Channels.route) {
@@ -147,18 +133,14 @@ fun MainScreen(
                 val moviesViewModel: MoviesViewModel = viewModel(factory = contentViewModelFactory)
                 MoviesScreen(
                     viewModel = moviesViewModel,
-                    onNavigateToDetails = { movieId ->
-                        navController.navigate(Screen.MovieDetails.createRoute(movieId))
-                    }
+                    onNavigateToDetails = { movieId -> navController.navigate(Screen.MovieDetails.createRoute(movieId)) }
                 )
             }
             composable(Screen.Series.route) {
                 val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
                 SeriesScreen(
                     viewModel = seriesViewModel,
-                    onNavigateToDetails = { seriesId ->
-                        navController.navigate(Screen.SeriesDetails.createRoute(seriesId))
-                    }
+                    onNavigateToDetails = { seriesId -> navController.navigate(Screen.SeriesDetails.createRoute(seriesId)) }
                 )
             }
             composable(
@@ -178,7 +160,6 @@ fun MainScreen(
                     }
                 )
             }
-
             composable(
                 route = Screen.SeriesDetails.route,
                 arguments = listOf(navArgument("seriesId") { type = NavType.IntType })
@@ -194,6 +175,15 @@ fun MainScreen(
                             popUpTo(navController.currentDestination!!.id) { inclusive = true }
                         }
                     }
+                )
+            }
+            // --- ¡NUEVA RUTA PARA AJUSTES! ---
+            composable(Screen.Settings.route) {
+                val factory = settingsViewModelFactoryProvider()
+                val viewModel: SettingsViewModel = viewModel(factory = factory)
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateUp = { navController.popBackStack() }
                 )
             }
         }

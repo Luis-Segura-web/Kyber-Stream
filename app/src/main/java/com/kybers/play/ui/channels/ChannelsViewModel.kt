@@ -285,12 +285,10 @@ open class ChannelsViewModel(
         _uiState.update { it.copy(isInPipMode = isInPip) }
     }
 
-    // --- ¡CORRECCIÓN DE FUGA DE MEMORIA! ---
     override fun onCleared() {
         super.onCleared()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
-        // Nos aseguramos de liberar el objeto Media (el "disco") antes de liberar el reproductor.
         mediaPlayer.media?.release()
         mediaPlayer.release()
         libVLC.release()
@@ -482,7 +480,18 @@ open class ChannelsViewModel(
         val currentCategorySortOrder = _uiState.value.categorySortOrder
         val currentChannelSortOrder = _uiState.value.channelSortOrder
 
-        val filteredCategories = masterList.map { originalCategory ->
+        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
+        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
+        val blockedCategoryIds = preferenceManager.getBlockedCategories()
+
+        val categoriesToDisplay = if (parentalControlEnabled) {
+            masterList.filter { !blockedCategoryIds.contains(it.category.categoryId) }
+        } else {
+            masterList
+        }
+        // --- FIN DE LA LÓGICA ---
+
+        val filteredCategories = categoriesToDisplay.map { originalCategory ->
             val filteredChannels = originalCategory.channels.filter {
                 it.name.contains(query, ignoreCase = true)
             }
@@ -569,19 +578,15 @@ open class ChannelsViewModel(
     }
 
     fun setCategorySortOrder(sortOrder: SortOrder) {
-        viewModelScope.launch {
-            preferenceManager.saveSortOrder("category", sortOrder.name)
-            _uiState.update { it.copy(categorySortOrder = sortOrder) }
-            filterAndSortCategories()
-        }
+        preferenceManager.saveSortOrder("category", sortOrder.name)
+        _uiState.update { it.copy(categorySortOrder = sortOrder) }
+        filterAndSortCategories()
     }
 
     fun setChannelSortOrder(sortOrder: SortOrder) {
-        viewModelScope.launch {
-            preferenceManager.saveSortOrder("channel", sortOrder.name)
-            _uiState.update { it.copy(channelSortOrder = sortOrder) }
-            filterAndSortCategories()
-        }
+        preferenceManager.saveSortOrder("channel", sortOrder.name)
+        _uiState.update { it.copy(channelSortOrder = sortOrder) }
+        filterAndSortCategories()
     }
 
     fun formatTimestamp(timestamp: Long): String {

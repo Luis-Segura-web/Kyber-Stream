@@ -5,12 +5,22 @@ import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.SeriesInfoResponse
+import com.kybers.play.data.remote.model.XtreamResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface XtreamApiService {
+
+    // --- ¡NUEVA FUNCIÓN AÑADIDA! ---
+    // Esta función nos permitirá obtener los detalles de la cuenta del usuario.
+    @GET("player_api.php")
+    suspend fun getUserInfo(
+        @Query("username") user: String,
+        @Query("password") pass: String,
+        @Query("action") action: String = "get_user_info"
+    ): Response<XtreamResponse>
 
     @GET("player_api.php")
     suspend fun getLiveCategories(
@@ -63,7 +73,6 @@ interface XtreamApiService {
         @Query("password") pass: String
     ): Response<ResponseBody>
 
-    // --- ¡NUEVO ENDPOINT PARA DETALLES DE SERIES! ---
     @GET("player_api.php")
     suspend fun getSeriesInfo(
         @Query("username") user: String,

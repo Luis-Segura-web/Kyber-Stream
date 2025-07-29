@@ -21,6 +21,7 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
+import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -103,10 +104,23 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        // --- ¡NUEVA FÁBRICA PARA AJUSTES! ---
+                        val settingsViewModelFactoryProvider = @Composable {
+                            remember {
+                                SettingsViewModelFactory(
+                                    contentRepository = vodRepository, // Podemos usar vod o live, ambos heredan de BaseContentRepository
+                                    preferenceManager = appContainer.preferenceManager,
+                                    syncManager = appContainer.syncManager,
+                                    currentUser = user!!
+                                )
+                            }
+                        }
+
                         MainScreen(
                             contentViewModelFactory = contentViewModelFactory,
                             movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
-                            seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider
+                            seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
+                            settingsViewModelFactoryProvider = settingsViewModelFactoryProvider // La pasamos a MainScreen
                         )
                     }
                     else -> {

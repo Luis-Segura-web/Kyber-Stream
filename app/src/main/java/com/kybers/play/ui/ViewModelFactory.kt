@@ -7,6 +7,7 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.ExternalApiService
+import com.kybers.play.data.repository.BaseContentRepository
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
@@ -19,6 +20,7 @@ import com.kybers.play.ui.movies.MoviesViewModel
 import com.kybers.play.ui.player.PlayerViewModel
 import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesViewModel
+import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.sync.SyncViewModel
 
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
@@ -48,7 +50,7 @@ class ContentViewModelFactory(
                 HomeViewModel(
                     vodRepository = vodRepository,
                     liveRepository = liveRepository,
-                    detailsRepository = detailsRepository, // --- ¡ERROR CORREGIDO! ---
+                    detailsRepository = detailsRepository,
                     externalApiService = externalApiService,
                     preferenceManager = preferenceManager,
                     currentUser = currentUser
@@ -141,6 +143,22 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
         if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return PlayerViewModel(application) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+// --- ¡NUEVA FÁBRICA AÑADIDA! ---
+class SettingsViewModelFactory(
+    private val contentRepository: BaseContentRepository,
+    private val preferenceManager: PreferenceManager,
+    private val syncManager: SyncManager,
+    private val currentUser: User
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return SettingsViewModel(contentRepository, preferenceManager, syncManager, currentUser) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

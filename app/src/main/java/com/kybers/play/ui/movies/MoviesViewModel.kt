@@ -87,7 +87,6 @@ class MoviesViewModel(
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
 
             val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
-            // --- ¡CORRECCIÓN! Pasamos el currentUser.id a la llamada ---
             val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
             val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
 
@@ -214,6 +213,17 @@ class MoviesViewModel(
         categorySortOrder: SortOrder,
         movieSortOrder: SortOrder
     ): List<ExpandableMovieCategory> {
+        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
+        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
+        val blockedCategoryIds = preferenceManager.getBlockedCategories()
+
+        val categoriesToDisplay = if (parentalControlEnabled) {
+            officialCategories.filter { !blockedCategoryIds.contains(it.categoryId) }
+        } else {
+            officialCategories
+        }
+        // --- FIN DE LA LÓGICA ---
+
         val lowercasedQuery = query.lowercase().trim()
 
         val moviesToDisplay = if (lowercasedQuery.isBlank()) allMovies else allMovies.filter {
@@ -256,7 +266,8 @@ class MoviesViewModel(
         }
         val moviesByCategoryId = moviesToDisplay.groupBy { it.categoryId.takeIf { !it.isNullOrBlank() } ?: "misc" }
 
-        officialCategories.forEach { category ->
+        // Usamos la lista de categorías ya filtrada
+        categoriesToDisplay.forEach { category ->
             moviesByCategoryId[category.categoryId]?.let {
                 regularCategories.add(
                     ExpandableMovieCategory(
