@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
                         val settingsViewModelFactoryProvider = @Composable {
                             remember {
                                 SettingsViewModelFactory(
+                                    context = this@MainActivity,
                                     contentRepository = vodRepository, // Podemos usar vod o live, ambos heredan de BaseContentRepository
                                     preferenceManager = appContainer.preferenceManager,
                                     syncManager = appContainer.syncManager,
