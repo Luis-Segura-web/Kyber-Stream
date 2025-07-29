@@ -22,7 +22,10 @@ object ExternalApiRetrofitClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
+        val rateLimitInterceptor = RateLimitInterceptor()
+        
         OkHttpClient.Builder()
+            .addInterceptor(rateLimitInterceptor) // Add rate limiting first
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

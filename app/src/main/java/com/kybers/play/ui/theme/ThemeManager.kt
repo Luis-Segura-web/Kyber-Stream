@@ -22,6 +22,7 @@ enum class ThemeMode {
 
 /**
  * Manages application theme state and provides theme information
+ * Enhanced for instant theme switching
  */
 class ThemeManager(private val preferenceManager: PreferenceManager) {
     
@@ -48,6 +49,28 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         }
         preferenceManager.saveAppTheme(themeString)
         _currentTheme.value = themeMode
+    }
+    
+    /**
+     * Updates theme from string and applies immediately
+     * Used by settings to ensure instant theme switching
+     */
+    fun updateThemeFromString(themeString: String) {
+        val themeMode = when (themeString) {
+            "LIGHT" -> ThemeMode.LIGHT
+            "DARK" -> ThemeMode.DARK
+            "SYSTEM" -> ThemeMode.SYSTEM
+            else -> ThemeMode.SYSTEM
+        }
+        _currentTheme.value = themeMode
+    }
+    
+    /**
+     * Refreshes theme from preferences
+     * Useful when preferences might have changed externally
+     */
+    fun refreshThemeFromPreferences() {
+        _currentTheme.value = getCurrentThemeFromPreferences()
     }
     
     /**

@@ -58,6 +58,7 @@ sealed class SettingsEvent {
     object ShowPinChangeSuccess : SettingsEvent()
     object ShowPinChangeError : SettingsEvent()
     object ShowRecommendationsApplied : SettingsEvent()
+    object ParentalControlChanged : SettingsEvent()
 }
 
 /**
@@ -68,7 +69,8 @@ class SettingsViewModel(
     private val contentRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val currentUser: User
+    private val currentUser: User,
+    private val themeManager: ThemeManager? = null
 ) : ViewModel() {
 
     private val dynamicSettingsManager = DynamicSettingsManager(context, preferenceManager)
@@ -212,6 +214,9 @@ class SettingsViewModel(
     fun onAppThemeChanged(theme: String) {
         preferenceManager.saveAppTheme(theme)
         _uiState.update { it.copy(appTheme = theme) }
+        // Immediately apply theme change through ThemeManager if available
+        // This ensures instant theme switching without app restart
+        themeManager?.updateThemeFromString(theme)
     }
 
     fun onRecentlyWatchedLimitChanged(limit: Int) {
@@ -261,6 +266,18 @@ class SettingsViewModel(
     fun onBlockedCategoriesChanged(blockedIds: Set<String>) {
         preferenceManager.saveBlockedCategories(blockedIds)
         _uiState.update { it.copy(blockedCategories = blockedIds) }
+        // Immediately refresh content to apply parental control changes
+        refreshContentWithParentalControl()
+    }
+    
+    /**
+     * Refreshes content across all screens when parental control settings change
+     */
+    private fun refreshContentWithParentalControl() {
+        // This will trigger a refresh signal that can be observed by content ViewModels
+        viewModelScope.launch {
+            _events.emit(SettingsEvent.ParentalControlChanged)
+        }
     }
 
     fun verifyPin(pin: String): Boolean {

@@ -1,5 +1,6 @@
 package com.kybers.play.ui.series
 
+import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -223,10 +225,31 @@ fun SeriesPosterItem(
     onPosterClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val screenWidth = configuration.screenWidthDp
+    
+    // Adaptive sizing based on screen size and orientation
+    val aspectRatio = if (isLandscape) {
+        // In landscape, make posters slightly wider
+        1.8f / 3f
+    } else {
+        // In portrait, use standard poster ratio
+        2f / 3f
+    }
+    
+    // Adjust padding based on screen size
+    val itemPadding = when {
+        screenWidth > 800 -> 8.dp // Large screens
+        screenWidth > 600 -> 6.dp // Medium screens
+        else -> 4.dp // Small screens
+    }
+    
     Card(
         modifier = Modifier
-            .aspectRatio(2f / 3f)
-            .clickable(onClick = onPosterClick),
+            .aspectRatio(aspectRatio)
+            .clickable(onClick = onPosterClick)
+            .padding(top = itemPadding),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -247,40 +270,19 @@ fun SeriesPosterItem(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                if (series.rating5Based > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Star,
-                            contentDescription = "Calificación",
-                            tint = Color(0xFFFFC107),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "%.1f".format(series.rating5Based),
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.height(1.dp))
-                }
-
                 IconButton(
                     onClick = onFavoriteClick,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(if (isLandscape) 28.dp else 32.dp)
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "Añadir a favoritos",
-                        tint = if (isFavorite) Color(0xFFE91E63) else Color.White
+                        tint = if (isFavorite) Color(0xFFE91E63) else Color.White,
+                        modifier = Modifier.size(if (isLandscape) 16.dp else 20.dp)
                     )
                 }
             }
@@ -293,24 +295,54 @@ fun SeriesPosterItem(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.7f),
-                                Color.Black.copy(alpha = 0.9f)
+                                Color.Black.copy(alpha = 0.6f),
+                                Color.Black.copy(alpha = 0.85f)
                             )
                         )
                     )
-                    .padding(top = 16.dp, bottom = 8.dp, start = 8.dp, end = 8.dp)
+                    .padding(
+                        top = 16.dp, 
+                        bottom = if (isLandscape) 6.dp else 8.dp, 
+                        start = if (isLandscape) 6.dp else 8.dp, 
+                        end = if (isLandscape) 6.dp else 8.dp
+                    )
             ) {
-                Text(
-                    text = series.name,
-                    color = Color.White,
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 16.sp,
-                    ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(if (isLandscape) 2.dp else 4.dp)
+                ) {
+                    Text(
+                        text = series.name,
+                        color = Color.White,
+                        style = TextStyle(
+                            fontSize = if (isLandscape) 10.sp else 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = if (isLandscape) 12.sp else 14.sp,
+                        ),
+                        maxLines = 3, // Exactly 3 lines as required
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    // Rating with single star as requested
+                    if (series.rating5Based > 0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 2.dp else 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Star,
+                                contentDescription = "Calificación",
+                                tint = Color(0xFFFFC107),
+                                modifier = Modifier.size(if (isLandscape) 12.dp else 14.dp)
+                            )
+                            Text(
+                                text = "%.1f".format(series.rating5Based),
+                                color = Color.White,
+                                fontSize = if (isLandscape) 9.sp else 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
             }
         }
     }

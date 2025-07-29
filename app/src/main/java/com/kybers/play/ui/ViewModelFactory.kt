@@ -155,12 +155,13 @@ class SettingsViewModelFactory(
     private val contentRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val currentUser: User
+    private val currentUser: User,
+    private val themeManager: com.kybers.play.ui.theme.ThemeManager? = null
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(context, contentRepository, preferenceManager, syncManager, currentUser) as T
+            return SettingsViewModel(context, contentRepository, preferenceManager, syncManager, currentUser, themeManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
