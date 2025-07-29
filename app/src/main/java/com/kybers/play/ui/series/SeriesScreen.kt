@@ -36,7 +36,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.ui.channels.CategoryHeader
-import com.kybers.play.ui.channels.SearchBar
+import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
 import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.ui.movies.SortOptionsDialog
 import kotlinx.coroutines.flow.collectLatest
@@ -141,7 +141,7 @@ fun SeriesScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            SearchBar(
+            CustomSearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = viewModel::onSearchQueryChanged,
                 onClear = { viewModel.onSearchQueryChanged("") }

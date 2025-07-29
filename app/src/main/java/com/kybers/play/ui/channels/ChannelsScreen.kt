@@ -412,9 +412,9 @@ private fun ChannelListSection(
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
                             isFavorite = true,
-                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
@@ -437,9 +437,9 @@ private fun ChannelListSection(
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel) },
                             isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
-                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
