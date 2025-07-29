@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+// --- ¡CORRECCIÓN! Se añade la importación que faltaba ---
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,12 +68,6 @@ import com.kybers.play.ui.player.PlayerStatus
 import kotlin.math.ceil
 import kotlin.math.floor
 
-/**
- * --- ¡PANTALLA FINAL CON TODAS LAS MEJORAS! ---
- * - Muestra la imagen del episodio (buscada en TMDB si es necesario).
- * - Elimina el texto de la duración de la lista.
- * - La barra de progreso se basa en la duración real del video.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeriesDetailsScreen(
@@ -85,7 +80,6 @@ fun SeriesDetailsScreen(
     val activity = context as? ComponentActivity
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    // --- MANEJO DEL CICLO DE VIDA Y ESTADOS DE LA VENTANA ---
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         DisposableEffect(activity) {
             val onPipModeChanged = Consumer<PictureInPictureModeChangedInfo> { info ->
@@ -149,7 +143,6 @@ fun SeriesDetailsScreen(
         }
     }
 
-    // --- COMPOSICIÓN DE LA UI ---
     Scaffold { paddingValues ->
         Column(
             modifier = Modifier
@@ -234,8 +227,8 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::playNextEpisode,
                     onPrevious = viewModel::playPreviousEpisode,
-                    onSeekForward = {},
-                    onSeekBackward = {},
+                    onSeekForward = { /* viewModel.seekForward() */ },
+                    onSeekBackward = { /* viewModel.seekBackward() */ },
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
                     onToggleFavorite = {},
                     onToggleFullScreen = {
@@ -345,7 +338,6 @@ fun EpisodesContent(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewM
             items(episodes, key = { it.id }) { episode ->
                 EpisodeListItem(
                     episode = episode,
-                    // --- ¡CAMBIO CLAVE! Pasamos el estado de reproducción completo ---
                     playbackState = uiState.playbackStates[episode.id],
                     onPlayClick = { viewModel.playEpisode(episode) }
                 )
@@ -511,7 +503,6 @@ fun SeasonTabs(
     }
 }
 
-// --- ¡COMPONENTE DE LA LISTA DE EPISODIOS TOTALMENTE RENOVADO! ---
 @Composable
 fun EpisodeListItem(
     episode: Episode,
@@ -534,7 +525,6 @@ fun EpisodeListItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. Imagen del episodio
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(episode.imageUrl)
@@ -553,7 +543,6 @@ fun EpisodeListItem(
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // 2. Columna con la información y la barra de progreso
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "${episode.episodeNum}. ${episode.title}",
@@ -563,7 +552,6 @@ fun EpisodeListItem(
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            // Mostramos la barra de progreso solo si hay progreso visible.
             if (progress > 0.01f) {
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
@@ -577,7 +565,6 @@ fun EpisodeListItem(
             }
         }
 
-        // 3. Botón de reproducción
         IconButton(onClick = onPlayClick) {
             Icon(Icons.Default.PlayArrow, contentDescription = "Reproducir episodio")
         }

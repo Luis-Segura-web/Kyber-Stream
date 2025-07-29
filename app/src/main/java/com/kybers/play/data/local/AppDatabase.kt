@@ -60,7 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "iptv_app_database"
                 )
-                    // --- ADVERTENCIA CORREGIDA: Usamos la nueva versión de la función ---
+                    // --- ¡ADVERTENCIA CORREGIDA! Usamos la nueva versión de la función ---
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

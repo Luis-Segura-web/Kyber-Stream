@@ -91,7 +91,6 @@ class MainActivity : ComponentActivity() {
 
                         val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
                             remember(seriesId) {
-                                // --- ¡CORRECCIÓN! Se añade el externalApiService que faltaba ---
                                 SeriesDetailsViewModelFactory(
                                     application = application,
                                     preferenceManager = appContainer.preferenceManager,

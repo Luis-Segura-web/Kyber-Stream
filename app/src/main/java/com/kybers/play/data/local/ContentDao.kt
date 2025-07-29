@@ -52,17 +52,9 @@ interface MovieDao {
     @Query("DELETE FROM movies WHERE userId = :userId")
     suspend fun deleteAllByUserId(userId: Int)
 
-    // --- ¡LÓGICA MODIFICADA! ---
-    // Esta función ahora solo añade o actualiza películas, no borra las anteriores.
-    @Transaction
-    suspend fun cacheMovies(movies: List<Movie>, userId: Int) {
-        Log.d("MovieDao", "cacheMovies: Insertando o actualizando ${movies.size} películas para userId: $userId")
-        if (movies.isNotEmpty()) {
-            insertAll(movies)
-        }
-    }
-
-    // Mantenemos esta función por si se necesita en el futuro para una limpieza manual.
+    // --- ¡LÓGICA CORREGIDA! ---
+    // Se elimina el método obsoleto `cacheMovies`.
+    // La función `replaceAll` es ahora la única responsable de la sincronización completa.
     @Transaction
     suspend fun replaceAll(movies: List<Movie>, userId: Int) {
         Log.d("MovieDao", "replaceAll: Eliminando películas antiguas para userId: $userId")

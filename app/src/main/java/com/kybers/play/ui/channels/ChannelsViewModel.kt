@@ -208,7 +208,6 @@ open class ChannelsViewModel(
                 vlcOptions.forEach { addOption(it) }
             }
 
-            // --- ¡CORRECCIÓN! Liberamos el recurso anterior antes de asignar el nuevo ---
             mediaPlayer.media?.release()
             mediaPlayer.media = media
             mediaPlayer.play()
@@ -286,11 +285,12 @@ open class ChannelsViewModel(
         _uiState.update { it.copy(isInPipMode = isInPip) }
     }
 
+    // --- ¡CORRECCIÓN DE FUGA DE MEMORIA! ---
     override fun onCleared() {
         super.onCleared()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
-        // --- ¡CORRECCIÓN! Nos aseguramos de liberar el media object ---
+        // Nos aseguramos de liberar el objeto Media (el "disco") antes de liberar el reproductor.
         mediaPlayer.media?.release()
         mediaPlayer.release()
         libVLC.release()
@@ -332,7 +332,6 @@ open class ChannelsViewModel(
         if (mediaPlayer.isPlaying) {
             mediaPlayer.stop()
         }
-        // --- ¡CORRECCIÓN! Liberamos el media object al ocultar el reproductor ---
         mediaPlayer.media?.release()
         mediaPlayer.media = null
 

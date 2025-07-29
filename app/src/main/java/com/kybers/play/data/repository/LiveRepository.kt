@@ -59,27 +59,29 @@ class LiveRepository(
         }
     }
 
-    /**
-     * --- ¡NUEVA FUNCIÓN! ---
-     * Comprueba si la guía de canales (EPG) está desactualizada.
-     * Se considera desactualizada si el último programa termina en menos de 6 horas.
-     * @param userId El ID del usuario.
-     * @return `true` si la EPG necesita actualizarse, `false` en caso contrario.
-     */
+    // --- ¡CORRECCIÓN DE COMPILACIÓN! ---
+    // Métodos requeridos por la clase base. No aplican aquí, devolvemos listas vacías.
+    override suspend fun getMovieCategories(user: String, pass: String, userId: Int): List<Category> {
+        Log.w("LiveRepository", "getMovieCategories fue llamado en LiveRepository. Esto no debería ocurrir.")
+        return emptyList()
+    }
+
+    override suspend fun getSeriesCategories(user: String, pass: String, userId: Int): List<Category> {
+        Log.w("LiveRepository", "getSeriesCategories fue llamado en LiveRepository. Esto no debería ocurrir.")
+        return emptyList()
+    }
+
     suspend fun isEpgDataStale(userId: Int): Boolean {
-        // Le preguntamos al "detective" por la fecha del último programa.
         val latestTimestamp = epgEventDao.getLatestStopTimestamp(userId)
-            ?: return true // Si no hay eventos, definitivamente está desactualizada.
+            ?: return true
 
-        // Calculamos el umbral: la hora actual + 6 horas.
-        val sixHoursFromNowInSeconds = (System.currentTimeMillis() / 1000) + TimeUnit.HOURS.toSeconds(6)
+        val twentyFourHoursFromNowInSeconds = (System.currentTimeMillis() / 1000) + TimeUnit.HOURS.toSeconds(24)
 
-        // Si la fecha del último programa es anterior a nuestro umbral, ¡damos la alarma!
-        val isStale = latestTimestamp < sixHoursFromNowInSeconds
+        val isStale = latestTimestamp < twentyFourHoursFromNowInSeconds
         if (isStale) {
-            Log.d("LiveRepository", "EPG DESACTUALIZADA. El último programa termina antes del umbral de 6 horas.")
+            Log.d("LiveRepository", "EPG DESACTUALIZADA. El último programa termina antes del umbral de 24 horas.")
         } else {
-            Log.d("LiveRepository", "EPG FRESCA. Aún hay programación para las próximas 6 horas.")
+            Log.d("LiveRepository", "EPG FRESCA. Aún hay programación para las próximas 24 horas.")
         }
         return isStale
     }

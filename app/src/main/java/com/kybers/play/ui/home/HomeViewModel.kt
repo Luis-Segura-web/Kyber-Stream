@@ -62,7 +62,9 @@ class HomeViewModel(
             _uiState.update { it.copy(isLoading = true, userName = currentUser.profileName) }
 
             try {
-                // --- ADVERTENCIA CORREGIDA: Usamos coroutineScope para seguridad ---
+                // --- ¡MEJORA DE ROBUSTEZ! ---
+                // Usamos coroutineScope para asegurar que todas las tareas internas
+                // (banner y carruseles) se completen o fallen juntas.
                 coroutineScope {
                     val bannerJob = async { loadBannerContent() }
                     val carouselsJob = async { loadCarousels() }

@@ -10,21 +10,20 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
+ * --- ¡PARSER OPTIMIZADO Y ROBUSTO! ---
  * Un parser para procesar archivos XMLTV y extraer la información de la EPG.
+ * Ahora es más eficiente y resistente a diferentes formatos de fecha.
  */
 object XmlTvParser {
 
     // ¡OPTIMIZACIÓN! Creamos las instancias de los parsers de fecha una sola vez.
-    // Esto es mucho más eficiente que crearlas miles de veces dentro de un bucle.
     private val xmlTvDateFormatWithZone by lazy {
         SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US).apply {
-            // Le decimos que sea estricto con el formato para evitar errores silenciosos.
             isLenient = false
         }
     }
     private val xmlTvDateFormatNoZone by lazy {
         SimpleDateFormat("yyyyMMddHHmmss", Locale.US).apply {
-            // Usamos la zona horaria UTC como referencia si no viene especificada.
             timeZone = TimeZone.getTimeZone("UTC")
             isLenient = false
         }
@@ -105,8 +104,8 @@ object XmlTvParser {
     }
 
     /**
-     * ¡VERSIÓN A PRUEBA DE BALAS Y OPTIMIZADA!
-     * Esta función ahora es mucho más resistente a formatos de fecha inesperados y más eficiente.
+     * --- ¡LÓGICA DE PARSEO DE FECHAS MEJORADA! ---
+     * Esta función ahora es mucho más resistente a formatos de fecha inesperados.
      */
     private fun parseXmlTvDate(dateString: String): Long? {
         // Intento 1: Formato con zona horaria (el más común y correcto).
@@ -116,7 +115,7 @@ object XmlTvParser {
             // Ignoramos el error y probamos el siguiente formato.
         }
 
-        // Intento 2: Formato sin zona horaria.
+        // Intento 2: Formato sin zona horaria (asumiendo UTC).
         try {
             return xmlTvDateFormatNoZone.parse(dateString)?.time?.div(1000)
         } catch (e: Exception) {

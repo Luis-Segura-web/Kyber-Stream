@@ -18,10 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * --- ¡ARCHIVO REFACTORIZADO Y MEJORADO! ---
- * Este composable ahora gestiona los controles para contenido VOD (Películas y Series).
- * Es más inteligente: puede mostrar botones de "siguiente/anterior" o "avanzar/retroceder".
- * Utiliza los componentes comunes de PlayerControlsCommon.kt para evitar la duplicación de código.
+ * --- ¡ARCHIVO CON AJUSTES DE UI! ---
+ * Se ha ajustado el espaciado en los controles inferiores para un diseño más compacto.
  */
 @Composable
 fun MoviePlayerControls(
@@ -42,15 +40,13 @@ fun MoviePlayerControls(
     showSubtitleMenu: Boolean,
     currentPosition: Long,
     duration: Long,
-    // --- ¡NUEVO PARÁMETRO CLAVE! ---
-    // Determina qué conjunto de botones centrales mostrar.
     showNextPreviousButtons: Boolean,
     onClose: () -> Unit,
     onPlayPause: () -> Unit,
-    onNext: () -> Unit, // Usado para el siguiente episodio/canal
-    onPrevious: () -> Unit, // Usado para el episodio/canal anterior
-    onSeekForward: () -> Unit, // Usado para avanzar 10s
-    onSeekBackward: () -> Unit, // Usado para retroceder 10s
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onSeekForward: () -> Unit,
+    onSeekBackward: () -> Unit,
     onToggleMute: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleFullScreen: () -> Unit,
@@ -73,7 +69,6 @@ fun MoviePlayerControls(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.6f))
         ) {
-            // Usamos el componente común para la barra superior
             TopControls(
                 modifier = Modifier.align(Alignment.TopCenter),
                 streamTitle = streamTitle,
@@ -84,9 +79,9 @@ fun MoviePlayerControls(
                 onRequestPipMode = { onRequestPipMode(); onAnyInteraction() }
             )
 
-            // Controles centrales específicos para VOD
+            // --- ¡MODIFICACIÓN! Se añade un desplazamiento vertical hacia arriba ---
             CenterVODControls(
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier.align(Alignment.Center).offset(y = (-16).dp),
                 isPlaying = isPlaying,
                 isFullScreen = isFullScreen,
                 showNextPrevious = showNextPreviousButtons,
@@ -97,7 +92,6 @@ fun MoviePlayerControls(
                 onSeekBackward = { onSeekBackward(); onAnyInteraction() }
             )
 
-            // Controles inferiores específicos para VOD
             BottomVODControls(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 isMuted = isMuted,
@@ -118,7 +112,6 @@ fun MoviePlayerControls(
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
-            // Usamos el componente común para los deslizadores laterales
             if (isFullScreen) {
                 SideSliders(
                     modifier = Modifier.fillMaxSize(),
@@ -155,7 +148,6 @@ private fun CenterVODControls(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // --- ¡LÓGICA CONDICIONAL! ---
         if (showNextPrevious) {
             IconButton(onClick = onPrevious) {
                 Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(sideIconSize))
@@ -172,7 +164,6 @@ private fun CenterVODControls(
         }
         Spacer(modifier = Modifier.width(spacerWidth))
 
-        // --- ¡LÓGICA CONDICIONAL! ---
         if (showNextPrevious) {
             IconButton(onClick = onNext) {
                 Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(sideIconSize))
@@ -233,8 +224,6 @@ private fun BottomVODControls(
             )
             Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
         }
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),

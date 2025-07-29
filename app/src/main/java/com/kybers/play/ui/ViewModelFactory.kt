@@ -111,6 +111,7 @@ class SeriesDetailsViewModelFactory(
                 preferenceManager = preferenceManager,
                 vodRepository = vodRepository,
                 detailsRepository = detailsRepository,
+                externalApiService = externalApiService,
                 currentUser = currentUser,
                 seriesId = seriesId
             ) as T

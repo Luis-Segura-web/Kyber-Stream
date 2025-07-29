@@ -36,7 +36,6 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
-// --- ¡ESTADO DE LA UI ACTUALIZADO! ---
 data class MovieDetailsUiState(
     val isLoadingDetails: Boolean = true,
     val movie: Movie? = null,
@@ -49,13 +48,11 @@ data class MovieDetailsUiState(
     val cast: List<TMDbCastMember> = emptyList(),
     val isFavorite: Boolean = false,
     val playbackPosition: Long = 0L,
-    // Nuevas listas para colecciones, recomendadas y similares
     val collection: TMDbCollectionDetails? = null,
     val availableCollectionMovies: List<Movie> = emptyList(),
     val unavailableCollectionMovies: List<com.kybers.play.data.remote.model.TMDbMovieResult> = emptyList(),
     val availableRecommendedMovies: List<Movie> = emptyList(),
     val availableSimilarMovies: List<Movie> = emptyList(),
-    // Estados para los diálogos
     val showActorMoviesDialog: Boolean = false,
     val selectedActorName: String = "",
     val selectedActorBio: String? = null,
@@ -65,7 +62,6 @@ data class MovieDetailsUiState(
     val showUnavailableDetailsDialog: Boolean = false,
     val unavailableItemDetails: UnavailableItemDetails? = null,
     val isUnavailableItemLoading: Boolean = false,
-    // Estados del reproductor
     val isPlayerVisible: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
@@ -103,7 +99,7 @@ class MovieDetailsViewModel(
     application: Application,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
-    private val externalApiService: ExternalApiService, // ¡Nueva dependencia!
+    private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val movieId: Int
@@ -385,11 +381,13 @@ class MovieDetailsViewModel(
         _uiState.update { it.copy(isPlayerVisible = true, playerStatus = PlayerStatus.BUFFERING) }
     }
 
+    // --- ¡CORRECCIÓN DE FUGA DE MEMORIA! ---
     fun hidePlayer() {
         if (mediaPlayer.isPlaying) {
             saveCurrentProgress()
         }
         mediaPlayer.stop()
+        // Liberamos el 'Media' (el "disco") antes de resetear el estado.
         mediaPlayer.media?.release()
         mediaPlayer.media = null
         _uiState.update {
@@ -405,7 +403,6 @@ class MovieDetailsViewModel(
         if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
     }
 
-    // --- ¡NUEVAS FUNCIONES DE BÚSQUEDA! ---
     fun seekForward() {
         mediaPlayer.time = (mediaPlayer.time + 10000).coerceAtMost(mediaPlayer.length)
     }

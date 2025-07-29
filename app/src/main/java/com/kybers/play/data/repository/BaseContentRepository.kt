@@ -5,50 +5,30 @@ import com.kybers.play.data.remote.model.Category
 import java.io.IOException
 
 /**
- * --- ¡CLASE BASE ACTUALIZADA! ---
- * Ahora las funciones de obtención de categorías incluyen el userId
- * para ser consistentes con las clases hijas que implementan la caché.
+ * --- ¡CLASE ABSTRACTA REFACTORIZADA! ---
+ * Ahora es una clase abstracta con métodos abstractos. Esto elimina el código
+ * que no se usaba y crea un contrato más estricto, forzando a todas las clases
+ * hijas a implementar su propia lógica para obtener categorías.
  */
 abstract class BaseContentRepository(
     protected val xtreamApiService: XtreamApiService
 ) {
 
     /**
-     * Obtiene las categorías de los canales de TV en vivo desde el servidor.
-     * @param userId El ID del usuario, necesario para la lógica de caché en las clases hijas.
+     * Obtiene las categorías de los canales de TV en vivo.
+     * @param userId El ID del usuario, necesario para la lógica de caché.
      */
-    open suspend fun getLiveCategories(user: String, pass: String, userId: Int): List<Category> {
-        return try {
-            val response = xtreamApiService.getLiveCategories(user = user, pass = pass)
-            response.body() ?: emptyList()
-        } catch (e: IOException) {
-            emptyList()
-        }
-    }
+    abstract suspend fun getLiveCategories(user: String, pass: String, userId: Int): List<Category>
 
     /**
-     * Obtiene las categorías de las películas (VOD) desde el servidor.
-     * @param userId El ID del usuario, necesario para la lógica de caché en las clases hijas.
+     * Obtiene las categorías de las películas (VOD).
+     * @param userId El ID del usuario, necesario para la lógica de caché.
      */
-    open suspend fun getMovieCategories(user: String, pass: String, userId: Int): List<Category> {
-        return try {
-            val response = xtreamApiService.getMovieCategories(user = user, pass = pass)
-            response.body() ?: emptyList()
-        } catch (e: IOException) {
-            emptyList()
-        }
-    }
+    abstract suspend fun getMovieCategories(user: String, pass: String, userId: Int): List<Category>
 
     /**
-     * Obtiene las categorías de las series desde el servidor.
-     * @param userId El ID del usuario, necesario para la lógica de caché en las clases hijas.
+     * Obtiene las categorías de las series.
+     * @param userId El ID del usuario, necesario para la lógica de caché.
      */
-    open suspend fun getSeriesCategories(user: String, pass: String, userId: Int): List<Category> {
-        return try {
-            val response = xtreamApiService.getSeriesCategories(user = user, pass = pass)
-            response.body() ?: emptyList()
-        } catch (e: IOException) {
-            emptyList()
-        }
-    }
+    abstract suspend fun getSeriesCategories(user: String, pass: String, userId: Int): List<Category>
 }

@@ -9,25 +9,26 @@ import com.kybers.play.ui.login.LoginActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
 
 /**
- * The initial activity of the application. It displays a splash screen and then
- * navigates to the LoginActivity.
+ * --- ¡ACTIVITY SIMPLIFICADA! ---
+ * La actividad inicial de la aplicación. Muestra una pantalla de bienvenida y luego
+ * navega directamente a LoginActivity sin necesidad de un ViewModel.
  */
 class SplashActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Make the UI fullscreen for an immersive experience.
+        // Prepara la UI para una experiencia inmersiva a pantalla completa.
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
             IPTVAppTheme {
-                // We call the simplified SplashScreen composable.
+                // Llamamos al Composable SplashScreen, que ahora maneja su propia lógica.
                 SplashScreen(
-                    // The onNavigate callback now unconditionally goes to LoginActivity.
+                    // La función de navegación ahora va incondicionalmente a LoginActivity.
                     onNavigate = {
                         startActivity(Intent(this, LoginActivity::class.java))
-                        // Finish the SplashActivity so the user can't navigate back to it.
+                        // Finalizamos SplashActivity para que el usuario no pueda volver a ella.
                         finish()
                     }
                 )

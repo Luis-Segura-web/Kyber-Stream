@@ -10,8 +10,9 @@ import com.kybers.play.data.remote.model.EpgEvent
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * --- ¡DAO MEJORADO! ---
  * DAO (Data Access Object) para la entidad EpgEvent.
- * Define los métodos para interactuar con la tabla 'epg_events' en la base de datos.
+ * Ahora incluye una consulta optimizada para encontrar el último evento de la guía.
  */
 @Dao
 interface EpgEventDao {
@@ -22,10 +23,6 @@ interface EpgEventDao {
     @Query("SELECT * FROM epg_events WHERE channelId = :channelId AND userId = :userId ORDER BY startTimestamp ASC")
     fun getEpgEventsForChannel(channelId: Int, userId: Int): Flow<List<EpgEvent>>
 
-    /**
-     * ¡NUEVA CONSULTA!
-     * Obtiene todos los eventos de un usuario. Es la base para nuestra carga masiva en memoria.
-     */
     @Query("SELECT * FROM epg_events WHERE userId = :userId")
     suspend fun getAllEventsForUser(userId: Int): List<EpgEvent>
 
@@ -44,7 +41,7 @@ interface EpgEventDao {
     suspend fun getAllEventsCountForUser(userId: Int): Int
 
     /**
-     * --- ¡NUEVA FUNCIÓN! ---
+     * --- ¡NUEVA FUNCIÓN OPTIMIZADA! ---
      * Busca la fecha de finalización (stopTimestamp) más lejana en el futuro.
      * Esto nos dice hasta cuándo tenemos información en la guía de canales.
      * @param userId El ID del usuario.

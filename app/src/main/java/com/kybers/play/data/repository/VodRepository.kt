@@ -23,8 +23,9 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * --- ¡REPOSITORIO ACTUALIZADO CON CACHÉ DE CATEGORÍAS! ---
- * Ahora, primero busca las categorías de películas y series en la base de datos local.
+ * --- ¡REPOSITORIO CORREGIDO! ---
+ * Se añade la implementación del método abstracto `getLiveCategories` para
+ * cumplir con el contrato de la clase base `BaseContentRepository`.
  */
 class VodRepository(
     xtreamApiService: XtreamApiService,
@@ -35,12 +36,19 @@ class VodRepository(
 ) : BaseContentRepository(xtreamApiService) {
 
     private val moshi: Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-    private val categoryCacheExpiry = TimeUnit.HOURS.toMillis(4) // Categorías expiran cada 4 horas
+    private val categoryCacheExpiry = TimeUnit.HOURS.toMillis(4)
+
+    // --- ¡CORRECCIÓN DE COMPILACIÓN! ---
+    // Este método es requerido por la clase base abstracta. Como este repositorio
+    // solo maneja VOD, devolvemos una lista vacía.
+    override suspend fun getLiveCategories(user: String, pass: String, userId: Int): List<Category> {
+        Log.w("VodRepository", "getLiveCategories fue llamado en VodRepository. Esto no debería ocurrir.")
+        return emptyList()
+    }
 
     override suspend fun getMovieCategories(user: String, pass: String, userId: Int): List<Category> {
         val cached = categoryCacheDao.getCategories(userId, "movie")
         if (cached != null && System.currentTimeMillis() - cached.lastUpdated < categoryCacheExpiry) {
-            Log.d("VodRepository", "Cargando categorías de Películas desde la caché.")
             return try {
                 val type = Types.newParameterizedType(List::class.java, Category::class.java)
                 val adapter = moshi.adapter<List<Category>>(type)
@@ -50,7 +58,6 @@ class VodRepository(
             }
         }
 
-        Log.d("VodRepository", "Cargando categorías de Películas desde la red.")
         return try {
             val response = xtreamApiService.getMovieCategories(user = user, pass = pass)
             val categories = response.body() ?: emptyList()
@@ -71,7 +78,6 @@ class VodRepository(
     override suspend fun getSeriesCategories(user: String, pass: String, userId: Int): List<Category> {
         val cached = categoryCacheDao.getCategories(userId, "series")
         if (cached != null && System.currentTimeMillis() - cached.lastUpdated < categoryCacheExpiry) {
-            Log.d("VodRepository", "Cargando categorías de Series desde la caché.")
             return try {
                 val type = Types.newParameterizedType(List::class.java, Category::class.java)
                 val adapter = moshi.adapter<List<Category>>(type)
@@ -81,7 +87,6 @@ class VodRepository(
             }
         }
 
-        Log.d("VodRepository", "Cargando categorías de Series desde la red.")
         return try {
             val response = xtreamApiService.getSeriesCategories(user = user, pass = pass)
             val categories = response.body() ?: emptyList()
@@ -103,9 +108,7 @@ class VodRepository(
 
     suspend fun cacheMovies(user: String, pass: String, userId: Int): Int {
         val movieCategories = getMovieCategories(user, pass, userId)
-        var downloadedMoviesCount = 0
-        Log.d("VodRepository", "Iniciando descarga de películas para ${movieCategories.size} categorías.")
-
+        val allMoviesFromServer = mutableListOf<Movie>()
         for (category in movieCategories) {
             try {
                 val movies = xtreamApiService.getMovies(
@@ -115,25 +118,24 @@ class VodRepository(
                 ).body()
 
                 if (!movies.isNullOrEmpty()) {
-                    movies.forEach { it.userId = userId }
-                    downloadedMoviesCount += movies.size
-                    movieDao.cacheMovies(movies, userId)
+                    allMoviesFromServer.addAll(movies)
                 }
             } catch (e: Exception) {
                 Log.e("VodRepository", "Error al descargar películas de la categoría ${category.categoryId}", e)
             }
         }
-        Log.d("VodRepository", "Descarga de películas completada. Total descargado: $downloadedMoviesCount")
-        return downloadedMoviesCount
+
+        val uniqueMovies = allMoviesFromServer.distinctBy { it.streamId }
+        uniqueMovies.forEach { it.userId = userId }
+        movieDao.replaceAll(uniqueMovies, userId)
+        return uniqueMovies.size
     }
 
     fun getAllSeries(userId: Int): Flow<List<Series>> = seriesDao.getAllSeries(userId)
 
     suspend fun cacheSeries(user: String, pass: String, userId: Int) {
         val seriesCategories = getSeriesCategories(user, pass, userId)
-        val allSeriesForUser = mutableListOf<Series>()
-        Log.d("VodRepository", "Iniciando descarga de series para ${seriesCategories.size} categorías.")
-
+        val allSeriesFromServer = mutableListOf<Series>()
         for (category in seriesCategories) {
             try {
                 val series = xtreamApiService.getSeries(
@@ -143,15 +145,16 @@ class VodRepository(
                 ).body()
 
                 if (!series.isNullOrEmpty()) {
-                    series.forEach { it.userId = userId }
-                    allSeriesForUser.addAll(series)
+                    allSeriesFromServer.addAll(series)
                 }
             } catch (e: Exception) {
                 Log.e("VodRepository", "Error al descargar series de la categoría ${category.categoryId}", e)
             }
         }
-        seriesDao.replaceAll(allSeriesForUser, userId)
-        Log.d("VodRepository", "Descarga de series completada. Total: ${allSeriesForUser.size}")
+
+        val uniqueSeries = allSeriesFromServer.distinctBy { it.seriesId }
+        uniqueSeries.forEach { it.userId = userId }
+        seriesDao.replaceAll(uniqueSeries, userId)
     }
 
     fun getSeriesDetails(user: String, pass: String, seriesId: Int, userId: Int): Flow<SeriesInfoResponse?> = flow {
@@ -198,6 +201,7 @@ class VodRepository(
                             this.rating = episode.info?.rating?.toFloatOrNull()
                             this.duration = episode.info?.duration
                             this.releaseDate = episode.info?.releaseDate
+                            this.durationMillis = parseDurationStringToMillis(episode.info?.duration)
                         }
                     }
                     episodeDao.replaceAll(processedEpisodes, seriesId, userId)
@@ -210,6 +214,22 @@ class VodRepository(
             }
         } catch (e: Exception) {
             emit(null)
+        }
+    }
+
+    private fun parseDurationStringToMillis(durationString: String?): Long {
+        if (durationString.isNullOrBlank()) return 0L
+        return try {
+            val parts = durationString.split(':').map { it.toLong() }
+            val seconds = when (parts.size) {
+                3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
+                2 -> parts[0] * 60 + parts[1]
+                1 -> parts[0]
+                else -> 0L
+            }
+            seconds * 1000
+        } catch (e: NumberFormatException) {
+            0L
         }
     }
 

@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /**
+ * --- ¡GESTOR DE PREFERENCIAS MEJORADO! ---
  * Manages user preferences using SharedPreferences.
- * Handles sorting orders, favorite IDs, and playback positions for movies and episodes.
+ * Ahora guarda el estado de reproducción de los episodios (posición Y duración)
+ * para permitir un cálculo de progreso fiable.
  */
 class PreferenceManager(context: Context) {
 

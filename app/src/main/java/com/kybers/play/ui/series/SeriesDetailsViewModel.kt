@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.remote.model.Episode
 import com.kybers.play.data.remote.model.Season
 import com.kybers.play.data.remote.model.Series
@@ -78,6 +79,7 @@ class SeriesDetailsViewModel(
     application: Application,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
+    private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
     private val seriesId: Int
@@ -171,12 +173,11 @@ class SeriesDetailsViewModel(
                 val deferredEnrichedList = episodeList.map { episode ->
                     async {
                         if (episode.imageUrl.isNullOrBlank()) {
-                            // --- ¡LLAMADA ACTUALIZADA A LA FUNCIÓN DE CACHÉ! ---
                             val tmdbImage = detailsRepository.getEpisodeImageFromTMDb(
                                 tvId = tmdbId,
                                 seasonNumber = episode.season,
                                 episodeNumber = episode.episodeNum,
-                                episodeId = episode.id // Pasamos el ID para la clave de la caché
+                                episodeId = episode.id
                             )
                             if (tmdbImage != null) {
                                 episode.imageUrl = tmdbImage
@@ -279,9 +280,9 @@ class SeriesDetailsViewModel(
         mediaPlayer.media = newMedia
         mediaPlayer.play()
 
-        // --- ¡LÓGICA DE REANUDACIÓN MEJORADA! ---
+        // --- ¡LÓGICA DE REANUDACIÓN CORREGIDA! ---
         val (position, duration) = preferenceManager.getEpisodePlaybackState(episode.id)
-        val isFinished = duration > 0 && (duration - position) < 5000 // Considera terminado si faltan menos de 5s
+        val isFinished = duration > 0 && (duration - position) < 5000
 
         if (position > 0 && !isFinished) {
             mediaPlayer.time = position
@@ -296,11 +297,10 @@ class SeriesDetailsViewModel(
         }
     }
 
-    // --- ¡FUNCIÓN DE GUARDADO ACTUALIZADA! ---
+    // --- ¡FUNCIÓN DE GUARDADO CORREGIDA! ---
     private fun saveCurrentEpisodeProgress(markAsFinished: Boolean = false) {
         val episode = _uiState.value.currentlyPlayingEpisode ?: return
         val duration = mediaPlayer.length
-        // Solo guardamos si tenemos una duración real del video.
         if (duration <= 0 && !markAsFinished) return
 
         val position = mediaPlayer.time

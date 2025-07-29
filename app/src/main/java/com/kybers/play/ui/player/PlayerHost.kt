@@ -89,8 +89,8 @@ fun PlayerHost(
             modifier = Modifier.fillMaxSize()
         )
 
-        // --- ¡CORRECCIÓN APLICADA! ---
-        // Se mueve el último argumento (la lambda) fuera de los paréntesis.
+        // --- ¡CORRECCIÓN DE SINTAXIS APLICADA! ---
+        // Se mueve el último argumento (la lambda de los controles) fuera de los paréntesis.
         controls(
             controlsVisible,
             resetControlTimer

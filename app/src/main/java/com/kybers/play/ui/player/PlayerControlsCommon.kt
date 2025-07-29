@@ -48,14 +48,11 @@ import androidx.compose.ui.window.PopupProperties
 import java.util.concurrent.TimeUnit
 
 /**
- * --- ¡NUEVO ARCHIVO! ---
+ * --- ¡ARCHIVO CON AJUSTES DE UI! ---
  * Contiene los componentes de UI comunes y reutilizables para todos los reproductores.
- * La visibilidad 'internal' asegura que solo puedan ser usados dentro del módulo de la app.
+ * Se ha aumentado el tamaño de los deslizadores verticales.
  */
 
-/**
- * Barra de controles superior, común para todos los reproductores.
- */
 @Composable
 internal fun TopControls(
     modifier: Modifier,
@@ -106,9 +103,6 @@ internal fun TopControls(
     }
 }
 
-/**
- * Deslizadores laterales de brillo y volumen, comunes para el modo de pantalla completa.
- */
 @Composable
 internal fun SideSliders(
     modifier: Modifier,
@@ -129,9 +123,6 @@ internal fun SideSliders(
     }
 }
 
-/**
- * Un slider vertical reutilizable.
- */
 @Composable
 internal fun VerticalSlider(
     value: Float,
@@ -143,12 +134,13 @@ internal fun VerticalSlider(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(modifier = Modifier.height(160.dp), contentAlignment = Alignment.Center) {
+        // --- ¡MODIFICACIÓN! Se aumenta la altura y el ancho del deslizador ---
+        Box(modifier = Modifier.height(65.dp), contentAlignment = Alignment.Center) {
             Slider(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier
-                    .width(160.dp)
+                    .width(65.dp)
                     .rotate(-90f),
                 colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
             )
@@ -158,9 +150,6 @@ internal fun VerticalSlider(
     }
 }
 
-/**
- * Menú desplegable para seleccionar pistas de audio o subtítulos.
- */
 @Composable
 internal fun TrackMenu(
     showMenu: Boolean,
@@ -199,9 +188,6 @@ internal fun TrackMenu(
     }
 }
 
-/**
- * Un IconButton personalizado para los controles.
- */
 @Composable
 internal fun ControlIconButton(
     icon: ImageVector,
@@ -221,9 +207,6 @@ internal fun ControlIconButton(
     }
 }
 
-/**
- * Formatea milisegundos a un string de tiempo HH:MM:SS o MM:SS.
- */
 internal fun formatTime(millis: Long): String {
     if (millis < 0) return "00:00"
     val hours = TimeUnit.MILLISECONDS.toHours(millis)

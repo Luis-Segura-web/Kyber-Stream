@@ -31,13 +31,9 @@ sealed class SyncState {
 }
 
 /**
- * --- ¡VIEWMODEL ACTUALIZADO! ---
- * ViewModel para la SyncScreen. Ahora utiliza los repositorios modulares.
- *
- * @property liveRepository Repositorio para contenido en vivo (canales y EPG).
- * @property vodRepository Repositorio para contenido VOD (películas y series).
- * @property syncManager Gestiona los timestamps de sincronización.
- * @property preferenceManager Gestiona las preferencias del usuario.
+ * --- ¡VIEWMODEL OPTIMIZADO! ---
+ * ViewModel para la SyncScreen. Ahora utiliza la información devuelta por el
+ * repositorio de forma más eficiente, evitando consultas innecesarias a la base de datos.
  */
 class SyncViewModel(
     private val liveRepository: LiveRepository,
@@ -53,20 +49,21 @@ class SyncViewModel(
         viewModelScope.launch {
             Log.d("SyncViewModel", "Iniciando sincronización completa para: ${user.profileName}")
             try {
-                // Tarea para sincronizar películas y series desde VodRepository
                 val vodSyncJob = async {
                     _syncState.update { SyncState.SyncingMovies }
-                    val downloadedCount = vodRepository.cacheMovies(user.username, user.password, user.id)
-                    val totalInCache = vodRepository.getAllMovies(user.id).first().size
-                    preferenceManager.saveMovieSyncStats(downloadedCount, totalInCache)
-                    Log.d("SyncViewModel", "Películas sincronizadas. Descargadas: $downloadedCount, Total: $totalInCache")
+                    // --- ¡LÓGICA CORREGIDA Y OPTIMIZADA! ---
+                    // 1. Obtenemos el conteo total directamente del resultado de cacheMovies.
+                    val totalMovies = vodRepository.cacheMovies(user.username, user.password, user.id)
+                    // 2. Eliminamos la consulta redundante a la base de datos.
+                    // 3. Guardamos el conteo total.
+                    preferenceManager.saveMovieSyncStats(totalMovies, totalMovies)
+                    Log.d("SyncViewModel", "Películas sincronizadas. Total: $totalMovies")
 
                     _syncState.update { SyncState.SyncingSeries }
                     vodRepository.cacheSeries(user.username, user.password, user.id)
                     Log.d("SyncViewModel", "Series sincronizadas.")
                 }
 
-                // Tarea para sincronizar canales y EPG desde LiveRepository
                 val liveSyncJob = async {
                     _syncState.update { SyncState.SyncingChannels }
                     liveRepository.cacheLiveStreams(user.username, user.password, user.id)
@@ -81,7 +78,6 @@ class SyncViewModel(
                     }
                 }
 
-                // Esperamos a que ambas tareas (VOD y Live) terminen.
                 awaitAll(vodSyncJob, liveSyncJob)
 
                 syncManager.saveLastSyncTimestamp(user.id)
