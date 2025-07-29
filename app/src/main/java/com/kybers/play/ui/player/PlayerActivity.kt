@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import com.kybers.play.ui.PlayerViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.theme.rememberThemeManager
 import android.util.Log // Importación necesaria para Log
 
 class PlayerActivity : ComponentActivity() {
@@ -40,7 +41,8 @@ class PlayerActivity : ComponentActivity() {
         hideSystemUI()
 
         setContent {
-            IPTVAppTheme {
+            val themeManager = rememberThemeManager(this@PlayerActivity)
+            IPTVAppTheme(themeManager = themeManager) {
                 // Lanzamos el PlayerScreen, que ahora contiene toda la lógica de la UI
                 PlayerScreen(
                     playerViewModel = playerViewModel,

@@ -1,5 +1,6 @@
 package com.kybers.play.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
@@ -40,7 +41,10 @@ data class SettingsUiState(
     val liveCategories: List<Category> = emptyList(),
     val movieCategories: List<Category> = emptyList(),
     val seriesCategories: List<Category> = emptyList(),
-    val blockedCategories: Set<String> = emptySet()
+    val blockedCategories: Set<String> = emptySet(),
+    // New dynamic settings fields
+    val adaptiveRecommendations: Map<String, Any> = emptyMap(),
+    val showRecommendations: Boolean = false
 )
 
 /**
@@ -53,17 +57,21 @@ sealed class SettingsEvent {
     object ShowPinSetSuccess : SettingsEvent()
     object ShowPinChangeSuccess : SettingsEvent()
     object ShowPinChangeError : SettingsEvent()
+    object ShowRecommendationsApplied : SettingsEvent()
 }
 
 /**
  * ViewModel para la pantalla de Ajustes.
  */
 class SettingsViewModel(
+    private val context: Context,
     private val contentRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User
 ) : ViewModel() {
+
+    private val dynamicSettingsManager = DynamicSettingsManager(context, preferenceManager)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -74,6 +82,7 @@ class SettingsViewModel(
     init {
         loadInitialSettings()
         loadUserInfoAndCategories()
+        loadAdaptiveRecommendations()
     }
 
     private fun loadInitialSettings() {
@@ -91,6 +100,28 @@ class SettingsViewModel(
                 blockedCategories = preferenceManager.getBlockedCategories()
             )
         }
+    }
+
+    private fun loadAdaptiveRecommendations() {
+        viewModelScope.launch {
+            val recommendations = dynamicSettingsManager.getAdaptiveRecommendations()
+            _uiState.update { 
+                it.copy(
+                    adaptiveRecommendations = recommendations,
+                    showRecommendations = hasAvailableRecommendations(recommendations)
+                ) 
+            }
+        }
+    }
+    
+    private fun hasAvailableRecommendations(recommendations: Map<String, Any>): Boolean {
+        val currentBuffer = _uiState.value.networkBuffer
+        val currentHwAccel = _uiState.value.hwAccelerationEnabled
+        val currentSync = _uiState.value.syncFrequency
+        
+        return recommendations["bufferSize"] as String != currentBuffer ||
+               recommendations["hardwareAcceleration"] as Boolean != currentHwAccel ||
+               recommendations["syncFrequency"] as Int != currentSync
     }
 
     private fun loadUserInfoAndCategories() {
@@ -116,6 +147,44 @@ class SettingsViewModel(
                 )
             }
         }
+    }
+
+    // --- MÉTODOS DE GESTIÓN DE AJUSTES DINÁMICOS ---
+    
+    fun applyRecommendedSettings() {
+        viewModelScope.launch {
+            val recommendations = _uiState.value.adaptiveRecommendations
+            
+            // Apply buffer size recommendation
+            if (recommendations.containsKey("bufferSize")) {
+                val recommendedBuffer = recommendations["bufferSize"] as String
+                onNetworkBufferChanged(recommendedBuffer)
+            }
+            
+            // Apply hardware acceleration recommendation
+            if (recommendations.containsKey("hardwareAcceleration")) {
+                val recommendedHwAccel = recommendations["hardwareAcceleration"] as Boolean
+                onHwAccelerationChanged(recommendedHwAccel)
+            }
+            
+            // Apply sync frequency recommendation
+            if (recommendations.containsKey("syncFrequency")) {
+                val recommendedSync = recommendations["syncFrequency"] as Int
+                onSyncFrequencyChanged(recommendedSync)
+            }
+            
+            // Update UI to hide recommendations
+            _uiState.update { it.copy(showRecommendations = false) }
+            _events.emit(SettingsEvent.ShowRecommendationsApplied)
+        }
+    }
+    
+    fun dismissRecommendations() {
+        _uiState.update { it.copy(showRecommendations = false) }
+    }
+    
+    fun refreshRecommendations() {
+        loadAdaptiveRecommendations()
     }
 
     // --- MÉTODOS DE GESTIÓN DE AJUSTES ---

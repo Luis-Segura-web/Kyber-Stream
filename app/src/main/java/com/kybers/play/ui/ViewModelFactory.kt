@@ -1,6 +1,7 @@
 package com.kybers.play.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.kybers.play.data.local.model.User
@@ -150,6 +151,7 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
 
 // --- ¡NUEVA FÁBRICA AÑADIDA! ---
 class SettingsViewModelFactory(
+    private val context: Context,
     private val contentRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
@@ -158,7 +160,7 @@ class SettingsViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(contentRepository, preferenceManager, syncManager, currentUser) as T
+            return SettingsViewModel(context, contentRepository, preferenceManager, syncManager, currentUser) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

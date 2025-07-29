@@ -14,6 +14,7 @@ import com.kybers.play.ui.SyncViewModelFactory
 import com.kybers.play.ui.login.LoginActivity
 import com.kybers.play.ui.main.MainActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.theme.rememberThemeManager
 import kotlinx.coroutines.launch
 
 /**
@@ -65,7 +66,8 @@ class SyncActivity : ComponentActivity() {
                 Log.d("SyncActivity", "onCreate: Usuario cargado: ${currentUser?.profileName}")
 
                 setContent {
-                    IPTVAppTheme {
+                    val themeManager = rememberThemeManager(this@SyncActivity)
+                    IPTVAppTheme(themeManager = themeManager) {
                         SyncScreen(
                             viewModel = syncViewModel,
                             onSyncComplete = { navigateToMain(userId) },

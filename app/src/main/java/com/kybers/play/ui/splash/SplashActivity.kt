@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import com.kybers.play.ui.login.LoginActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.theme.rememberThemeManager
 
 /**
  * --- ¡ACTIVITY SIMPLIFICADA! ---
@@ -22,7 +23,8 @@ class SplashActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            IPTVAppTheme {
+            val themeManager = rememberThemeManager(this@SplashActivity)
+            IPTVAppTheme(themeManager = themeManager) {
                 // Llamamos al Composable SplashScreen, que ahora maneja su propia lógica.
                 SplashScreen(
                     // La función de navegación ahora va incondicionalmente a LoginActivity.

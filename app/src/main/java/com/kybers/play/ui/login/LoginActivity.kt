@@ -38,6 +38,7 @@ import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.main.MainActivity
 import com.kybers.play.ui.sync.SyncActivity
 import com.kybers.play.ui.theme.IPTVAppTheme
+import com.kybers.play.ui.theme.rememberThemeManager
 
 class LoginActivity : ComponentActivity() {
 
@@ -51,7 +52,8 @@ class LoginActivity : ComponentActivity() {
         val syncManager = (application as MainApplication).container.syncManager
 
         setContent {
-            IPTVAppTheme {
+            val themeManager = rememberThemeManager(this@LoginActivity)
+            IPTVAppTheme(themeManager = themeManager) {
                 LoginScreen(
                     viewModel = loginViewModel,
                     onUserSelected = { user ->

@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.ui.login.LoginActivity
+import com.kybers.play.ui.theme.ThemeSelectionDialog
+import com.kybers.play.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +44,7 @@ fun SettingsScreen(
     var showCategoryBlockDialog by remember { mutableStateOf(false) }
     var showPinVerificationForCategories by remember { mutableStateOf(false) }
     var showPinVerificationForDisabling by remember { mutableStateOf(false) }
+    var showThemeSelectionDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -57,6 +60,7 @@ fun SettingsScreen(
                 is SettingsEvent.ShowPinSetSuccess -> Toast.makeText(context, "PIN guardado correctamente.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowPinChangeSuccess -> Toast.makeText(context, "PIN cambiado correctamente.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowPinChangeError -> Toast.makeText(context, "El PIN anterior es incorrecto.", Toast.LENGTH_SHORT).show()
+                is SettingsEvent.ShowRecommendationsApplied -> Toast.makeText(context, "Configuración optimizada aplicada.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -81,6 +85,17 @@ fun SettingsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                // --- SECCIÓN: RECOMENDACIONES INTELIGENTES ---
+                if (uiState.showRecommendations) {
+                    item {
+                        SmartRecommendationsCard(
+                            recommendations = uiState.adaptiveRecommendations,
+                            onApplyRecommendations = { viewModel.applyRecommendedSettings() },
+                            onDismissRecommendations = { viewModel.dismissRecommendations() }
+                        )
+                    }
+                }
+                
                 // --- SECCIÓN: GESTIÓN DE CUENTA ---
                 item {
                     SettingsCard(title = "Gestión de Cuenta y Sincronización") {
@@ -201,7 +216,12 @@ fun SettingsScreen(
                 // --- SECCIÓN: APARIENCIA ---
                 item {
                     SettingsCard(title = "Apariencia") {
-                        DropdownSettingItem(icon = Icons.Default.Palette, title = "Tema de la aplicación", options = mapOf("SYSTEM" to "Seguir el sistema", "LIGHT" to "Claro", "DARK" to "Oscuro"), selectedKey = uiState.appTheme, onOptionSelected = { viewModel.onAppThemeChanged(it) })
+                        ClickableSettingItem(
+                            icon = Icons.Default.Palette,
+                            title = "Tema de la aplicación",
+                            subtitle = getThemeDisplayName(uiState.appTheme),
+                            onClick = { showThemeSelectionDialog = true }
+                        )
                     }
                 }
 
@@ -273,6 +293,16 @@ fun SettingsScreen(
                 viewModel.onBlockedCategoriesChanged(newBlockedSet)
                 showCategoryBlockDialog = false
             }
+        )
+    }
+    
+    if (showThemeSelectionDialog) {
+        ThemeSelectionDialog(
+            currentTheme = stringToThemeMode(uiState.appTheme),
+            onThemeSelected = { themeMode ->
+                viewModel.onAppThemeChanged(themeModeToString(themeMode))
+            },
+            onDismiss = { showThemeSelectionDialog = false }
         )
     }
 }
@@ -594,5 +624,190 @@ private fun CategoryCheckboxItem(category: Category, isChecked: Boolean, onCheck
     ) {
         Checkbox(checked = isChecked, onCheckedChange = { onCheckedChange() })
         Text(text = category.categoryName, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun SmartRecommendationsCard(
+    recommendations: Map<String, Any>,
+    onApplyRecommendations: () -> Unit,
+    onDismissRecommendations: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.AutoFixHigh,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Configuración Inteligente",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Text(
+                text = "Hemos detectado configuraciones que pueden optimizar tu experiencia basándose en tu dispositivo y conexión de red.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+            
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (recommendations.containsKey("bufferSize")) {
+                    RecommendationItem(
+                        icon = Icons.Default.NetworkCell,
+                        title = "Búfer de Red Optimizado",
+                        recommendation = getBufferDisplayName(recommendations["bufferSize"] as String)
+                    )
+                }
+                
+                if (recommendations.containsKey("hardwareAcceleration")) {
+                    RecommendationItem(
+                        icon = Icons.Default.Hardware,
+                        title = "Aceleración por Hardware",
+                        recommendation = if (recommendations["hardwareAcceleration"] as Boolean) "Activada" else "Desactivada"
+                    )
+                }
+                
+                if (recommendations.containsKey("syncFrequency")) {
+                    RecommendationItem(
+                        icon = Icons.Default.Schedule,
+                        title = "Frecuencia de Sincronización",
+                        recommendation = "Cada ${recommendations["syncFrequency"]} horas"
+                    )
+                }
+                
+                if (recommendations.containsKey("networkType")) {
+                    val networkType = recommendations["networkType"] as String
+                    RecommendationItem(
+                        icon = Icons.Default.NetworkCheck,
+                        title = "Red Detectada",
+                        recommendation = getNetworkDisplayName(networkType)
+                    )
+                }
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismissRecommendations,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Recordar Luego")
+                }
+                
+                Button(
+                    onClick = onApplyRecommendations,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        Icons.Default.AutoFixHigh,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Aplicar")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationItem(
+    icon: ImageVector,
+    title: String,
+    recommendation: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = recommendation,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+private fun getBufferDisplayName(bufferSize: String): String {
+    return when (bufferSize) {
+        "SMALL" -> "Pequeño"
+        "MEDIUM" -> "Mediano"
+        "LARGE" -> "Grande"
+        else -> bufferSize
+    }
+}
+
+private fun getNetworkDisplayName(networkType: String): String {
+    return when (networkType) {
+        "WIFI" -> "WiFi"
+        "CELLULAR_5G" -> "5G"
+        "CELLULAR_4G" -> "4G"
+        "CELLULAR_3G" -> "3G"
+        "UNKNOWN" -> "Desconocida"
+        else -> networkType
+    }
+}
+
+private fun getThemeDisplayName(appTheme: String): String {
+    return when (appTheme) {
+        "LIGHT" -> "Claro"
+        "DARK" -> "Oscuro"
+        "SYSTEM" -> "Automático (Sistema)"
+        else -> appTheme
+    }
+}
+
+private fun stringToThemeMode(themeString: String): ThemeMode {
+    return when (themeString) {
+        "LIGHT" -> ThemeMode.LIGHT
+        "DARK" -> ThemeMode.DARK
+        "SYSTEM" -> ThemeMode.SYSTEM
+        else -> ThemeMode.SYSTEM
+    }
+}
+
+private fun themeModeToString(themeMode: ThemeMode): String {
+    return when (themeMode) {
+        ThemeMode.LIGHT -> "LIGHT"
+        ThemeMode.DARK -> "DARK"
+        ThemeMode.SYSTEM -> "SYSTEM"
     }
 }
