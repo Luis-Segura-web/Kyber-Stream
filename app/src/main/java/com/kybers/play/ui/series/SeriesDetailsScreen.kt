@@ -463,14 +463,70 @@ fun RecommendationsSection(recommendations: List<Series>, onSeriesClick: (Series
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(recommendations, key = { it.seriesId }) { series ->
-                Column(modifier = Modifier.width(120.dp).clickable { onSeriesClick(series) }) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current).data(series.cover).crossfade(true).build(),
-                        contentDescription = series.name, contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(120.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = series.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
+                Card(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .clickable { onSeriesClick(series) },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Box {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current).data(series.cover).crossfade(true).build(),
+                            contentDescription = series.name, 
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .width(140.dp)
+                                .aspectRatio(2f / 3f)
+                        )
+                        
+                        // Rating overlay at top
+                        if (series.rating5Based > 0) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .background(Color.Black.copy(alpha = 0.7f))
+                                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Star,
+                                    contentDescription = "Calificación",
+                                    tint = Color(0xFFFFC107),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "%.1f".format(series.rating5Based),
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        // Series name at bottom
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                                    )
+                                )
+                                .padding(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = series.name,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }

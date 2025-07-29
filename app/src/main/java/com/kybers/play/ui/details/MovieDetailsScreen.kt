@@ -493,9 +493,8 @@ fun CollectionCarousel(uiState: MovieDetailsUiState, onMovieClick: (Int) -> Unit
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(uiState.availableCollectionMovies, key = { it.streamId }) { movie ->
-                    MoviePosterItem(
-                        posterUrl = movie.streamIcon,
-                        title = movie.name,
+                    EnhancedMoviePosterItem(
+                        movie = movie,
                         onClick = { onMovieClick(movie.streamId) }
                     )
                 }
@@ -525,9 +524,8 @@ fun MovieCarousel(title: String, movies: List<Movie>, onMovieClick: (Int) -> Uni
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(movies, key = { it.streamId }) { movie ->
-                    MoviePosterItem(
-                        posterUrl = movie.streamIcon,
-                        title = movie.name,
+                    EnhancedMoviePosterItem(
+                        movie = movie,
                         onClick = { onMovieClick(movie.streamId) }
                     )
                 }
@@ -556,6 +554,83 @@ fun MoviePosterItem(posterUrl: String?, title: String, onClick: () -> Unit) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+    }
+}
+
+// Enhanced version with name and rating for recommendations/similar content
+@Composable
+fun EnhancedMoviePosterItem(
+    movie: Movie,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(140.dp)
+            .aspectRatio(2f / 3f)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(movie.streamIcon)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = movie.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Rating overlay at top
+            if (movie.rating5Based > 0) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(Color.Black.copy(alpha = 0.7f))
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Star,
+                        contentDescription = "Calificación",
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "%.1f".format(movie.rating5Based),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            // Movie name at bottom
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+                    .padding(horizontal = 6.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = movie.name,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 12.sp
+                )
+            }
+        }
     }
 }
 

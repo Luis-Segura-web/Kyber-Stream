@@ -191,7 +191,6 @@ fun ContentRow(
                     is HomeContentItem.MovieItem -> MoviePosterItem(item.movie) { onMovieClick(item.movie.streamId) }
                     is HomeContentItem.SeriesItem -> SeriesPosterItem(item.series) { onSeriesClick(item.series.seriesId) }
                     is HomeContentItem.LiveChannelItem -> LiveChannelCardItem(item.channel) { onChannelClick(item.channel) }
-                    else -> {} // Placeholder para ContinueWatchingItem
                 }
             }
         }

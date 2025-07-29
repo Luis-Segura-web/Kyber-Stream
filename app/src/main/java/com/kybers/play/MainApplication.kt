@@ -39,9 +39,9 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     private fun setDefaultLocale() {
         val locale = Locale.forLanguageTag("es-MX")
         Locale.setDefault(locale)
-        val config = android.content.res.Configuration()
+        val config = android.content.res.Configuration(baseContext.resources.configuration)
         config.setLocale(locale)
-        baseContext.resources.updateConfiguration(config, baseContext.resources.displayMetrics)
+        createConfigurationContext(config)
     }
 
     override val workManagerConfiguration: androidx.work.Configuration
