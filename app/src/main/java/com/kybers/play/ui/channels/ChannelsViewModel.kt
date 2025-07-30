@@ -104,11 +104,6 @@ open class ChannelsViewModel(
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
-    private val vlcOptions = arrayListOf(
-        "--network-caching=3000",
-        "--file-caching=3000"
-    )
-
     private val vlcPlayerListener = MediaPlayer.EventListener { event ->
         val currentState = _uiState.value.playerStatus
         val newStatus = when (event.type) {
@@ -190,6 +185,7 @@ open class ChannelsViewModel(
     }
 
     private fun setupVLC() {
+        val vlcOptions = preferenceManager.getVLCOptions()
         libVLC = LibVLC(getApplication(), vlcOptions)
         mediaPlayer = MediaPlayer(libVLC).apply {
             setEventListener(vlcPlayerListener)
@@ -215,6 +211,7 @@ open class ChannelsViewModel(
             }
 
             val streamUrl = buildStreamUrl(channel)
+            val vlcOptions = preferenceManager.getVLCOptions()
             val media = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }
@@ -619,5 +616,29 @@ open class ChannelsViewModel(
         if (timestamp == 0L) return "Nunca"
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         return sdf.format(Date(timestamp))
+    }
+
+    /**
+     * Updates player settings dynamically when preferences change.
+     * This allows immediate application of new settings without restart.
+     */
+    fun updatePlayerSettings() {
+        // Only update if media is currently playing
+        if (mediaPlayer.isPlaying) {
+            val currentPosition = mediaPlayer.time
+            val currentMedia = mediaPlayer.media
+            
+            // Recreate media with new VLC options
+            currentMedia?.let { media ->
+                val newOptions = preferenceManager.getVLCOptions()
+                val newMedia = Media(libVLC, media.uri).apply {
+                    newOptions.forEach { addOption(it) }
+                }
+                mediaPlayer.media?.release()
+                mediaPlayer.media = newMedia
+                mediaPlayer.play()
+                mediaPlayer.time = currentPosition
+            }
+        }
     }
 }

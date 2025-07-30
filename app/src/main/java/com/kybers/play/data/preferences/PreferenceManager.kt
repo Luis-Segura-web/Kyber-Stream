@@ -132,4 +132,50 @@ class PreferenceManager(context: Context) {
 
     fun saveBlockedCategories(categoryIds: Set<String>) = sharedPreferences.edit().putStringSet(KEY_BLOCKED_CATEGORIES, categoryIds).apply()
     fun getBlockedCategories(): Set<String> = sharedPreferences.getStringSet(KEY_BLOCKED_CATEGORIES, emptySet()) ?: emptySet()
+
+    /**
+     * Generates VLC options based on current user preferences.
+     * This replaces hardcoded options with dynamic settings.
+     */
+    fun getVLCOptions(): ArrayList<String> {
+        val options = arrayListOf<String>()
+        
+        // Apply network buffer setting
+        val networkBuffer = getNetworkBuffer()
+        val bufferValue = when (networkBuffer) {
+            "LOW" -> "1000"
+            "MEDIUM" -> "3000"
+            "HIGH" -> "5000"
+            "ULTRA" -> "8000"
+            else -> "3000"
+        }
+        options.add("--network-caching=$bufferValue")
+        options.add("--file-caching=$bufferValue")
+        
+        // Apply hardware acceleration setting
+        if (getHwAcceleration()) {
+            options.add("--avcodec-hw=any")
+            options.add("--android-display-chroma=RV16")
+        } else {
+            options.add("--avcodec-hw=none")
+        }
+        
+        // Apply stream format specific configurations
+        val streamFormat = getStreamFormat()
+        when (streamFormat) {
+            "HLS" -> {
+                options.add("--http-reconnect")
+                options.add("--adaptive-logic=highest")
+            }
+            "TS" -> {
+                options.add("--ts-seek-percent")
+            }
+        }
+        
+        // General performance configurations
+        options.add("--audio-time-stretch")
+        options.add("--android-audio-session-id=0")
+        
+        return options
+    }
 }
