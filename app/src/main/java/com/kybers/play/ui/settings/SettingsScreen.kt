@@ -179,7 +179,7 @@ fun SettingsScreen(
                         SwitchSettingItem(
                             icon = Icons.Default.Lock,
                             title = "Activar Control Parental",
-                            subtitle = "Restringir acceso a contenido con un PIN",
+                            subtitle = "Restringe el acceso a contenido mediante un PIN de seguridad",
                             checked = uiState.parentalControlEnabled,
                             onCheckedChange = { isEnabled ->
                                 if (isEnabled) {
@@ -201,8 +201,8 @@ fun SettingsScreen(
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             ClickableSettingItem(
                                 icon = Icons.Default.Password,
-                                title = "Cambiar PIN",
-                                subtitle = "Establece un nuevo PIN de seguridad",
+                                title = "Cambiar PIN de Seguridad",
+                                subtitle = "Actualiza tu PIN de control parental",
                                 onClick = { showChangePinDialog = true }
                             )
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -261,8 +261,8 @@ fun SettingsScreen(
 
     if (showPinVerificationForCategories) {
         PinEntryDialog(
-            title = "Verificar PIN",
-            prompt = "Introduce tu PIN para gestionar las categorías.",
+            title = "Verificar PIN de Seguridad",
+            prompt = "Ingresa tu PIN para acceder a la configuración de categorías restringidas.",
             onDismiss = { showPinVerificationForCategories = false },
             onPinVerified = {
                 showPinVerificationForCategories = false
@@ -274,8 +274,8 @@ fun SettingsScreen(
 
     if (showPinVerificationForDisabling) {
         PinEntryDialog(
-            title = "Verificar PIN",
-            prompt = "Introduce tu PIN para desactivar el Control Parental.",
+            title = "Verificar PIN de Seguridad", 
+            prompt = "Ingresa tu PIN para desactivar el Control Parental.",
             onDismiss = { showPinVerificationForDisabling = false },
             onPinVerified = {
                 viewModel.onParentalControlEnabledChanged(false)
@@ -445,16 +445,16 @@ fun SetInitialPinDialog(onDismiss: () -> Unit, onPinSet: (String) -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Establecer PIN") },
+        title = { Text("Establecer PIN de Seguridad") },
         text = {
             Column {
-                Text("Crea un PIN de 4 dígitos para activar el Control Parental.")
+                Text("Crea un PIN de 4 dígitos para activar el Control Parental en tu cuenta.")
                 Spacer(Modifier.height(16.dp))
                 PinInputField(label = "Nuevo PIN", value = pin, onValueChange = { pin = it })
                 Spacer(Modifier.height(8.dp))
                 PinInputField(label = "Confirmar PIN", value = confirmPin, onValueChange = { confirmPin = it }, isError = isError)
                 if (isError) {
-                    Text("Los PINs no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text("Los códigos PIN no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -462,7 +462,7 @@ fun SetInitialPinDialog(onDismiss: () -> Unit, onPinSet: (String) -> Unit) {
             Button(
                 onClick = { onPinSet(pin) },
                 enabled = pin.length == 4 && pin == confirmPin
-            ) { Text("Guardar") }
+            ) { Text("Guardar PIN") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
@@ -477,7 +477,7 @@ fun ChangePinDialog(onDismiss: () -> Unit, onPinChanged: (String, String) -> Uni
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cambiar PIN") },
+        title = { Text("Cambiar PIN de Seguridad") },
         text = {
             Column {
                 PinInputField(label = "PIN Anterior", value = oldPin, onValueChange = { oldPin = it })
@@ -486,7 +486,7 @@ fun ChangePinDialog(onDismiss: () -> Unit, onPinChanged: (String, String) -> Uni
                 Spacer(Modifier.height(8.dp))
                 PinInputField(label = "Confirmar Nuevo PIN", value = confirmPin, onValueChange = { confirmPin = it }, isError = isError)
                 if (isError) {
-                    Text("Los PINs no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text("Los códigos PIN no coinciden", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -494,7 +494,7 @@ fun ChangePinDialog(onDismiss: () -> Unit, onPinChanged: (String, String) -> Uni
             Button(
                 onClick = { onPinChanged(oldPin, newPin) },
                 enabled = oldPin.length == 4 && newPin.length == 4 && newPin == confirmPin
-            ) { Text("Guardar") }
+            ) { Text("Actualizar PIN") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
@@ -521,7 +521,7 @@ fun PinEntryDialog(title: String, prompt: String, onDismiss: () -> Unit, onPinVe
                     isError = error
                 )
                 if (error) {
-                    Text("PIN incorrecto", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text("PIN incorrecto. Intenta nuevamente.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },

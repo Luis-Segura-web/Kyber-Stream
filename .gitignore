@@ -47,6 +47,9 @@ local.properties
 .gradle/
 # Note: gradle-wrapper.jar should be included in the repository for reproducible builds
 
+# Downloaded gradle distributions (exclude from repo)
+gradle-*/
+
 # Build outputs
 */build/
 build/
