@@ -9,6 +9,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.BaseContentRepository
+import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.theme.ThemeManager
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -71,6 +72,7 @@ class SettingsViewModel(
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User,
+    private val parentalControlManager: ParentalControlManager,
     private val themeManager: ThemeManager? = null
 ) : ViewModel() {
 
@@ -273,7 +275,7 @@ class SettingsViewModel(
     }
 
     fun onBlockedCategoriesChanged(blockedIds: Set<String>) {
-        preferenceManager.saveBlockedCategories(blockedIds)
+        parentalControlManager.updateBlockedCategories(blockedIds)
         _uiState.update { it.copy(blockedCategories = blockedIds) }
     }
 

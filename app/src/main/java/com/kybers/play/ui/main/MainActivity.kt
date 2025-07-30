@@ -74,7 +74,8 @@ class MainActivity : ComponentActivity() {
                                 externalApiService = appContainer.tmdbApiService,
                                 currentUser = user!!,
                                 preferenceManager = appContainer.preferenceManager,
-                                syncManager = appContainer.syncManager
+                                syncManager = appContainer.syncManager,
+                                parentalControlManager = appContainer.parentalControlManager
                             )
                         }
 
@@ -116,6 +117,7 @@ class MainActivity : ComponentActivity() {
                                     preferenceManager = appContainer.preferenceManager,
                                     syncManager = appContainer.syncManager,
                                     currentUser = user!!,
+                                    parentalControlManager = appContainer.parentalControlManager,
                                     themeManager = themeManager
                                 )
                             }

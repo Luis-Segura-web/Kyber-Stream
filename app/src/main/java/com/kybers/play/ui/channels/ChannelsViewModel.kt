@@ -14,6 +14,7 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.LiveRepository
+import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
@@ -84,7 +85,8 @@ open class ChannelsViewModel(
     private val liveRepository: LiveRepository,
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
-    private val syncManager: SyncManager
+    private val syncManager: SyncManager,
+    private val parentalControlManager: ParentalControlManager
 ) : AndroidViewModel(application) {
 
     private lateinit var libVLC: LibVLC
@@ -142,9 +144,18 @@ open class ChannelsViewModel(
         }
         loadInitialChannelsAndPreloadEpg()
         startEpgUpdater()
+        
         viewModelScope.launch {
             _favoriteChannelIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteChannelIds = favorites) }
+                filterAndSortCategories()
+            }
+        }
+        
+        // React to parental control changes
+        viewModelScope.launch {
+            parentalControlManager.blockedCategoriesState.collect { _ ->
+                // Re-filter categories when blocked categories change
                 filterAndSortCategories()
             }
         }
@@ -494,17 +505,10 @@ open class ChannelsViewModel(
         Log.d("ChannelsViewModel", "Filtrando categorías: ${masterList.size} categorías originales")
 
         // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
-        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
-        val blockedCategoryIds = preferenceManager.getBlockedCategories()
-
-        Log.d("ChannelsViewModel", "Control parental habilitado: $parentalControlEnabled")
-        Log.d("ChannelsViewModel", "Categorías bloqueadas: $blockedCategoryIds")
-
-        val categoriesToDisplay = if (parentalControlEnabled) {
-            masterList.filter { !blockedCategoryIds.contains(it.category.categoryId) }
-        } else {
-            masterList
-        }
+        // Use ParentalControlManager for filtering
+        val categoriesToDisplay = parentalControlManager.filterCategories(masterList) { it.category.categoryId }
+        
+        Log.d("ChannelsViewModel", "Control parental habilitado: ${parentalControlManager.isParentalControlEnabled()}")
         Log.d("ChannelsViewModel", "Categorías después del filtro parental: ${categoriesToDisplay.size}")
         // --- FIN DE LA LÓGICA ---
 
