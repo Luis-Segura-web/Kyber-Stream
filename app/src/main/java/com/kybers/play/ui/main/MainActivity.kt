@@ -111,7 +111,8 @@ class MainActivity : ComponentActivity() {
                             remember {
                                 SettingsViewModelFactory(
                                     context = this@MainActivity,
-                                    contentRepository = vodRepository, // Podemos usar vod o live, ambos heredan de BaseContentRepository
+                                    liveRepository = liveRepository,
+                                    vodRepository = vodRepository,
                                     preferenceManager = appContainer.preferenceManager,
                                     syncManager = appContainer.syncManager,
                                     currentUser = user!!,

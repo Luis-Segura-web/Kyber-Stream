@@ -66,7 +66,8 @@ sealed class SettingsEvent {
  */
 class SettingsViewModel(
     private val context: Context,
-    private val contentRepository: BaseContentRepository,
+    private val liveRepository: BaseContentRepository,
+    private val vodRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User,
@@ -129,10 +130,10 @@ class SettingsViewModel(
     private fun loadUserInfoAndCategories() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val userInfoJob = async { contentRepository.getUserInfo(currentUser.username, currentUser.password) }
-            val liveCategoriesJob = async { contentRepository.getLiveCategories(currentUser.username, currentUser.password, currentUser.id) }
-            val movieCategoriesJob = async { contentRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
-            val seriesCategoriesJob = async { contentRepository.getSeriesCategories(currentUser.username, currentUser.password, currentUser.id) }
+            val userInfoJob = async { vodRepository.getUserInfo(currentUser.username, currentUser.password) }
+            val liveCategoriesJob = async { liveRepository.getLiveCategories(currentUser.username, currentUser.password, currentUser.id) }
+            val movieCategoriesJob = async { vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
+            val seriesCategoriesJob = async { vodRepository.getSeriesCategories(currentUser.username, currentUser.password, currentUser.id) }
 
             val userInfo = userInfoJob.await()
             val liveCategories = liveCategoriesJob.await().sortedBy { it.categoryName }
