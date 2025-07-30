@@ -21,6 +21,8 @@ import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.TrackInfo
 import com.kybers.play.ui.player.toAspectRatioMode
 import com.kybers.play.ui.player.toSortOrder
+import com.kybers.play.player.MediaManager
+import com.kybers.play.player.RetryManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -77,7 +79,10 @@ data class ChannelsUiState(
     val isRefreshing: Boolean = false,
     val isEpgUpdating: Boolean = false,
     val epgUpdateMessage: String? = null,
-    val totalChannelCount: Int = 0
+    val totalChannelCount: Int = 0,
+    val retryAttempt: Int = 0,
+    val maxRetryAttempts: Int = 5,
+    val retryMessage: String? = null
 )
 
 open class ChannelsViewModel(
@@ -92,6 +97,9 @@ open class ChannelsViewModel(
     private lateinit var libVLC: LibVLC
     lateinit var mediaPlayer: MediaPlayer
         private set
+
+    private val mediaManager = MediaManager()
+    private lateinit var retryManager: RetryManager
 
     private val _uiState = MutableStateFlow(ChannelsUiState())
     open val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
@@ -113,7 +121,23 @@ open class ChannelsViewModel(
             }
             MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
             MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
-            MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
+            MediaPlayer.Event.EncounteredError -> {
+                Log.e("ChannelsViewModel", "VLC encountered error, triggering retry")
+                // Trigger retry for VLC errors
+                val currentChannel = _uiState.value.currentlyPlaying
+                if (currentChannel != null && !retryManager.isRetrying()) {
+                    retryManager.startRetry(viewModelScope) {
+                        try {
+                            playChannelInternal(currentChannel)
+                            true
+                        } catch (e: Exception) {
+                            Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
+                            false
+                        }
+                    }
+                }
+                PlayerStatus.ERROR
+            }
             MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
             else -> null
         }
@@ -124,6 +148,7 @@ open class ChannelsViewModel(
 
     init {
         setupVLC()
+        setupRetryManager()
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
@@ -156,7 +181,46 @@ open class ChannelsViewModel(
         }
     }
 
-    private fun startEpgUpdater() {
+    private fun setupVLC() {
+        val vlcOptions = preferenceManager.getVLCOptions()
+        libVLC = LibVLC(getApplication(), vlcOptions)
+        mediaPlayer = MediaPlayer(libVLC).apply {
+            setEventListener(vlcPlayerListener)
+        }
+    }
+
+    private fun setupRetryManager() {
+        retryManager = RetryManager(
+            onRetryAttempt = { attempt, maxRetries ->
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRYING,
+                        retryAttempt = attempt,
+                        maxRetryAttempts = maxRetries,
+                        retryMessage = "Reintentando... ($attempt/$maxRetries)"
+                    ) 
+                }
+            },
+            onRetrySuccess = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.PLAYING,
+                        retryAttempt = 0,
+                        retryMessage = null
+                    ) 
+                }
+            },
+            onRetryFailed = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRY_FAILED,
+                        retryAttempt = 0,
+                        retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
+                    ) 
+                }
+            }
+        )
+    }
         viewModelScope.launch {
             while (isActive) {
                 delay(30_000L)
@@ -184,12 +248,37 @@ open class ChannelsViewModel(
         }
     }
 
-    private fun setupVLC() {
-        val vlcOptions = preferenceManager.getVLCOptions()
-        libVLC = LibVLC(getApplication(), vlcOptions)
-        mediaPlayer = MediaPlayer(libVLC).apply {
-            setEventListener(vlcPlayerListener)
-        }
+    private fun setupRetryManager() {
+        retryManager = RetryManager(
+            onRetryAttempt = { attempt, maxRetries ->
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRYING,
+                        retryAttempt = attempt,
+                        maxRetryAttempts = maxRetries,
+                        retryMessage = "Reintentando... ($attempt/$maxRetries)"
+                    ) 
+                }
+            },
+            onRetrySuccess = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.PLAYING,
+                        retryAttempt = 0,
+                        retryMessage = null
+                    ) 
+                }
+            },
+            onRetryFailed = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRY_FAILED,
+                        retryAttempt = 0,
+                        retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
+                    ) 
+                }
+            }
+        )
     }
 
     open fun onChannelSelected(channel: LiveStream) {
@@ -204,23 +293,47 @@ open class ChannelsViewModel(
                     isPlayerVisible = true,
                     screenTitle = channel.name,
                     currentChannelIndex = index,
-                    playerStatus = PlayerStatus.BUFFERING,
+                    playerStatus = PlayerStatus.LOADING,
                     availableAudioTracks = emptyList(),
-                    availableSubtitleTracks = emptyList()
+                    availableSubtitleTracks = emptyList(),
+                    retryAttempt = 0,
+                    retryMessage = null
                 )
             }
 
+            // Try to play the channel with retry mechanism
+            retryManager.startRetry(viewModelScope) {
+                try {
+                    playChannelInternal(channel)
+                    true
+                } catch (e: Exception) {
+                    Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
+                    false
+                }
+            }
+        }
+    }
+
+    private suspend fun playChannelInternal(channel: LiveStream): Boolean {
+        return try {
             val streamUrl = buildStreamUrl(channel)
             val vlcOptions = preferenceManager.getVLCOptions()
             val media = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }
 
-            mediaPlayer.media?.release()
-            mediaPlayer.media = media
+            // Use MediaManager for safe media handling
+            mediaManager.setMediaSafely(mediaPlayer, media)
             mediaPlayer.play()
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
+            
+            _uiState.update { it.copy(playerStatus = PlayerStatus.BUFFERING) }
+            true
+        } catch (e: Exception) {
+            Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
+            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
+            throw e
         }
     }
 
@@ -295,9 +408,10 @@ open class ChannelsViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        retryManager.cancelRetry()
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
-        mediaPlayer.media?.release()
+        mediaManager.releaseCurrentMedia(mediaPlayer)
         mediaPlayer.release()
         libVLC.release()
     }
@@ -335,18 +449,17 @@ open class ChannelsViewModel(
     }
 
     open fun hidePlayer() {
-        if (mediaPlayer.isPlaying) {
-            mediaPlayer.stop()
-        }
-        mediaPlayer.media?.release()
-        mediaPlayer.media = null
+        retryManager.cancelRetry()
+        mediaManager.stopAndReleaseMedia(mediaPlayer)
 
         _uiState.update {
             it.copy(
                 isPlayerVisible = false,
                 isFullScreen = false,
                 playerStatus = PlayerStatus.IDLE,
-                isInPipMode = false
+                isInPipMode = false,
+                retryAttempt = 0,
+                retryMessage = null
             )
         }
     }
@@ -367,6 +480,16 @@ open class ChannelsViewModel(
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
+        }
+    }
+
+    /**
+     * Manually retry playback for current channel
+     */
+    fun retryCurrentChannel() {
+        val currentChannel = _uiState.value.currentlyPlaying
+        if (currentChannel != null) {
+            onChannelSelected(currentChannel)
         }
     }
 

@@ -18,7 +18,14 @@ enum class SortOrder {
  * Enum para representar el estado actual del reproductor.
  */
 enum class PlayerStatus {
-    IDLE, BUFFERING, PLAYING, ERROR, PAUSED
+    IDLE,
+    BUFFERING,
+    PLAYING,
+    ERROR,
+    PAUSED,
+    RETRYING,        // New - retry in progress
+    RETRY_FAILED,    // New - all retries exhausted
+    LOADING          // New - distinct from buffering (initial load)
 }
 
 /**
