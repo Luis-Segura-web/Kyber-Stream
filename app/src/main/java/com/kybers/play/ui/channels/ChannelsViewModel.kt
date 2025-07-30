@@ -181,46 +181,7 @@ open class ChannelsViewModel(
         }
     }
 
-    private fun setupVLC() {
-        val vlcOptions = preferenceManager.getVLCOptions()
-        libVLC = LibVLC(getApplication(), vlcOptions)
-        mediaPlayer = MediaPlayer(libVLC).apply {
-            setEventListener(vlcPlayerListener)
-        }
-    }
-
-    private fun setupRetryManager() {
-        retryManager = RetryManager(
-            onRetryAttempt = { attempt, maxRetries ->
-                _uiState.update { 
-                    it.copy(
-                        playerStatus = PlayerStatus.RETRYING,
-                        retryAttempt = attempt,
-                        maxRetryAttempts = maxRetries,
-                        retryMessage = "Reintentando... ($attempt/$maxRetries)"
-                    ) 
-                }
-            },
-            onRetrySuccess = {
-                _uiState.update { 
-                    it.copy(
-                        playerStatus = PlayerStatus.PLAYING,
-                        retryAttempt = 0,
-                        retryMessage = null
-                    ) 
-                }
-            },
-            onRetryFailed = {
-                _uiState.update { 
-                    it.copy(
-                        playerStatus = PlayerStatus.RETRY_FAILED,
-                        retryAttempt = 0,
-                        retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
-                    ) 
-                }
-            }
-        )
-    }
+    private fun startEpgUpdater() {
         viewModelScope.launch {
             while (isActive) {
                 delay(30_000L)
@@ -245,6 +206,14 @@ open class ChannelsViewModel(
                     _uiState.update { it.copy(categories = newCategories) }
                 }
             }
+        }
+    }
+
+    private fun setupVLC() {
+        val vlcOptions = preferenceManager.getVLCOptions()
+        libVLC = LibVLC(getApplication(), vlcOptions)
+        mediaPlayer = MediaPlayer(libVLC).apply {
+            setEventListener(vlcPlayerListener)
         }
     }
 
@@ -334,6 +303,9 @@ open class ChannelsViewModel(
             Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             throw e
+        }
+    }
+            applyAspectRatio(_uiState.value.currentAspectRatioMode)
         }
     }
 
@@ -464,6 +436,16 @@ open class ChannelsViewModel(
         }
     }
 
+    /**
+     * Manually retry playback for current channel
+     */
+    fun retryCurrentChannel() {
+        val currentChannel = _uiState.value.currentlyPlaying
+        if (currentChannel != null) {
+            onChannelSelected(currentChannel)
+        }
+    }
+
     fun refreshChannelsManually() {
         viewModelScope.launch {
             Log.d("ChannelsViewModel", "Iniciando refresco manual de canales y EPG...")
@@ -480,16 +462,6 @@ open class ChannelsViewModel(
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
-        }
-    }
-
-    /**
-     * Manually retry playback for current channel
-     */
-    fun retryCurrentChannel() {
-        val currentChannel = _uiState.value.currentlyPlaying
-        if (currentChannel != null) {
-            onChannelSelected(currentChannel)
         }
     }
 
