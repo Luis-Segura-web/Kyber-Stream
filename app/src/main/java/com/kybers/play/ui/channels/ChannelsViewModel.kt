@@ -112,43 +112,11 @@ open class ChannelsViewModel(
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
-    private val vlcPlayerListener = MediaPlayer.EventListener { event ->
-        val currentState = _uiState.value.playerStatus
-        val newStatus = when (event.type) {
-            MediaPlayer.Event.Playing -> {
-                updateTrackInfo()
-                PlayerStatus.PLAYING
-            }
-            MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
-            MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
-            MediaPlayer.Event.EncounteredError -> {
-                Log.e("ChannelsViewModel", "VLC encountered error, triggering retry")
-                // Trigger retry for VLC errors
-                val currentChannel = _uiState.value.currentlyPlaying
-                if (currentChannel != null && !retryManager.isRetrying()) {
-                    retryManager.startRetry(viewModelScope) {
-                        try {
-                            playChannelInternal(currentChannel)
-                            true
-                        } catch (e: Exception) {
-                            Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
-                            false
-                        }
-                    }
-                }
-                PlayerStatus.ERROR
-            }
-            MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
-            else -> null
-        }
-        if (newStatus != null && newStatus != currentState) {
-            _uiState.update { it.copy(playerStatus = newStatus) }
-        }
-    }
+    private lateinit var vlcPlayerListener: MediaPlayer.EventListener
 
     init {
-        setupVLC()
         setupRetryManager()
+        setupVLC()
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
@@ -210,6 +178,41 @@ open class ChannelsViewModel(
     }
 
     private fun setupVLC() {
+        // Set up the VLC event listener now that retryManager is initialized
+        vlcPlayerListener = MediaPlayer.EventListener { event ->
+            val currentState = _uiState.value.playerStatus
+            val newStatus = when (event.type) {
+                MediaPlayer.Event.Playing -> {
+                    updateTrackInfo()
+                    PlayerStatus.PLAYING
+                }
+                MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
+                MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
+                MediaPlayer.Event.EncounteredError -> {
+                    Log.e("ChannelsViewModel", "VLC encountered error, triggering retry")
+                    // Trigger retry for VLC errors
+                    val currentChannel = _uiState.value.currentlyPlaying
+                    if (currentChannel != null && !retryManager.isRetrying()) {
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                playChannelInternal(currentChannel)
+                                true
+                            } catch (e: Exception) {
+                                Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
+                                false
+                            }
+                        }
+                    }
+                    PlayerStatus.ERROR
+                }
+                MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
+                else -> null
+            }
+            if (newStatus != null && newStatus != currentState) {
+                _uiState.update { it.copy(playerStatus = newStatus) }
+            }
+        }
+
         val vlcOptions = preferenceManager.getVLCOptions()
         libVLC = LibVLC(getApplication(), vlcOptions)
         mediaPlayer = MediaPlayer(libVLC).apply {
@@ -380,7 +383,9 @@ open class ChannelsViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        retryManager.cancelRetry()
+        if (::retryManager.isInitialized) {
+            retryManager.cancelRetry()
+        }
         mediaPlayer.stop()
         mediaPlayer.setEventListener(null)
         mediaManager.releaseCurrentMedia(mediaPlayer)
@@ -421,7 +426,9 @@ open class ChannelsViewModel(
     }
 
     open fun hidePlayer() {
-        retryManager.cancelRetry()
+        if (::retryManager.isInitialized) {
+            retryManager.cancelRetry()
+        }
         mediaManager.stopAndReleaseMedia(mediaPlayer)
 
         _uiState.update {
