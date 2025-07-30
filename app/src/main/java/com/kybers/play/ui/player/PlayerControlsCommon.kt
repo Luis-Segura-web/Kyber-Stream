@@ -114,13 +114,13 @@ internal fun SideSliders(
     onSetVolume: (Int) -> Unit,
     onSetBrightness: (Float) -> Unit
 ) {
-    Box(modifier = modifier.padding(horizontal = 20.dp)) {
+    Box(modifier = modifier.padding(horizontal = 10.dp)) {
         // Brightness slider on left side - moved more to center and raised up
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .offset(x = 16.dp, y = (-24).dp) // Move right and up to avoid icon overlap
-                .width(80.dp)
+                .width(160.dp)
         ) {
             VerticalSlider(
                 value = brightness,
@@ -133,7 +133,7 @@ internal fun SideSliders(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .offset(x = (-16).dp, y = (-24).dp) // Move left and up to avoid icon overlap
-                .width(80.dp)
+                .width(160.dp)
         ) {
             VerticalSlider(
                 value = volume.toFloat() / maxVolume.toFloat(),

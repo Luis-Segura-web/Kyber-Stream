@@ -215,7 +215,8 @@ private fun BottomVODControls(
                 valueRange = 0f..(if (duration > 0) duration.toFloat() else 0f),
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 8.dp)
+                    .height(4.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
