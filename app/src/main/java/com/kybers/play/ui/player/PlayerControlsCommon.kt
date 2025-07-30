@@ -41,10 +41,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+import android.content.res.Configuration
 import java.util.concurrent.TimeUnit
 
 /**
@@ -63,7 +66,10 @@ internal fun TopControls(
     onToggleFavorite: () -> Unit,
     onRequestPipMode: () -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val iconSize = if (isFullScreen) 36.dp else 24.dp
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -74,8 +80,29 @@ internal fun TopControls(
         IconButton(onClick = onClose) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White, modifier = Modifier.size(iconSize))
         }
-        // Title removed to prevent superimposition on video player
-        Spacer(modifier = Modifier.weight(1f))
+        
+        if (isLandscape) {
+            // In landscape, show spacer to push title to the right
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        
+        Text(
+            text = streamTitle,
+            style = if (isLandscape) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = if (isLandscape) TextAlign.End else TextAlign.Center,
+            modifier = Modifier
+                .then(if (isLandscape) Modifier else Modifier.weight(1f))
+                .padding(horizontal = 8.dp)
+        )
+        
+        if (!isLandscape) {
+            // In portrait, spacer comes after title to center it
+            Spacer(modifier = Modifier.weight(1f))
+        }
+        
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 IconButton(onClick = onRequestPipMode) {

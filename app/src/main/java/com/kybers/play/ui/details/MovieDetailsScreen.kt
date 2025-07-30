@@ -300,6 +300,7 @@ fun PlayerAndHeaderSection(
         ) {
             MovieHeader(
                 backdropUrl = uiState.backdropUrl,
+                title = uiState.title,
                 onNavigateUp = onNavigateUp
             )
         }
@@ -307,7 +308,7 @@ fun PlayerAndHeaderSection(
 }
 
 @Composable
-fun MovieHeader(backdropUrl: String?, onNavigateUp: () -> Unit) {
+fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -343,6 +344,25 @@ fun MovieHeader(backdropUrl: String?, onNavigateUp: () -> Unit) {
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
         }
+        
+        // Movie title overlay
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 32.dp)
+                .background(
+                    Color.Black.copy(alpha = 0.3f),
+                    RoundedCornerShape(8.dp)
+                )
+                .padding(16.dp)
+        )
     }
 }
 
