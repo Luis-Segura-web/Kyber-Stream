@@ -176,6 +176,10 @@ class PreferenceManager(context: Context) {
         options.add("--audio-time-stretch")
         options.add("--android-audio-session-id=0")
         
+        // Log the options being applied for debugging
+        android.util.Log.d("PlayerSettings", "Generated VLC options: ${options.joinToString(", ")}")
+        android.util.Log.d("PlayerSettings", "Settings - Buffer: $networkBuffer, HW Accel: ${getHwAcceleration()}, Format: $streamFormat")
+        
         return options
     }
 }
