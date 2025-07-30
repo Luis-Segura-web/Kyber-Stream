@@ -301,14 +301,15 @@ fun PlayerAndHeaderSection(
             MovieHeader(
                 backdropUrl = uiState.backdropUrl,
                 title = uiState.title,
-                onNavigateUp = onNavigateUp
+                onNavigateUp = onNavigateUp,
+                onPlayClick = { viewModel.startPlayback(continueFromLastPosition = false) }
             )
         }
     }
 }
 
 @Composable
-fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit) {
+fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit, onPlayClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -345,7 +346,18 @@ fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
         }
         
-        // Movie title overlay
+        // Play button in center
+        Icon(
+            imageVector = Icons.Default.PlayCircleOutline,
+            contentDescription = "Reproducir",
+            tint = Color.White.copy(alpha = 0.8f),
+            modifier = Modifier
+                .size(80.dp)
+                .align(Alignment.Center)
+                .clickable { onPlayClick() }
+        )
+        
+        // Movie title overlay in bottom-left
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
@@ -353,10 +365,9 @@ fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit) {
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
             modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 32.dp)
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
                 .background(
                     Color.Black.copy(alpha = 0.3f),
                     RoundedCornerShape(8.dp)
