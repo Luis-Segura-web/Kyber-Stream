@@ -12,6 +12,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
+import com.kybers.play.BuildConfig
 import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -65,7 +66,12 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
                     .build()
             }
             .respectCacheHeaders(false)
-            .logger(DebugLogger())
+            .apply {
+                // Only enable debug logging in debug builds to reduce log noise
+                if (BuildConfig.DEBUG) {
+                    logger(DebugLogger())
+                }
+            }
             .build()
     }
 
