@@ -1,5 +1,6 @@
 package com.kybers.play.ui.player
 
+import android.util.Log
 import android.view.TextureView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import org.videolan.libvlc.MediaPlayer
 /**
  * Un Composable reutilizable que muestra el video de un MediaPlayer de VLC
  * usando una TextureView para ser compatible con otros elementos de la UI.
+ * Includes enhanced error handling for VLC operations.
  */
 @Composable
 fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
@@ -22,18 +24,34 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
                 TextureView(context).apply {
                     surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                         override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                            mediaPlayer.vlcVout.setVideoSurface(android.view.Surface(surface), null)
-                            mediaPlayer.vlcVout.setWindowSize(width, height)
-                            mediaPlayer.vlcVout.attachViews()
+                            try {
+                                mediaPlayer.vlcVout.setVideoSurface(android.view.Surface(surface), null)
+                                mediaPlayer.vlcVout.setWindowSize(width, height)
+                                mediaPlayer.vlcVout.attachViews()
+                                Log.d("VLCPlayer", "Surface attached successfully")
+                            } catch (e: Exception) {
+                                Log.e("VLCPlayer", "Error setting up video surface", e)
+                            }
                         }
 
                         override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                            mediaPlayer.vlcVout.setWindowSize(width, height)
+                            try {
+                                mediaPlayer.vlcVout.setWindowSize(width, height)
+                                Log.d("VLCPlayer", "Surface size changed: ${width}x${height}")
+                            } catch (e: Exception) {
+                                Log.e("VLCPlayer", "Error updating surface size", e)
+                            }
                         }
 
                         override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
-                            mediaPlayer.vlcVout.detachViews()
-                            return true
+                            try {
+                                mediaPlayer.vlcVout.detachViews()
+                                Log.d("VLCPlayer", "Surface detached successfully")
+                                return true
+                            } catch (e: Exception) {
+                                Log.e("VLCPlayer", "Error detaching surface", e)
+                                return true // Return true anyway to free the surface
+                            }
                         }
 
                         override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {}
