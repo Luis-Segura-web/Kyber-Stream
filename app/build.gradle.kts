@@ -12,6 +12,7 @@ plugins {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.fromTarget("1.8"))
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
     }
 }
 
