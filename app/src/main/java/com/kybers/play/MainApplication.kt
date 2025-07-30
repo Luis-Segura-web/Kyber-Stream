@@ -21,6 +21,7 @@ import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
 import java.util.concurrent.TimeUnit
 
@@ -92,6 +93,7 @@ class AppContainer(context: Context) {
     val userRepository by lazy { UserRepository(database.userDao()) }
     val syncManager by lazy { SyncManager(context) }
     val preferenceManager by lazy { PreferenceManager(context) }
+    val parentalControlManager by lazy { ParentalControlManager(preferenceManager) }
 
     val detailsRepository by lazy {
         DetailsRepository(

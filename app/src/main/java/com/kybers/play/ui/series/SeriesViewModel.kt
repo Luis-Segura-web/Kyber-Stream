@@ -8,6 +8,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.async
@@ -49,7 +50,8 @@ class SeriesViewModel(
     private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User
+    private val currentUser: User,
+    private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SeriesUiState())
@@ -75,6 +77,14 @@ class SeriesViewModel(
             )
         }
         loadInitialData()
+        
+        // React to parental control changes
+        viewModelScope.launch {
+            parentalControlManager.blockedCategoriesState.collect { _ ->
+                // Re-filter content when blocked categories change
+                updateUiWithFilteredData()
+            }
+        }
     }
 
     private fun loadInitialData() {
@@ -170,19 +180,16 @@ class SeriesViewModel(
         seriesSortOrder: SortOrder
     ): List<ExpandableSeriesCategory> {
         // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
-        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
-        val blockedCategoryIds = preferenceManager.getBlockedCategories()
-
-        val categoriesToDisplay = if (parentalControlEnabled) {
-            officialCategories.filter { !blockedCategoryIds.contains(it.categoryId) }
-        } else {
-            officialCategories
-        }
+        // Use ParentalControlManager for filtering
+        val categoriesToDisplay = parentalControlManager.filterCategories(officialCategories) { it.categoryId }
         // --- FIN DE LA LÓGICA ---
 
         val lowercasedQuery = query.lowercase().trim()
 
-        val seriesToDisplay = if (lowercasedQuery.isBlank()) allSeries else allSeries.filter {
+        // Apply parental control filtering to all series first
+        val parentalFilteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
+
+        val seriesToDisplay = if (lowercasedQuery.isBlank()) parentalFilteredSeries else parentalFilteredSeries.filter {
             it.name.lowercase().contains(lowercasedQuery)
         }
 
@@ -191,7 +198,7 @@ class SeriesViewModel(
         if (lowercasedQuery.isBlank()) {
             val favoriteIds = _uiState.value.favoriteSeriesIds
             if (favoriteIds.isNotEmpty()) {
-                val favoriteSeries = allSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
+                val favoriteSeries = parentalFilteredSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
                 if (favoriteSeries.isNotEmpty()) {
                     specialCategories.add(
                         ExpandableSeriesCategory(

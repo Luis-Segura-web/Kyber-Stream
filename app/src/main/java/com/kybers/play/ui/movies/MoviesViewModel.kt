@@ -10,6 +10,7 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.async
@@ -52,7 +53,8 @@ class MoviesViewModel(
     private val detailsRepository: DetailsRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User
+    private val currentUser: User,
+    private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MoviesUiState())
@@ -79,6 +81,14 @@ class MoviesViewModel(
             )
         }
         loadInitialData()
+        
+        // React to parental control changes
+        viewModelScope.launch {
+            parentalControlManager.blockedCategoriesState.collect { _ ->
+                // Re-filter content when blocked categories change
+                updateUiWithFilteredData()
+            }
+        }
     }
 
     private fun loadInitialData() {
@@ -214,19 +224,16 @@ class MoviesViewModel(
         movieSortOrder: SortOrder
     ): List<ExpandableMovieCategory> {
         // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
-        val parentalControlEnabled = preferenceManager.isParentalControlEnabled()
-        val blockedCategoryIds = preferenceManager.getBlockedCategories()
-
-        val categoriesToDisplay = if (parentalControlEnabled) {
-            officialCategories.filter { !blockedCategoryIds.contains(it.categoryId) }
-        } else {
-            officialCategories
-        }
+        // Use ParentalControlManager for filtering
+        val categoriesToDisplay = parentalControlManager.filterCategories(officialCategories) { it.categoryId }
         // --- FIN DE LA LÓGICA ---
 
         val lowercasedQuery = query.lowercase().trim()
 
-        val moviesToDisplay = if (lowercasedQuery.isBlank()) allMovies else allMovies.filter {
+        // Apply parental control filtering to all movies first
+        val parentalFilteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
+
+        val moviesToDisplay = if (lowercasedQuery.isBlank()) parentalFilteredMovies else parentalFilteredMovies.filter {
             it.name.lowercase().contains(lowercasedQuery)
         }
 
@@ -236,7 +243,7 @@ class MoviesViewModel(
         if (lowercasedQuery.isBlank()) {
             val favoriteIds = _uiState.value.favoriteMovieIds
             if (favoriteIds.isNotEmpty()) {
-                val favoriteMovies = allMovies.filter { favoriteIds.contains(it.streamId.toString()) }
+                val favoriteMovies = parentalFilteredMovies.filter { favoriteIds.contains(it.streamId.toString()) }
                 if (favoriteMovies.isNotEmpty()) {
                     specialCategories.add(
                         ExpandableMovieCategory(
@@ -250,7 +257,7 @@ class MoviesViewModel(
 
             val playbackPositions = preferenceManager.getAllPlaybackPositions()
             if (playbackPositions.isNotEmpty()) {
-                val resumeMovies = allMovies.filter { movie ->
+                val resumeMovies = parentalFilteredMovies.filter { movie ->
                     (playbackPositions[movie.streamId.toString()] ?: 0L) > 10000
                 }.sortedByDescending { playbackPositions[it.streamId.toString()] }
                 if (resumeMovies.isNotEmpty()) {
