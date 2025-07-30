@@ -132,7 +132,7 @@ open class ChannelsViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
-        val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
+        val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)
 
         _uiState.update {
             it.copy(
@@ -363,8 +363,8 @@ open class ChannelsViewModel(
                 liveRepository.cacheEpgData(currentUser.username, currentUser.password, currentUser.id)
 
                 loadInitialChannelsAndPreloadEpg()
-                syncManager.saveLastSyncTimestamp(currentUser.id)
-                _uiState.update { it.copy(lastUpdatedTimestamp = System.currentTimeMillis()) }
+                syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)
+                _uiState.update { it.copy(lastUpdatedTimestamp = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)) }
             } catch (e: Exception) {
                 Log.e("ChannelsViewModel", "Error en refreshChannelsManually(): ${e.message}", e)
             } finally {

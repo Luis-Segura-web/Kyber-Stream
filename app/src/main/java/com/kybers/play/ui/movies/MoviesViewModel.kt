@@ -94,7 +94,7 @@ class MoviesViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
+            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
 
             val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
             val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
@@ -150,13 +150,13 @@ class MoviesViewModel(
             _uiState.update { it.copy(isRefreshing = true) }
             try {
                 vodRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
-                syncManager.saveLastSyncTimestamp(currentUser.id)
+                syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
 
                 val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
                 val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
                 awaitAll(moviesJob, cacheJob)
 
-                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)
+                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
                 updateUiWithFilteredData()
                 _uiState.update {
                     it.copy(

@@ -9,9 +9,11 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.BaseContentRepository
+import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.theme.ThemeManager
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -55,6 +57,8 @@ data class SettingsUiState(
 sealed class SettingsEvent {
     object NavigateToLogin : SettingsEvent()
     object ShowSyncForcedMessage : SettingsEvent()
+    object ShowSyncCompletedMessage : SettingsEvent()
+    data class ShowSyncErrorMessage(val message: String) : SettingsEvent()
     object ShowHistoryClearedMessage : SettingsEvent()
     object ShowPinSetSuccess : SettingsEvent()
     object ShowPinChangeSuccess : SettingsEvent()
@@ -67,7 +71,7 @@ sealed class SettingsEvent {
  */
 class SettingsViewModel(
     private val context: Context,
-    private val liveRepository: BaseContentRepository,
+    private val liveRepository: LiveRepository,
     private val vodRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
@@ -93,7 +97,7 @@ class SettingsViewModel(
     private fun loadInitialSettings() {
         _uiState.update {
             it.copy(
-                lastSyncTimestamp = syncManager.getLastSyncTimestamp(currentUser.id),
+                lastSyncTimestamp = syncManager.getOldestSyncTimestamp(currentUser.id),
                 syncFrequency = preferenceManager.getSyncFrequency(),
                 streamFormat = preferenceManager.getStreamFormat(),
                 hwAccelerationEnabled = preferenceManager.getHwAcceleration(),
@@ -287,8 +291,48 @@ class SettingsViewModel(
 
     fun onForceSyncClicked() {
         viewModelScope.launch {
-            syncManager.saveLastSyncTimestamp(currentUser.id)
-            _events.emit(SettingsEvent.ShowSyncForcedMessage)
+            try {
+                // Actually trigger immediate synchronization instead of just resetting timestamp
+                _uiState.update { it.copy(isLoading = true) }
+                
+                // Force sync all content types immediately
+                val moviesJob = async { 
+                    vodRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
+                    syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
+                }
+                val seriesJob = async { 
+                    vodRepository.cacheSeries(currentUser.username, currentUser.password, currentUser.id)
+                    syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.SERIES)
+                }
+                val liveJob = async { 
+                    liveRepository.cacheLiveStreams(currentUser.username, currentUser.password, currentUser.id)
+                    syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)
+                }
+                val epgJob = async {
+                    if (syncManager.isEpgSyncNeeded(currentUser.id)) {
+                        liveRepository.cacheEpgData(currentUser.username, currentUser.password, currentUser.id)
+                        syncManager.saveEpgLastSyncTimestamp(currentUser.id)
+                    }
+                }
+                
+                awaitAll(moviesJob, seriesJob, liveJob, epgJob)
+                
+                // Update general timestamp for backward compatibility
+                syncManager.saveLastSyncTimestamp(currentUser.id)
+                
+                // Update UI with new timestamp
+                _uiState.update { 
+                    it.copy(
+                        isLoading = false,
+                        lastSyncTimestamp = syncManager.getOldestSyncTimestamp(currentUser.id)
+                    ) 
+                }
+                
+                _events.emit(SettingsEvent.ShowSyncCompletedMessage)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false) }
+                _events.emit(SettingsEvent.ShowSyncErrorMessage(e.message ?: "Error desconocido"))
+            }
         }
     }
 

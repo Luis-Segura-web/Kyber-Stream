@@ -80,6 +80,11 @@ class SyncViewModel(
 
                 awaitAll(vodSyncJob, liveSyncJob)
 
+                // Save individual content type timestamps
+                syncManager.saveLastSyncTimestamp(user.id, SyncManager.ContentType.MOVIES)
+                syncManager.saveLastSyncTimestamp(user.id, SyncManager.ContentType.SERIES)  
+                syncManager.saveLastSyncTimestamp(user.id, SyncManager.ContentType.LIVE_TV)
+                // Keep general timestamp for backward compatibility
                 syncManager.saveLastSyncTimestamp(user.id)
                 _syncState.update { SyncState.Success }
                 Log.d("SyncViewModel", "Sincronización completa y exitosa para userId: ${user.id}")
