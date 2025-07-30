@@ -1,8 +1,12 @@
 package com.kybers.play.ui.settings
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -12,6 +16,7 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.theme.ThemeManager
+import com.kybers.play.work.CacheWorker
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,6 +31,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 
 /**
  * Data class que representa el estado completo de la UI de la pantalla de Ajustes.
@@ -209,6 +215,32 @@ class SettingsViewModel(
     fun onSyncFrequencyChanged(frequencyHours: Int) {
         preferenceManager.saveSyncFrequency(frequencyHours)
         _uiState.update { it.copy(syncFrequency = frequencyHours) }
+        
+        // Reprogramar worker con nueva frecuencia
+        rescheduleCacheWorker(frequencyHours)
+    }
+
+    private fun rescheduleCacheWorker(frequencyHours: Int) {
+        val workManager = WorkManager.getInstance(context)
+        
+        // Cancelar worker actual
+        workManager.cancelUniqueWork("CacheSyncWorker")
+        
+        if (frequencyHours > 0) {
+            // Programar nuevo worker con frecuencia del usuario
+            val syncRequest = PeriodicWorkRequestBuilder<CacheWorker>(
+                frequencyHours.toLong(), TimeUnit.HOURS
+            ).setInitialDelay(10, TimeUnit.MINUTES).build()
+            
+            workManager.enqueueUniquePeriodicWork(
+                "CacheSyncWorker",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                syncRequest
+            )
+            Log.d("SettingsViewModel", "Worker reprogramado para ejecutarse cada $frequencyHours horas")
+        } else {
+            Log.d("SettingsViewModel", "Worker cancelado - sincronización solo manual")
+        }
     }
 
     fun onStreamFormatChanged(format: String) {
