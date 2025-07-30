@@ -155,7 +155,6 @@ class PreferenceManager(context: Context) {
         // Apply hardware acceleration setting
         if (getHwAcceleration()) {
             options.add("--avcodec-hw=any")
-            options.add("--android-display-chroma=RV16")
         } else {
             options.add("--avcodec-hw=none")
         }
@@ -165,7 +164,6 @@ class PreferenceManager(context: Context) {
         when (streamFormat) {
             "HLS" -> {
                 options.add("--http-reconnect")
-                options.add("--adaptive-logic=highest")
             }
             "TS" -> {
                 options.add("--ts-seek-percent")
@@ -174,7 +172,6 @@ class PreferenceManager(context: Context) {
         
         // General performance configurations
         options.add("--audio-time-stretch")
-        options.add("--android-audio-session-id=0")
         
         // Log the options being applied for debugging
         android.util.Log.d("PlayerSettings", "Generated VLC options: ${options.joinToString(", ")}")
