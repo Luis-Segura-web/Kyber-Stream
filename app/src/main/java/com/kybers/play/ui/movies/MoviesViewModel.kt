@@ -2,6 +2,7 @@ package com.kybers.play.ui.movies
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.kybers.play.data.local.model.MovieDetailsCache
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
@@ -95,6 +96,7 @@ class MoviesViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
+            Log.d("MoviesViewModel", "loadInitialData: lastSyncTime for MOVIES = $lastSyncTime")
 
             val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
             val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
@@ -102,6 +104,7 @@ class MoviesViewModel(
 
             awaitAll(moviesJob, categoriesJob, cacheJob)
 
+            Log.d("MoviesViewModel", "loadInitialData: loaded ${allMovies.size} movies, ${officialCategories.size} categories")
             updateUiWithFilteredData()
             _uiState.update {
                 it.copy(

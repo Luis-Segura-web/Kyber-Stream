@@ -2,6 +2,7 @@ package com.kybers.play.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import java.util.concurrent.TimeUnit
 
 /**
@@ -36,7 +37,13 @@ class SyncManager(context: Context) {
      */
     fun isSyncNeeded(userId: Int): Boolean {
         val oldestTimestamp = getOldestSyncTimestamp(userId)
-        return System.currentTimeMillis() - oldestTimestamp > SYNC_THRESHOLD
+        val currentTime = System.currentTimeMillis()
+        val timeDiff = currentTime - oldestTimestamp
+        val isNeeded = timeDiff > SYNC_THRESHOLD
+        
+        Log.d("SyncManager", "isSyncNeeded for userId $userId: oldestTimestamp=$oldestTimestamp, currentTime=$currentTime, timeDiff=${timeDiff}ms (${timeDiff/(60*60*1000)}h), threshold=${SYNC_THRESHOLD}ms (${SYNC_THRESHOLD/(60*60*1000)}h), isNeeded=$isNeeded")
+        
+        return isNeeded
     }
 
     /**
@@ -51,10 +58,12 @@ class SyncManager(context: Context) {
      * Guarda el timestamp de la última sincronización de contenido general (para compatibilidad).
      */
     fun saveLastSyncTimestamp(userId: Int) {
+        val timestamp = System.currentTimeMillis()
         with(sharedPreferences.edit()) {
-            putLong(KEY_LAST_SYNC_PREFIX + userId, System.currentTimeMillis())
+            putLong(KEY_LAST_SYNC_PREFIX + userId, timestamp)
             apply()
         }
+        Log.d("SyncManager", "Saved general timestamp for userId $userId: $timestamp")
     }
 
     /**
@@ -66,10 +75,12 @@ class SyncManager(context: Context) {
             ContentType.SERIES -> KEY_SERIES_LAST_SYNC_PREFIX + userId
             ContentType.LIVE_TV -> KEY_LIVE_LAST_SYNC_PREFIX + userId
         }
+        val timestamp = System.currentTimeMillis()
         with(sharedPreferences.edit()) {
-            putLong(key, System.currentTimeMillis())
+            putLong(key, timestamp)
             apply()
         }
+        Log.d("SyncManager", "Saved ${contentType.name} timestamp for userId $userId: $timestamp")
     }
 
     /**
@@ -81,6 +92,7 @@ class SyncManager(context: Context) {
 
     /**
      * Obtiene el timestamp de la última sincronización para un tipo de contenido específico.
+     * Si no existe un timestamp específico pero existe uno general, lo migra.
      */
     fun getLastSyncTimestamp(userId: Int, contentType: ContentType): Long {
         val key = when (contentType) {
@@ -88,7 +100,24 @@ class SyncManager(context: Context) {
             ContentType.SERIES -> KEY_SERIES_LAST_SYNC_PREFIX + userId
             ContentType.LIVE_TV -> KEY_LIVE_LAST_SYNC_PREFIX + userId
         }
-        return sharedPreferences.getLong(key, 0L)
+        
+        val contentSpecificTimestamp = sharedPreferences.getLong(key, 0L)
+        
+        // Migration: If no content-specific timestamp exists, use general timestamp
+        if (contentSpecificTimestamp == 0L) {
+            val generalTimestamp = getLastSyncTimestamp(userId)
+            if (generalTimestamp > 0L) {
+                Log.d("SyncManager", "Migrating general timestamp ($generalTimestamp) to ${contentType.name} for userId $userId")
+                // Migrate the general timestamp to content-specific
+                with(sharedPreferences.edit()) {
+                    putLong(key, generalTimestamp)
+                    apply()
+                }
+                return generalTimestamp
+            }
+        }
+        
+        return contentSpecificTimestamp
     }
 
     /**
@@ -101,20 +130,22 @@ class SyncManager(context: Context) {
         val liveTimestamp = getLastSyncTimestamp(userId, ContentType.LIVE_TV)
         val generalTimestamp = getLastSyncTimestamp(userId)
         
-        // Si no hay timestamps específicos, usa el general
-        if (moviesTimestamp == 0L && seriesTimestamp == 0L && liveTimestamp == 0L) {
-            return generalTimestamp
-        }
+        Log.d("SyncManager", "getOldestSyncTimestamp for userId $userId: movies=$moviesTimestamp, series=$seriesTimestamp, live=$liveTimestamp, general=$generalTimestamp")
         
-        // Encuentra el timestamp más antiguo (no cero)
-        val timestamps = listOf(moviesTimestamp, seriesTimestamp, liveTimestamp)
+        // Collect all non-zero timestamps
+        val allTimestamps = listOf(moviesTimestamp, seriesTimestamp, liveTimestamp, generalTimestamp)
             .filter { it > 0L }
         
-        return if (timestamps.isNotEmpty()) {
-            timestamps.minOrNull() ?: 0L
+        val result = if (allTimestamps.isNotEmpty()) {
+            // Return the oldest (minimum) timestamp
+            allTimestamps.minOrNull() ?: 0L
         } else {
-            generalTimestamp
+            // If no timestamps exist, return 0L to force sync
+            0L
         }
+        
+        Log.d("SyncManager", "Oldest timestamp result: $result")
+        return result
     }
 
 
