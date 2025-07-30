@@ -18,8 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * --- ¡ARCHIVO CON AJUSTES DE UI! ---
- * Se ha ajustado el espaciado en los controles inferiores para un diseño más compacto.
+ * --- ¡ARCHIVO REFACTORIZADO! ---
+ * Se ha reestructurado el layout para alinear la barra de progreso
+ * con los controles centrales (Play/Pausa), tal como solicitaste.
  */
 @Composable
 fun MoviePlayerControls(
@@ -79,18 +80,29 @@ fun MoviePlayerControls(
                 onRequestPipMode = { onRequestPipMode(); onAnyInteraction() }
             )
 
-            // --- ¡MODIFICACIÓN! Se añade un desplazamiento vertical hacia arriba ---
-            CenterVODControls(
-                modifier = Modifier.align(Alignment.Center).offset(y = (-16).dp),
-                isPlaying = isPlaying,
-                isFullScreen = isFullScreen,
-                showNextPrevious = showNextPreviousButtons,
-                onPlayPause = { onPlayPause(); onAnyInteraction() },
-                onNext = { onNext(); onAnyInteraction() },
-                onPrevious = { onPrevious(); onAnyInteraction() },
-                onSeekForward = { onSeekForward(); onAnyInteraction() },
-                onSeekBackward = { onSeekBackward(); onAnyInteraction() }
-            )
+            // --- ¡NUEVA ESTRUCTURA CENTRALIZADA! ---
+            // Agrupamos los controles centrales y la barra de progreso en una columna.
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CenterVODControls(
+                    isPlaying = isPlaying,
+                    isFullScreen = isFullScreen,
+                    showNextPrevious = showNextPreviousButtons,
+                    onPlayPause = { onPlayPause(); onAnyInteraction() },
+                    onNext = { onNext(); onAnyInteraction() },
+                    onPrevious = { onPrevious(); onAnyInteraction() },
+                    onSeekForward = { onSeekForward(); onAnyInteraction() },
+                    onSeekBackward = { onSeekBackward(); onAnyInteraction() }
+                )
+                Spacer(Modifier.height(12.dp)) // Espacio entre botones y slider
+                SliderControls(
+                    currentPosition = currentPosition,
+                    duration = duration,
+                    onSeek = { onSeek(it); onAnyInteraction() }
+                )
+            }
 
             BottomVODControls(
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -105,9 +117,6 @@ fun MoviePlayerControls(
                 onToggleSubtitleMenu = { onToggleSubtitleMenu(it); onAnyInteraction() },
                 onSelectAudioTrack = { onSelectAudioTrack(it); onAnyInteraction() },
                 onSelectSubtitleTrack = { onSelectSubtitleTrack(it); onAnyInteraction() },
-                currentPosition = currentPosition,
-                duration = duration,
-                onSeek = { onSeek(it); onAnyInteraction() },
                 onToggleFullScreen = { onToggleFullScreen(); onAnyInteraction() },
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
@@ -129,7 +138,6 @@ fun MoviePlayerControls(
 
 @Composable
 private fun CenterVODControls(
-    modifier: Modifier,
     isPlaying: Boolean,
     isFullScreen: Boolean,
     showNextPrevious: Boolean,
@@ -144,7 +152,6 @@ private fun CenterVODControls(
     val spacerWidth = if (isFullScreen) 48.dp else 24.dp
 
     Row(
-        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -177,6 +184,37 @@ private fun CenterVODControls(
 }
 
 @Composable
+private fun SliderControls(
+    modifier: Modifier = Modifier,
+    currentPosition: Long,
+    duration: Long,
+    onSeek: (Long) -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp), // Aumentamos el padding para que no se pegue a los bordes
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
+        Slider(
+            value = currentPosition.toFloat(),
+            onValueChange = { newPosition -> onSeek(newPosition.toLong()) },
+            valueRange = 0f..(if (duration > 0) duration.toFloat() else 0f),
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+            )
+        )
+        Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
+    }
+}
+
+@Composable
 private fun BottomVODControls(
     modifier: Modifier,
     isMuted: Boolean,
@@ -190,69 +228,40 @@ private fun BottomVODControls(
     onToggleSubtitleMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
-    currentPosition: Long,
-    duration: Long,
-    onSeek: (Long) -> Unit,
     onToggleFullScreen: () -> Unit,
     onToggleAspectRatio: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 32.dp else 24.dp
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        IconButton(onClick = onToggleMute) {
+            Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+        }
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
-            Slider(
-                value = currentPosition.toFloat(),
-                onValueChange = { newPosition -> onSeek(newPosition.toLong()) },
-                valueRange = 0f..(if (duration > 0) duration.toFloat() else 0f),
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                )
-            )
-            Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(onClick = onToggleMute) {
-                Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+            if (subtitleTracks.size > 1) {
+                TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
+                    ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
+                }
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (subtitleTracks.size > 1) {
-                    TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
-                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
-                    }
+            if (audioTracks.size > 1) {
+                TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
+                    ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
                 }
-                if (audioTracks.size > 1) {
-                    TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
-                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
-                    }
-                }
-                IconButton(onClick = onToggleAspectRatio) {
-                    Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
-                IconButton(onClick = onToggleFullScreen) {
-                    Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
-                }
+            }
+            IconButton(onClick = onToggleAspectRatio) {
+                Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+            }
+            IconButton(onClick = onToggleFullScreen) {
+                Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
             }
         }
     }
