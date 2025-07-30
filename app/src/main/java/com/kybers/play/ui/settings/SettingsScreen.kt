@@ -66,6 +66,9 @@ fun SettingsScreen(
                 is SettingsEvent.ShowPinChangeSuccess -> Toast.makeText(context, "PIN cambiado correctamente.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowPinChangeError -> Toast.makeText(context, "El PIN anterior es incorrecto.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowRecommendationsApplied -> Toast.makeText(context, "Configuración optimizada aplicada.", Toast.LENGTH_SHORT).show()
+                is SettingsEvent.PlayerSettingsChanged -> {
+                    // Player settings have been updated - handled by individual player ViewModels
+                }
             }
         }
     }

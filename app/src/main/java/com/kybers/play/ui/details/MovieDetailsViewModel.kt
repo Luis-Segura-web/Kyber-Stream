@@ -111,7 +111,6 @@ class MovieDetailsViewModel(
     val navigationEvent: SharedFlow<Int> = _navigationEvent.asSharedFlow()
     val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
-    private val vlcOptions = arrayListOf("--network-caching=3000", "--file-caching=3000")
 
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
@@ -369,6 +368,7 @@ class MovieDetailsViewModel(
     fun startPlayback(continueFromLastPosition: Boolean) {
         val movie = _uiState.value.movie ?: return
         val streamUrl = buildStreamUrl(movie)
+        val vlcOptions = preferenceManager.getVLCOptions()
         val newMedia = Media(libVLC, streamUrl.toUri()).apply {
             vlcOptions.forEach { addOption(it) }
         }
@@ -501,5 +501,29 @@ class MovieDetailsViewModel(
         }
         preferenceManager.saveFavoriteMovieIds(currentFavorites)
         _uiState.update { it.copy(isFavorite = !isCurrentlyFavorite) }
+    }
+
+    /**
+     * Updates player settings dynamically when preferences change.
+     * This allows immediate application of new settings without restart.
+     */
+    fun updatePlayerSettings() {
+        // Only update if media is currently playing
+        if (mediaPlayer.isPlaying) {
+            val currentPosition = mediaPlayer.time
+            val currentMedia = mediaPlayer.media
+            
+            // Recreate media with new VLC options
+            currentMedia?.let { media ->
+                val newOptions = preferenceManager.getVLCOptions()
+                val newMedia = Media(libVLC, media.uri).apply {
+                    newOptions.forEach { addOption(it) }
+                }
+                mediaPlayer.media?.release()
+                mediaPlayer.media = newMedia
+                mediaPlayer.play()
+                mediaPlayer.time = currentPosition
+            }
+        }
     }
 }

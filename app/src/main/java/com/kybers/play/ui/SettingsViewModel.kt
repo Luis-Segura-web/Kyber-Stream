@@ -70,6 +70,7 @@ sealed class SettingsEvent {
     object ShowPinChangeSuccess : SettingsEvent()
     object ShowPinChangeError : SettingsEvent()
     object ShowRecommendationsApplied : SettingsEvent()
+    object PlayerSettingsChanged : SettingsEvent()
 }
 
 /**
@@ -246,16 +247,25 @@ class SettingsViewModel(
     fun onStreamFormatChanged(format: String) {
         preferenceManager.saveStreamFormat(format)
         _uiState.update { it.copy(streamFormat = format) }
+        notifyPlayerSettingsChanged()
     }
 
     fun onHwAccelerationChanged(enabled: Boolean) {
         preferenceManager.saveHwAcceleration(enabled)
         _uiState.update { it.copy(hwAccelerationEnabled = enabled) }
+        notifyPlayerSettingsChanged()
     }
 
     fun onNetworkBufferChanged(bufferSize: String) {
         preferenceManager.saveNetworkBuffer(bufferSize)
         _uiState.update { it.copy(networkBuffer = bufferSize) }
+        notifyPlayerSettingsChanged()
+    }
+
+    private fun notifyPlayerSettingsChanged() {
+        viewModelScope.launch {
+            _events.emit(SettingsEvent.PlayerSettingsChanged)
+        }
     }
 
     fun onAppThemeChanged(theme: String) {
