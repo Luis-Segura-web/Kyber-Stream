@@ -90,7 +90,7 @@ class SeriesViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
+            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.SERIES)
 
             val seriesJob = async { allSeries = vodRepository.getAllSeries(currentUser.id).first() }
             val categoriesJob = async { officialCategories = vodRepository.getSeriesCategories(currentUser.username, currentUser.password, currentUser.id) }
@@ -112,10 +112,10 @@ class SeriesViewModel(
             _uiState.update { it.copy(isRefreshing = true) }
             try {
                 vodRepository.cacheSeries(currentUser.username, currentUser.password, currentUser.id)
-                syncManager.saveLastSyncTimestamp(currentUser.id)
+                syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.SERIES)
 
                 allSeries = vodRepository.getAllSeries(currentUser.id).first()
-                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)
+                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.SERIES)
                 updateUiWithFilteredData()
                 _uiState.update {
                     it.copy(

@@ -155,8 +155,8 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
 // --- ¡NUEVA FÁBRICA AÑADIDA! ---
 class SettingsViewModelFactory(
     private val context: Context,
-    private val liveRepository: BaseContentRepository,
-    private val vodRepository: BaseContentRepository,
+    private val liveRepository: LiveRepository,
+    private val vodRepository: VodRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User,

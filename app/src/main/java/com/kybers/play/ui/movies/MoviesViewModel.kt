@@ -2,6 +2,7 @@ package com.kybers.play.ui.movies
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.kybers.play.data.local.model.MovieDetailsCache
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
@@ -94,7 +95,8 @@ class MoviesViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id)
+            val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
+            Log.d("MoviesViewModel", "loadInitialData: lastSyncTime for MOVIES = $lastSyncTime")
 
             val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
             val categoriesJob = async { officialCategories = vodRepository.getMovieCategories(currentUser.username, currentUser.password, currentUser.id) }
@@ -102,6 +104,7 @@ class MoviesViewModel(
 
             awaitAll(moviesJob, categoriesJob, cacheJob)
 
+            Log.d("MoviesViewModel", "loadInitialData: loaded ${allMovies.size} movies, ${officialCategories.size} categories")
             updateUiWithFilteredData()
             _uiState.update {
                 it.copy(
@@ -150,13 +153,13 @@ class MoviesViewModel(
             _uiState.update { it.copy(isRefreshing = true) }
             try {
                 vodRepository.cacheMovies(currentUser.username, currentUser.password, currentUser.id)
-                syncManager.saveLastSyncTimestamp(currentUser.id)
+                syncManager.saveLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
 
                 val moviesJob = async { allMovies = vodRepository.getAllMovies(currentUser.id).first() }
                 val cacheJob = async { cachedDetailsMap = detailsRepository.getAllCachedMovieDetailsMap() }
                 awaitAll(moviesJob, cacheJob)
 
-                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id)
+                val newTimestamp = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.MOVIES)
                 updateUiWithFilteredData()
                 _uiState.update {
                     it.copy(

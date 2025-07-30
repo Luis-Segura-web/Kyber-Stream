@@ -59,6 +59,8 @@ fun SettingsScreen(
                     context.startActivity(intent)
                 }
                 is SettingsEvent.ShowSyncForcedMessage -> Toast.makeText(context, "La sincronización se forzará la próxima vez que inicies sesión.", Toast.LENGTH_LONG).show()
+                is SettingsEvent.ShowSyncCompletedMessage -> Toast.makeText(context, "Sincronización completada exitosamente.", Toast.LENGTH_LONG).show()
+                is SettingsEvent.ShowSyncErrorMessage -> Toast.makeText(context, "Error en sincronización: ${event.message}", Toast.LENGTH_LONG).show()
                 is SettingsEvent.ShowHistoryClearedMessage -> Toast.makeText(context, "Historial de reproducción borrado.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowPinSetSuccess -> Toast.makeText(context, "PIN guardado correctamente.", Toast.LENGTH_SHORT).show()
                 is SettingsEvent.ShowPinChangeSuccess -> Toast.makeText(context, "PIN cambiado correctamente.", Toast.LENGTH_SHORT).show()
@@ -130,7 +132,7 @@ fun SettingsScreen(
                             OutlinedButton(onClick = { viewModel.onForceSyncClicked() }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                                Text("Forzar Sinc.", maxLines = 1)
+                                Text("Sincronizar Ahora", maxLines = 1)
                             }
                             OutlinedButton(onClick = { viewModel.onChangeProfileClicked() }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))

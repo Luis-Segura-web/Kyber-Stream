@@ -80,7 +80,10 @@ class SyncActivity : ComponentActivity() {
                     }
                 }
                 // Inicia el proceso de sincronización después de configurar la UI.
-                currentUser?.let { syncViewModel.startSync(it) }
+                currentUser?.let { 
+                    Log.d("SyncActivity", "Starting sync for user: ${it.profileName} (ID: ${it.id})")
+                    syncViewModel.startSync(it) 
+                }
             }
         }
     }
