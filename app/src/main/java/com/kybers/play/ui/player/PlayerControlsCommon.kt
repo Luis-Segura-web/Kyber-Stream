@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -113,12 +114,32 @@ internal fun SideSliders(
     onSetVolume: (Int) -> Unit,
     onSetBrightness: (Float) -> Unit
 ) {
-    Box(modifier = modifier.padding(horizontal = 16.dp)) {
-        Box(modifier = Modifier.align(Alignment.CenterStart).width(64.dp)) {
-            VerticalSlider(value = brightness, onValueChange = onSetBrightness, icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) })
+    Box(modifier = modifier.padding(horizontal = 20.dp)) {
+        // Brightness slider on left side - moved more to center and raised up
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = 16.dp, y = (-24).dp) // Move right and up to avoid icon overlap
+                .width(80.dp)
+        ) {
+            VerticalSlider(
+                value = brightness,
+                onValueChange = onSetBrightness,
+                icon = { Icon(Icons.Default.WbSunny, null, tint = Color.White) }
+            )
         }
-        Box(modifier = Modifier.align(Alignment.CenterEnd).width(64.dp)) {
-            VerticalSlider(value = volume.toFloat() / maxVolume.toFloat(), onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()) }, icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) })
+        // Volume slider on right side - moved more to center and raised up
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = (-16).dp, y = (-24).dp) // Move left and up to avoid icon overlap
+                .width(80.dp)
+        ) {
+            VerticalSlider(
+                value = volume.toFloat() / maxVolume.toFloat(),
+                onValueChange = { vol -> onSetVolume((vol * maxVolume).toInt()) },
+                icon = { Icon(if (isMuted || volume == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White) }
+            )
         }
     }
 }
@@ -134,15 +155,19 @@ internal fun VerticalSlider(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // --- ¡MODIFICACIÓN! Se aumenta la altura y el ancho del deslizador ---
-        Box(modifier = Modifier.height(65.dp), contentAlignment = Alignment.Center) {
+        // Increased slider size for better usability
+        Box(modifier = Modifier.height(120.dp), contentAlignment = Alignment.Center) {
             Slider(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier
-                    .width(65.dp)
+                    .width(120.dp) // Increased width for larger touch area
                     .rotate(-90f),
-                colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.Gray.copy(alpha = 0.5f))
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = Color.White,
+                    inactiveTrackColor = Color.Gray.copy(alpha = 0.5f)
+                )
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

@@ -54,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.ChannelPlayerControls
@@ -411,9 +412,9 @@ private fun ChannelListSection(
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
                             isFavorite = true,
-                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
@@ -436,14 +437,20 @@ private fun ChannelListSection(
                         ChannelListItem(
                             channel = channel,
                             isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel -> viewModel.onChannelSelected(selectedChannel) },
+                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel) },
                             isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
-                            onToggleFavorite = { favoriteChannel -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
+                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
                         )
                     }
                 }
             }
         }
+        
+        // Add scroll indicator for better navigation
+        ScrollIndicator(
+            listState = lazyListState,
+            modifier = Modifier.padding(end = 4.dp)
+        )
     }
 }
 
@@ -651,7 +658,7 @@ private fun calculateEpgProgress(start: Long, end: Long): Float {
 }
 
 private fun formatTimestampToHour(timestamp: Long): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
+    val sdf = SimpleDateFormat("HH:mm", Locale.forLanguageTag("es-MX")).apply {
         timeZone = TimeZone.getDefault()
     }
     return sdf.format(Date(timestamp * 1000))

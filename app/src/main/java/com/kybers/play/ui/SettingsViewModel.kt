@@ -9,6 +9,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.BaseContentRepository
+import com.kybers.play.ui.theme.ThemeManager
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,7 +69,8 @@ class SettingsViewModel(
     private val contentRepository: BaseContentRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val currentUser: User
+    private val currentUser: User,
+    private val themeManager: ThemeManager? = null
 ) : ViewModel() {
 
     private val dynamicSettingsManager = DynamicSettingsManager(context, preferenceManager)
@@ -136,6 +138,14 @@ class SettingsViewModel(
             val liveCategories = liveCategoriesJob.await().sortedBy { it.categoryName }
             val movieCategories = movieCategoriesJob.await().sortedBy { it.categoryName }
             val seriesCategories = seriesCategoriesJob.await().sortedBy { it.categoryName }
+
+            android.util.Log.d("SettingsViewModel", "Categorías cargadas para control parental:")
+            android.util.Log.d("SettingsViewModel", "- Live: ${liveCategories.size} categorías")
+            android.util.Log.d("SettingsViewModel", "- Movies: ${movieCategories.size} categorías")
+            android.util.Log.d("SettingsViewModel", "- Series: ${seriesCategories.size} categorías")
+            liveCategories.forEach { category ->
+                android.util.Log.d("SettingsViewModel", "Live categoria: ${category.categoryName} (ID: ${category.categoryId})")
+            }
 
             _uiState.update {
                 it.copy(
@@ -212,6 +222,9 @@ class SettingsViewModel(
     fun onAppThemeChanged(theme: String) {
         preferenceManager.saveAppTheme(theme)
         _uiState.update { it.copy(appTheme = theme) }
+        // Immediately apply theme change through ThemeManager if available
+        // This ensures instant theme switching without app restart
+        themeManager?.updateThemeFromString(theme)
     }
 
     fun onRecentlyWatchedLimitChanged(limit: Int) {
@@ -286,7 +299,7 @@ class SettingsViewModel(
 
     fun formatTimestamp(timestamp: Long): String {
         if (timestamp == 0L) return "Nunca"
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         sdf.timeZone = TimeZone.getDefault()
         return sdf.format(Date(timestamp))
     }
@@ -295,7 +308,7 @@ class SettingsViewModel(
         if (timestamp == null) return "No disponible"
         return try {
             val date = Date(timestamp.toLong() * 1000)
-            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale("es", "ES"))
+            val sdf = SimpleDateFormat("dd 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-MX"))
             sdf.format(date)
         } catch (e: Exception) {
             "Fecha inválida"

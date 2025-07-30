@@ -37,7 +37,8 @@ import coil.request.ImageRequest
 import com.kybers.play.R
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.ui.channels.CategoryHeader
-import com.kybers.play.ui.channels.SearchBar
+import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
+import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.ui.player.SortOrder
 import kotlinx.coroutines.flow.collectLatest
 
@@ -142,7 +143,7 @@ fun MoviesScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-            SearchBar(
+            CustomSearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = viewModel::onSearchQueryChanged,
                 onClear = { viewModel.onSearchQueryChanged("") }
@@ -203,6 +204,12 @@ fun MoviesScreen(
                     }
                 }
             }
+            
+            // Add scroll indicator for better navigation
+            ScrollIndicator(
+                listState = lazyListState,
+                modifier = Modifier.padding(end = 4.dp)
+            )
         }
     }
 

@@ -114,7 +114,8 @@ class MainActivity : ComponentActivity() {
                                     contentRepository = vodRepository, // Podemos usar vod o live, ambos heredan de BaseContentRepository
                                     preferenceManager = appContainer.preferenceManager,
                                     syncManager = appContainer.syncManager,
-                                    currentUser = user!!
+                                    currentUser = user!!,
+                                    themeManager = themeManager
                                 )
                             }
                         }

@@ -12,6 +12,7 @@ plugins {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.fromTarget("1.8"))
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
     }
 }
 
@@ -62,15 +63,7 @@ android {
         buildConfig = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.kotlin.get()
-    }
-
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-
-    kotlinOptions {
-        freeCompilerArgs = listOf("-XXLanguage:+PropertyParamAnnotationDefaultTargetMode")
-    }
 }
 
 dependencies {

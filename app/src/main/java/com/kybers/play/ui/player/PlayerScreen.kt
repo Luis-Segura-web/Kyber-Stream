@@ -244,7 +244,11 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 onPrevious = { /* No action */ },
                 onToggleMute = {
                     isMuted = !isMuted
-                    audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMuted)
+                    if (isMuted) {
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+                    } else {
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, systemVolume, 0)
+                    }
                 },
                 onToggleFavorite = { /* No action */ },
                 onToggleFullScreen = ::toggleFullScreen,

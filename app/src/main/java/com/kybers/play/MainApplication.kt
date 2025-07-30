@@ -2,7 +2,7 @@ package com.kybers.play
 
 import android.app.Application
 import android.content.Context
-import androidx.work.Configuration
+import java.util.Locale
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -24,19 +24,28 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.work.CacheWorker
 import java.util.concurrent.TimeUnit
 
-class MainApplication : Application(), Configuration.Provider, ImageLoaderFactory {
+class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
 
     lateinit var container: AppContainer
         private set
 
     override fun onCreate() {
         super.onCreate()
+        setDefaultLocale()
         container = AppContainer(this)
         scheduleCacheWorker()
     }
 
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
+    private fun setDefaultLocale() {
+        val locale = Locale.forLanguageTag("es-MX")
+        Locale.setDefault(locale)
+        val config = android.content.res.Configuration(baseContext.resources.configuration)
+        config.setLocale(locale)
+        createConfigurationContext(config)
+    }
+
+    override val workManagerConfiguration: androidx.work.Configuration
+        get() = androidx.work.Configuration.Builder()
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build()
 
