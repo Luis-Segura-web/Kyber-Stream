@@ -2,6 +2,7 @@ package com.kybers.play
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import java.util.Locale
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -69,8 +70,15 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 
     private fun scheduleCacheWorker() {
+        val userFrequency = container.preferenceManager.getSyncFrequency()
+        
+        if (userFrequency == 0) {
+            Log.d("MainApplication", "Sincronización automática deshabilitada por el usuario")
+            return
+        }
+        
         val syncRequest = PeriodicWorkRequestBuilder<CacheWorker>(
-            12, TimeUnit.HOURS
+            userFrequency.toLong(), TimeUnit.HOURS
         )
             .setInitialDelay(10, TimeUnit.MINUTES)
             .build()
@@ -80,7 +88,7 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
             ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
         )
-        android.util.Log.d("MainApplication", "CacheWorker programado para ejecutarse cada 12 horas.")
+        Log.d("MainApplication", "CacheWorker programado para ejecutarse cada $userFrequency horas según configuración del usuario")
     }
 }
 
@@ -91,8 +99,8 @@ class AppContainer(context: Context) {
     val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
 
     val userRepository by lazy { UserRepository(database.userDao()) }
-    val syncManager by lazy { SyncManager(context) }
     val preferenceManager by lazy { PreferenceManager(context) }
+    val syncManager by lazy { SyncManager(context, preferenceManager) }
     val parentalControlManager by lazy { ParentalControlManager(preferenceManager) }
 
     val detailsRepository by lazy {

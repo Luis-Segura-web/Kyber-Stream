@@ -9,7 +9,10 @@ import java.util.concurrent.TimeUnit
  * Manages the synchronization timestamps to determine if a data refresh is needed.
  * Now supports separate timestamps for different content types.
  */
-class SyncManager(context: Context) {
+class SyncManager(
+    context: Context,
+    private val preferenceManager: PreferenceManager
+) {
 
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -21,8 +24,20 @@ class SyncManager(context: Context) {
         private const val KEY_SERIES_LAST_SYNC_PREFIX = "series_last_sync_timestamp_"
         private const val KEY_LIVE_LAST_SYNC_PREFIX = "live_last_sync_timestamp_"
         private const val KEY_EPG_LAST_SYNC_PREFIX = "epg_last_sync_timestamp_"
-        private val SYNC_THRESHOLD = TimeUnit.HOURS.toMillis(4) // 4 horas
         private val EPG_SYNC_THRESHOLD = TimeUnit.HOURS.toMillis(24) // 24 horas
+    }
+
+    /**
+     * Gets the sync threshold based on user preferences.
+     * Returns Long.MAX_VALUE if user selected "Never" (0 hours).
+     */
+    private fun getSyncThreshold(): Long {
+        val userFrequency = preferenceManager.getSyncFrequency()
+        return if (userFrequency == 0) {
+            Long.MAX_VALUE // Nunca sincronizar automáticamente
+        } else {
+            TimeUnit.HOURS.toMillis(userFrequency.toLong())
+        }
     }
 
     /**
@@ -36,12 +51,13 @@ class SyncManager(context: Context) {
      * Comprueba si se necesita una sincronización de contenido general (basado en el timestamp más antiguo).
      */
     fun isSyncNeeded(userId: Int): Boolean {
+        val threshold = getSyncThreshold()
         val oldestTimestamp = getOldestSyncTimestamp(userId)
         val currentTime = System.currentTimeMillis()
         val timeDiff = currentTime - oldestTimestamp
-        val isNeeded = timeDiff > SYNC_THRESHOLD
+        val isNeeded = timeDiff > threshold
         
-        Log.d("SyncManager", "isSyncNeeded for userId $userId: oldestTimestamp=$oldestTimestamp, currentTime=$currentTime, timeDiff=${timeDiff}ms (${timeDiff/(60*60*1000)}h), threshold=${SYNC_THRESHOLD}ms (${SYNC_THRESHOLD/(60*60*1000)}h), isNeeded=$isNeeded")
+        Log.d("SyncManager", "isSyncNeeded for userId $userId: userThreshold=${threshold}ms (${threshold/(60*60*1000)}h), timeDiff=${timeDiff}ms, isNeeded=$isNeeded")
         
         return isNeeded
     }
@@ -50,8 +66,15 @@ class SyncManager(context: Context) {
      * Comprueba si se necesita sincronización para un tipo de contenido específico.
      */
     fun isSyncNeeded(userId: Int, contentType: ContentType): Boolean {
+        val threshold = getSyncThreshold()
         val lastSync = getLastSyncTimestamp(userId, contentType)
-        return System.currentTimeMillis() - lastSync > SYNC_THRESHOLD
+        val currentTime = System.currentTimeMillis()
+        val timeDiff = currentTime - lastSync
+        val isNeeded = timeDiff > threshold
+        
+        Log.d("SyncManager", "isSyncNeeded for userId $userId, contentType ${contentType.name}: userThreshold=${threshold}ms (${threshold/(60*60*1000)}h), timeDiff=${timeDiff}ms, isNeeded=$isNeeded")
+        
+        return isNeeded
     }
 
     /**
