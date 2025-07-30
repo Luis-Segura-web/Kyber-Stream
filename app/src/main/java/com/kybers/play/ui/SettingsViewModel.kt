@@ -8,8 +8,8 @@ import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
-import com.kybers.play.data.repository.BaseContentRepository
 import com.kybers.play.data.repository.LiveRepository
+import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.theme.ThemeManager
 import kotlinx.coroutines.async
@@ -72,7 +72,7 @@ sealed class SettingsEvent {
 class SettingsViewModel(
     private val context: Context,
     private val liveRepository: LiveRepository,
-    private val vodRepository: BaseContentRepository,
+    private val vodRepository: VodRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User,
