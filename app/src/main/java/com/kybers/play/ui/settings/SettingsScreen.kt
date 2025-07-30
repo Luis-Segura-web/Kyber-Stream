@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -206,8 +208,8 @@ fun SettingsScreen(
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                             ClickableSettingItem(
                                 icon = Icons.Default.Block,
-                                title = "Bloquear Categorías",
-                                subtitle = "${uiState.blockedCategories.size} categorías bloqueadas",
+                                title = "Gestionar Categorías Bloqueadas",
+                                subtitle = "${uiState.blockedCategories.size} categorías restringidas actualmente",
                                 onClick = { showPinVerificationForCategories = true }
                             )
                         }
@@ -560,46 +562,170 @@ fun CategorySelectionDialog(
     onSave: (Set<String>) -> Unit
 ) {
     val (blockedCategories, setBlockedCategories) = remember { mutableStateOf(initiallyBlocked) }
+    val tabs = listOf("TV en Vivo", "Películas", "Series")
+    var selectedTabIndex by remember { mutableStateOf(0) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Bloquear Categorías") },
+        title = { 
+            Text(
+                "Configurar Control Parental",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            ) 
+        },
         text = {
-            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                if (liveCategories.isNotEmpty()) {
-                    item { CategoryHeader("TV en Vivo") }
-                    items(liveCategories, key = { "live-${it.categoryId}" }) { category ->
-                        CategoryCheckboxItem(category = category, isChecked = blockedCategories.contains(category.categoryId)) {
-                            val newSet = blockedCategories.toMutableSet()
-                            if (newSet.contains(category.categoryId)) newSet.remove(category.categoryId) else newSet.add(category.categoryId)
-                            setBlockedCategories(newSet)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Selecciona las categorías que deseas bloquear para el control parental:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // Tab Row
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    tabs.forEachIndexed { index, tab ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = { 
+                                Text(
+                                    text = tab,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                                ) 
+                            }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Content based on selected tab
+                LazyColumn(
+                    modifier = Modifier
+                        .heightIn(max = 300.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    when (selectedTabIndex) {
+                        0 -> { // TV en Vivo
+                            if (liveCategories.isNotEmpty()) {
+                                items(liveCategories, key = { "live-${it.categoryId}" }) { category ->
+                                    CategoryCheckboxItemImproved(
+                                        category = category, 
+                                        isChecked = blockedCategories.contains(category.categoryId)
+                                    ) {
+                                        val newSet = blockedCategories.toMutableSet()
+                                        if (newSet.contains(category.categoryId)) {
+                                            newSet.remove(category.categoryId) 
+                                        } else {
+                                            newSet.add(category.categoryId)
+                                        }
+                                        setBlockedCategories(newSet)
+                                    }
+                                }
+                            } else {
+                                item {
+                                    EmptyCategoryMessage("No hay categorías de TV en vivo disponibles")
+                                }
+                            }
+                        }
+                        1 -> { // Películas
+                            if (movieCategories.isNotEmpty()) {
+                                items(movieCategories, key = { "movie-${it.categoryId}" }) { category ->
+                                    CategoryCheckboxItemImproved(
+                                        category = category, 
+                                        isChecked = blockedCategories.contains(category.categoryId)
+                                    ) {
+                                        val newSet = blockedCategories.toMutableSet()
+                                        if (newSet.contains(category.categoryId)) {
+                                            newSet.remove(category.categoryId) 
+                                        } else {
+                                            newSet.add(category.categoryId)
+                                        }
+                                        setBlockedCategories(newSet)
+                                    }
+                                }
+                            } else {
+                                item {
+                                    EmptyCategoryMessage("No hay categorías de películas disponibles")
+                                }
+                            }
+                        }
+                        2 -> { // Series
+                            if (seriesCategories.isNotEmpty()) {
+                                items(seriesCategories, key = { "series-${it.categoryId}" }) { category ->
+                                    CategoryCheckboxItemImproved(
+                                        category = category, 
+                                        isChecked = blockedCategories.contains(category.categoryId)
+                                    ) {
+                                        val newSet = blockedCategories.toMutableSet()
+                                        if (newSet.contains(category.categoryId)) {
+                                            newSet.remove(category.categoryId) 
+                                        } else {
+                                            newSet.add(category.categoryId)
+                                        }
+                                        setBlockedCategories(newSet)
+                                    }
+                                }
+                            } else {
+                                item {
+                                    EmptyCategoryMessage("No hay categorías de series disponibles")
+                                }
+                            }
                         }
                     }
                 }
-                if (movieCategories.isNotEmpty()) {
-                    item { CategoryHeader("Películas") }
-                    items(movieCategories, key = { "movie-${it.categoryId}" }) { category ->
-                        CategoryCheckboxItem(category = category, isChecked = blockedCategories.contains(category.categoryId)) {
-                            val newSet = blockedCategories.toMutableSet()
-                            if (newSet.contains(category.categoryId)) newSet.remove(category.categoryId) else newSet.add(category.categoryId)
-                            setBlockedCategories(newSet)
-                        }
-                    }
-                }
-                if (seriesCategories.isNotEmpty()) {
-                    item { CategoryHeader("Series") }
-                    items(seriesCategories, key = { "series-${it.categoryId}" }) { category ->
-                        CategoryCheckboxItem(category = category, isChecked = blockedCategories.contains(category.categoryId)) {
-                            val newSet = blockedCategories.toMutableSet()
-                            if (newSet.contains(category.categoryId)) newSet.remove(category.categoryId) else newSet.add(category.categoryId)
-                            setBlockedCategories(newSet)
-                        }
+                
+                // Summary of blocked categories
+                val blockedCount = blockedCategories.size
+                if (blockedCount > 0) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Text(
+                            text = "Total de categorías bloqueadas: $blockedCount",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(12.dp)
+                        )
                     }
                 }
             }
         },
-        confirmButton = { Button(onClick = { onSave(blockedCategories) }) { Text("Guardar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        confirmButton = { 
+            Button(
+                onClick = { onSave(blockedCategories) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) { 
+                Icon(
+                    Icons.Default.Save,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Guardar Configuración") 
+            } 
+        },
+        dismissButton = { 
+            TextButton(onClick = onDismiss) { 
+                Text("Cancelar") 
+            } 
+        }
     )
 }
 
@@ -615,16 +741,92 @@ private fun CategoryHeader(title: String) {
 }
 
 @Composable
-private fun CategoryCheckboxItem(category: Category, isChecked: Boolean, onCheckedChange: () -> Unit) {
-    Row(
-        Modifier
+private fun CategoryCheckboxItemImproved(category: Category, isChecked: Boolean, onCheckedChange: () -> Unit) {
+    Card(
+        modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onCheckedChange)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClick = onCheckedChange),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isChecked) 
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) 
+            else 
+                MaterialTheme.colorScheme.surface
+        ),
+        border = if (isChecked) 
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) 
+        else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Checkbox(checked = isChecked, onCheckedChange = { onCheckedChange() })
-        Text(text = category.categoryName, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Checkbox(
+                    checked = isChecked, 
+                    onCheckedChange = { onCheckedChange() },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.error,
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = category.categoryName, 
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isChecked) 
+                        MaterialTheme.colorScheme.error 
+                    else 
+                        MaterialTheme.colorScheme.onSurface
+                )
+            }
+            if (isChecked) {
+                Icon(
+                    Icons.Default.Block,
+                    contentDescription = "Bloqueado",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCategoryMessage(message: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
