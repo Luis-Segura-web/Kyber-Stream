@@ -41,7 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -65,27 +64,29 @@ internal fun TopControls(
     onRequestPipMode: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 36.dp else 24.dp
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onClose) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White, modifier = Modifier.size(iconSize))
         }
+        
+        // Title takes all available space until the first button
         Text(
             text = streamTitle,
             style = MaterialTheme.typography.titleMedium,
             color = Color.White,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
         )
+        
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 IconButton(onClick = onRequestPipMode) {
