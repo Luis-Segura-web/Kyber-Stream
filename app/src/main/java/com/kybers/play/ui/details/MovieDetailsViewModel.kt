@@ -21,6 +21,8 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
+import com.kybers.play.player.MediaManager
+import com.kybers.play.player.RetryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,7 +79,10 @@ data class MovieDetailsUiState(
     val currentAspectRatioMode: AspectRatioMode = AspectRatioMode.FIT_SCREEN,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
-    val isInPipMode: Boolean = false
+    val isInPipMode: Boolean = false,
+    val retryAttempt: Int = 0,
+    val maxRetryAttempts: Int = 5,
+    val retryMessage: String? = null
 )
 
 data class EnrichedActorMovie(
@@ -112,12 +117,16 @@ class MovieDetailsViewModel(
     val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
 
+    private val mediaManager = MediaManager()
+    private lateinit var retryManager: RetryManager
+
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
 
     init {
         loadInitialData()
         setupMediaPlayer()
+        setupRetryManager()
     }
 
     private fun loadInitialData() {
@@ -336,7 +345,22 @@ class MovieDetailsViewModel(
                 MediaPlayer.Event.Playing -> PlayerStatus.PLAYING
                 MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
-                MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
+                MediaPlayer.Event.EncounteredError -> {
+                    Log.e("MovieDetailsViewModel", "VLC encountered error, triggering retry")
+                    // Trigger retry for VLC errors
+                    if (!retryManager.isRetrying()) {
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                startPlaybackInternal(_uiState.value.playbackPosition > 0)
+                                true
+                            } catch (e: Exception) {
+                                Log.e("MovieDetailsViewModel", "Retry failed: ${e.message}", e)
+                                false
+                            }
+                        }
+                    }
+                    PlayerStatus.ERROR
+                }
                 MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
                 MediaPlayer.Event.TimeChanged -> {
                     _uiState.update { it.copy(currentPosition = event.timeChanged, duration = mediaPlayer.length) }
@@ -358,6 +382,39 @@ class MovieDetailsViewModel(
         }
     }
 
+    private fun setupRetryManager() {
+        retryManager = RetryManager(
+            onRetryAttempt = { attempt, maxRetries ->
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRYING,
+                        retryAttempt = attempt,
+                        maxRetryAttempts = maxRetries,
+                        retryMessage = "Reintentando... ($attempt/$maxRetries)"
+                    ) 
+                }
+            },
+            onRetrySuccess = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.PLAYING,
+                        retryAttempt = 0,
+                        retryMessage = null
+                    ) 
+                }
+            },
+            onRetryFailed = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRY_FAILED,
+                        retryAttempt = 0,
+                        retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
+                    ) 
+                }
+            }
+        )
+    }
+
     private fun saveCurrentProgress() {
         val currentMovieId = _uiState.value.movie?.streamId?.toString() ?: return
         if (mediaPlayer.time > 0 && mediaPlayer.isPlaying) {
@@ -366,35 +423,72 @@ class MovieDetailsViewModel(
     }
 
     fun startPlayback(continueFromLastPosition: Boolean) {
-        val movie = _uiState.value.movie ?: return
-        val streamUrl = buildStreamUrl(movie)
-        val vlcOptions = preferenceManager.getVLCOptions()
-        val newMedia = Media(libVLC, streamUrl.toUri()).apply {
-            vlcOptions.forEach { addOption(it) }
+        viewModelScope.launch {
+            _uiState.update { 
+                it.copy(
+                    playerStatus = PlayerStatus.LOADING,
+                    retryAttempt = 0,
+                    retryMessage = null
+                ) 
+            }
+            
+            // Try to start playback with retry mechanism
+            retryManager.startRetry(viewModelScope) {
+                try {
+                    startPlaybackInternal(continueFromLastPosition)
+                    true
+                } catch (e: Exception) {
+                    Log.e("MovieDetailsViewModel", "Failed to start playback: ${e.message}", e)
+                    false
+                }
+            }
         }
-        mediaPlayer.media?.release()
-        mediaPlayer.media = newMedia
-        mediaPlayer.play()
-        if (continueFromLastPosition && _uiState.value.playbackPosition > 0) {
-            mediaPlayer.time = _uiState.value.playbackPosition
+    }
+
+    private suspend fun startPlaybackInternal(continueFromLastPosition: Boolean): Boolean {
+        return try {
+            val movie = _uiState.value.movie ?: throw IllegalStateException("No movie selected")
+            val streamUrl = buildStreamUrl(movie)
+            val vlcOptions = preferenceManager.getVLCOptions()
+            val newMedia = Media(libVLC, streamUrl.toUri()).apply {
+                vlcOptions.forEach { addOption(it) }
+            }
+            
+            // Use MediaManager for safe media handling
+            mediaManager.setMediaSafely(mediaPlayer, newMedia)
+            mediaPlayer.play()
+            
+            if (continueFromLastPosition && _uiState.value.playbackPosition > 0) {
+                mediaPlayer.time = _uiState.value.playbackPosition
+            }
+            
+            _uiState.update { 
+                it.copy(
+                    isPlayerVisible = true, 
+                    playerStatus = PlayerStatus.BUFFERING
+                ) 
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("MovieDetailsViewModel", "Error in startPlaybackInternal", e)
+            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
+            throw e
         }
-        _uiState.update { it.copy(isPlayerVisible = true, playerStatus = PlayerStatus.BUFFERING) }
     }
 
     // --- ¡CORRECCIÓN DE FUGA DE MEMORIA! ---
     fun hidePlayer() {
+        retryManager.cancelRetry()
         if (mediaPlayer.isPlaying) {
             saveCurrentProgress()
         }
-        mediaPlayer.stop()
-        // Liberamos el 'Media' (el "disco") antes de resetear el estado.
-        mediaPlayer.media?.release()
-        mediaPlayer.media = null
+        mediaManager.stopAndReleaseMedia(mediaPlayer)
         _uiState.update {
             it.copy(
                 isPlayerVisible = false, isFullScreen = false, playerStatus = PlayerStatus.IDLE,
                 currentPosition = 0L, duration = 0L, isInPipMode = false,
-                playbackPosition = preferenceManager.getPlaybackPosition(movieId.toString())
+                playbackPosition = preferenceManager.getPlaybackPosition(movieId.toString()),
+                retryAttempt = 0, retryMessage = null
             )
         }
     }
@@ -482,11 +576,12 @@ class MovieDetailsViewModel(
     }
     override fun onCleared() {
         super.onCleared()
+        retryManager.cancelRetry()
         if (mediaPlayer.isPlaying) {
             saveCurrentProgress()
         }
         mediaPlayer.stop()
-        mediaPlayer.media?.release()
+        mediaManager.releaseCurrentMedia(mediaPlayer)
         mediaPlayer.release()
         libVLC.release()
     }
@@ -501,6 +596,13 @@ class MovieDetailsViewModel(
         }
         preferenceManager.saveFavoriteMovieIds(currentFavorites)
         _uiState.update { it.copy(isFavorite = !isCurrentlyFavorite) }
+    }
+
+    /**
+     * Manually retry playback for current movie
+     */
+    fun retryPlayback() {
+        startPlayback(_uiState.value.playbackPosition > 0)
     }
 
     /**

@@ -20,6 +20,8 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
+import com.kybers.play.player.MediaManager
+import com.kybers.play.player.RetryManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -72,7 +74,10 @@ data class SeriesDetailsUiState(
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
     val isInPipMode: Boolean = false,
-    val playbackStates: Map<String, Pair<Long, Long>> = emptyMap()
+    val playbackStates: Map<String, Pair<Long, Long>> = emptyMap(),
+    val retryAttempt: Int = 0,
+    val maxRetryAttempts: Int = 5,
+    val retryMessage: String? = null
 )
 
 class SeriesDetailsViewModel(
@@ -91,6 +96,9 @@ class SeriesDetailsViewModel(
     private val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
 
+    private val mediaManager = MediaManager()
+    private lateinit var retryManager: RetryManager
+
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
 
@@ -99,6 +107,7 @@ class SeriesDetailsViewModel(
     init {
         loadSeriesDetails()
         setupMediaPlayer()
+        setupRetryManager()
     }
 
     private fun loadSeriesDetails() {
@@ -238,7 +247,23 @@ class SeriesDetailsViewModel(
                 MediaPlayer.Event.Playing -> PlayerStatus.PLAYING
                 MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
-                MediaPlayer.Event.EncounteredError -> PlayerStatus.ERROR
+                MediaPlayer.Event.EncounteredError -> {
+                    Log.e("SeriesDetailsViewModel", "VLC encountered error, triggering retry")
+                    // Trigger retry for VLC errors
+                    val currentEpisode = _uiState.value.currentlyPlayingEpisode
+                    if (currentEpisode != null && !retryManager.isRetrying()) {
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                startEpisodePlaybackInternal(currentEpisode, false)
+                                true
+                            } catch (e: Exception) {
+                                Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
+                                false
+                            }
+                        }
+                    }
+                    PlayerStatus.ERROR
+                }
                 MediaPlayer.Event.EndReached -> {
                     saveCurrentEpisodeProgress(markAsFinished = true)
                     playNextEpisode()
@@ -265,35 +290,101 @@ class SeriesDetailsViewModel(
         }
     }
 
+    private fun setupRetryManager() {
+        retryManager = RetryManager(
+            onRetryAttempt = { attempt, maxRetries ->
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRYING,
+                        retryAttempt = attempt,
+                        maxRetryAttempts = maxRetries,
+                        retryMessage = "Reintentando... ($attempt/$maxRetries)"
+                    ) 
+                }
+            },
+            onRetrySuccess = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.PLAYING,
+                        retryAttempt = 0,
+                        retryMessage = null
+                    ) 
+                }
+            },
+            onRetryFailed = {
+                _uiState.update { 
+                    it.copy(
+                        playerStatus = PlayerStatus.RETRY_FAILED,
+                        retryAttempt = 0,
+                        retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
+                    ) 
+                }
+            }
+        )
+    }
+
     fun playEpisode(episode: Episode) {
         val previousEpisode = _uiState.value.currentlyPlayingEpisode
         if (mediaPlayer.isPlaying && previousEpisode != null && previousEpisode.id != episode.id) {
             saveCurrentEpisodeProgress()
         }
 
-        val streamUrl = buildStreamUrl(episode)
-        val vlcOptions = preferenceManager.getVLCOptions()
-        val newMedia = Media(libVLC, streamUrl.toUri()).apply {
-            vlcOptions.forEach { addOption(it) }
-        }
-        mediaPlayer.media?.release()
-        mediaPlayer.media = newMedia
-        mediaPlayer.play()
-
-        // --- ¡LÓGICA DE REANUDACIÓN CORREGIDA! ---
-        val (position, duration) = preferenceManager.getEpisodePlaybackState(episode.id)
-        val isFinished = duration > 0 && (duration - position) < 5000
-
-        if (position > 0 && !isFinished) {
-            mediaPlayer.time = position
-        }
-
         _uiState.update {
             it.copy(
+                currentlyPlayingEpisode = episode,
                 isPlayerVisible = true,
-                playerStatus = PlayerStatus.BUFFERING,
-                currentlyPlayingEpisode = episode
+                playerStatus = PlayerStatus.LOADING,
+                retryAttempt = 0,
+                retryMessage = null
             )
+        }
+
+        // Try to play the episode with retry mechanism
+        retryManager.startRetry(viewModelScope) {
+            try {
+                startEpisodePlaybackInternal(episode, true)
+                true
+            } catch (e: Exception) {
+                Log.e("SeriesDetailsViewModel", "Failed to play episode: ${e.message}", e)
+                false
+            }
+        }
+    }
+
+    private suspend fun startEpisodePlaybackInternal(episode: Episode, resumeFromSaved: Boolean): Boolean {
+        return try {
+            val streamUrl = buildStreamUrl(episode)
+            val vlcOptions = preferenceManager.getVLCOptions()
+            val newMedia = Media(libVLC, streamUrl.toUri()).apply {
+                vlcOptions.forEach { addOption(it) }
+            }
+
+            // Use MediaManager for safe media handling
+            mediaManager.setMediaSafely(mediaPlayer, newMedia)
+            mediaPlayer.play()
+
+            // --- ¡LÓGICA DE REANUDACIÓN CORREGIDA! ---
+            if (resumeFromSaved) {
+                val (position, duration) = preferenceManager.getEpisodePlaybackState(episode.id)
+                val isFinished = duration > 0 && (duration - position) < 5000
+
+                if (position > 0 && !isFinished) {
+                    mediaPlayer.time = position
+                }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isPlayerVisible = true,
+                    playerStatus = PlayerStatus.BUFFERING,
+                    currentlyPlayingEpisode = episode
+                )
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SeriesDetailsViewModel", "Error in startEpisodePlaybackInternal", e)
+            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
+            throw e
         }
     }
 
@@ -341,10 +432,9 @@ class SeriesDetailsViewModel(
     }
 
     fun hidePlayer() {
+        retryManager.cancelRetry()
         saveCurrentEpisodeProgress()
-        mediaPlayer.stop()
-        mediaPlayer.media?.release()
-        mediaPlayer.media = null
+        mediaManager.stopAndReleaseMedia(mediaPlayer)
         _uiState.update {
             it.copy(
                 isPlayerVisible = false,
@@ -353,7 +443,9 @@ class SeriesDetailsViewModel(
                 currentPosition = 0L,
                 duration = 0L,
                 isInPipMode = false,
-                currentlyPlayingEpisode = null
+                currentlyPlayingEpisode = null,
+                retryAttempt = 0,
+                retryMessage = null
             )
         }
     }
@@ -366,6 +458,16 @@ class SeriesDetailsViewModel(
         mediaPlayer.time = position
     }
 
+    /**
+     * Manually retry playback for current episode
+     */
+    fun retryCurrentEpisode() {
+        val currentEpisode = _uiState.value.currentlyPlayingEpisode
+        if (currentEpisode != null) {
+            playEpisode(currentEpisode)
+        }
+    }
+
     private fun buildStreamUrl(episode: Episode): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"
         return "${baseUrl}series/${currentUser.username}/${currentUser.password}/${episode.id}.${episode.containerExtension}"
@@ -373,6 +475,7 @@ class SeriesDetailsViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        retryManager.cancelRetry()
         hidePlayer()
         mediaPlayer.release()
         libVLC.release()
