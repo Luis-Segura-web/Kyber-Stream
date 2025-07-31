@@ -81,15 +81,24 @@ class PreloadingManager(
             val popularContent = getPopularContentForToday()
             Log.d("PreloadingManager", "Encontrado ${popularContent.size} contenidos populares")
             
+            if (popularContent.isEmpty()) {
+                Log.w("PreloadingManager", "No se encontró contenido popular para precargar")
+                return
+            }
+            
             popularContent.take(10).forEach { content ->
-                addToPreloadQueue(
-                    PreloadItem(
-                        contentId = content.id,
-                        streamUrl = content.streamUrl,
-                        priority = PreloadPriority.MEDIUM,
-                        segmentCount = 3
+                try {
+                    addToPreloadQueue(
+                        PreloadItem(
+                            contentId = content.id,
+                            streamUrl = content.streamUrl,
+                            priority = PreloadPriority.MEDIUM,
+                            segmentCount = 3
+                        )
                     )
-                )
+                } catch (e: Exception) {
+                    Log.w("PreloadingManager", "Error añadiendo contenido ${content.id} a la cola de precarga", e)
+                }
             }
             
             processPreloadQueue()
@@ -109,15 +118,24 @@ class PreloadingManager(
             val recommendations = generateRecommendations(userHistory)
             Log.d("PreloadingManager", "Generadas ${recommendations.size} recomendaciones para usuario $userId")
             
+            if (recommendations.isEmpty()) {
+                Log.w("PreloadingManager", "No se encontraron recomendaciones para el usuario $userId")
+                return
+            }
+            
             recommendations.take(5).forEach { content ->
-                addToPreloadQueue(
-                    PreloadItem(
-                        contentId = content.id,
-                        streamUrl = content.streamUrl,
-                        priority = PreloadPriority.HIGH,
-                        segmentCount = 5
+                try {
+                    addToPreloadQueue(
+                        PreloadItem(
+                            contentId = content.id,
+                            streamUrl = content.streamUrl,
+                            priority = PreloadPriority.HIGH,
+                            segmentCount = 5
+                        )
                     )
-                )
+                } catch (e: Exception) {
+                    Log.w("PreloadingManager", "Error añadiendo recomendación ${content.id} a la cola de precarga", e)
+                }
             }
             
             processPreloadQueue()
@@ -183,11 +201,19 @@ class PreloadingManager(
         itemsToProcess.forEach { item ->
             scope.launch {
                 try {
+                    Log.d("PreloadingManager", "Iniciando precarga de contenido: ${item.contentId}")
                     streamPreloader.preloadSegments(item.streamUrl, item.segmentCount)
                     cacheManager.markAsPreloaded(item.contentId)
-                    Log.d("PreloadingManager", "Contenido precargado: ${item.contentId}")
+                    Log.d("PreloadingManager", "Contenido precargado exitosamente: ${item.contentId}")
+                } catch (e: java.net.SocketTimeoutException) {
+                    Log.w("PreloadingManager", "Timeout precargando contenido ${item.contentId} - esto es normal en conexiones lentas", e)
+                    // Para timeouts, no marcamos como error crítico, solo advertencia
+                } catch (e: java.net.UnknownHostException) {
+                    Log.e("PreloadingManager", "Error de conectividad precargando ${item.contentId} - verifica la conexión a internet", e)
+                } catch (e: java.io.IOException) {
+                    Log.e("PreloadingManager", "Error de E/O precargando ${item.contentId} - problema de red o servidor", e)
                 } catch (e: Exception) {
-                    Log.e("PreloadingManager", "Error precargando ${item.contentId}", e)
+                    Log.e("PreloadingManager", "Error inesperado precargando ${item.contentId}", e)
                 }
             }
         }

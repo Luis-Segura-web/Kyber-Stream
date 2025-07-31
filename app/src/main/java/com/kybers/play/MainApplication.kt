@@ -107,7 +107,7 @@ class AppContainer(private val context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
     
-    // HTTP Client for cache operations
+    // HTTP Client for cache operations with generous timeouts for preloading
     private val httpClient: OkHttpClient by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
@@ -115,9 +115,10 @@ class AppContainer(private val context: Context) {
         
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS) // Increased from 30s
+            .readTimeout(90, TimeUnit.SECONDS)    // Increased from 30s
+            .writeTimeout(60, TimeUnit.SECONDS)   // Increased from 30s
+            .callTimeout(120, TimeUnit.SECONDS)   // Added overall call timeout
             .build()
     }
     
