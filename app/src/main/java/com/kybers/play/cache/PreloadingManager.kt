@@ -8,12 +8,21 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.data.repository.LiveRepository
+import com.kybers.play.data.local.model.User
+import com.kybers.play.data.preferences.PreferenceManager
 
 class PreloadingManager(
     private val context: Context,
     private val cacheManager: CacheManager,
-    private val streamPreloader: StreamPreloader
+    private val streamPreloader: StreamPreloader,
+    private val vodRepository: VodRepository,
+    private val liveRepository: LiveRepository,
+    private val user: User,
+    private val preferenceManager: PreferenceManager
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _isPreloading = MutableStateFlow(false)
@@ -155,40 +164,258 @@ class PreloadingManager(
     }
     
     private suspend fun getPopularContentForToday(): List<Content> {
-        // Implementación simulada para contenido popular
-        // En una implementación real, esto se obtendría de una API o base de datos
-        return listOf(
-            Content(1, "https://example.com/stream1.m3u8", "Popular Movie 1", ContentType.MOVIE),
-            Content(2, "https://example.com/stream2.m3u8", "Popular Series 1", ContentType.SERIES),
-            Content(3, "https://example.com/stream3.m3u8", "Popular Channel 1", ContentType.CHANNEL)
-        )
+        Log.d("PreloadingManager", "Obteniendo contenido popular del día desde la base de datos")
+        val popularContent = mutableListOf<Content>()
+        
+        try {
+            // Obtener 5 películas populares desde vodRepository
+            val movies = vodRepository.getAllMovies(user.id).first().take(5)
+            movies.forEach { movie ->
+                popularContent.add(
+                    Content(
+                        id = movie.streamId,
+                        streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE),
+                        title = movie.name,
+                        type = ContentType.MOVIE
+                    )
+                )
+            }
+            Log.d("PreloadingManager", "Encontradas ${movies.size} películas populares")
+            
+            // Obtener 3 series populares desde vodRepository
+            val series = vodRepository.getAllSeries(user.id).first().take(3)
+            series.forEach { serie ->
+                popularContent.add(
+                    Content(
+                        id = serie.seriesId,
+                        streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES),
+                        title = serie.name,
+                        type = ContentType.SERIES
+                    )
+                )
+            }
+            Log.d("PreloadingManager", "Encontradas ${series.size} series populares")
+            
+            // Obtener 2 canales desde liveRepository
+            val liveStreams = liveRepository.getRawLiveStreams(user.id).first().take(2)
+            liveStreams.forEach { stream ->
+                popularContent.add(
+                    Content(
+                        id = stream.streamId,
+                        streamUrl = buildStreamUrl(stream.streamId, ContentType.CHANNEL),
+                        title = stream.name,
+                        type = ContentType.CHANNEL
+                    )
+                )
+            }
+            Log.d("PreloadingManager", "Encontrados ${liveStreams.size} canales populares")
+            
+        } catch (e: Exception) {
+            Log.e("PreloadingManager", "Error obteniendo contenido popular", e)
+        }
+        
+        Log.d("PreloadingManager", "Total contenido popular obtenido: ${popularContent.size}")
+        return popularContent
     }
     
     private suspend fun getUserViewingHistory(userId: Int): List<ViewingRecord> {
-        // Implementación simulada para historial de usuario
-        // En una implementación real, esto se obtendría de la base de datos local
-        return listOf(
-            ViewingRecord(1, userId, System.currentTimeMillis() - 86400000, 3600),
-            ViewingRecord(2, userId, System.currentTimeMillis() - 172800000, 7200)
-        )
+        Log.d("PreloadingManager", "Obteniendo historial de visualización real para usuario: $userId")
+        val viewingRecords = mutableListOf<ViewingRecord>()
+        
+        try {
+            // Obtener posiciones de reproducción desde preferenceManager
+            val playbackPositions = preferenceManager.getAllPlaybackPositions()
+            val episodeStates = preferenceManager.getAllEpisodePlaybackStates()
+            
+            // Convertir posiciones de películas/series a ViewingRecord objects
+            playbackPositions.forEach { (contentId, position) ->
+                try {
+                    val id = contentId.toIntOrNull() ?: return@forEach
+                    viewingRecords.add(
+                        ViewingRecord(
+                            contentId = id,
+                            userId = userId,
+                            timestamp = System.currentTimeMillis() - (position / 1000), // Aproximar timestamp
+                            duration = position
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.w("PreloadingManager", "Error procesando posición de reproducción: $contentId", e)
+                }
+            }
+            
+            // Convertir estados de episodios a ViewingRecord objects
+            episodeStates.forEach { (episodeId, state) ->
+                try {
+                    val id = episodeId.toIntOrNull() ?: return@forEach
+                    val (position, duration) = state
+                    viewingRecords.add(
+                        ViewingRecord(
+                            contentId = id,
+                            userId = userId,
+                            timestamp = System.currentTimeMillis() - (position / 1000), // Aproximar timestamp
+                            duration = position
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.w("PreloadingManager", "Error procesando estado de episodio: $episodeId", e)
+                }
+            }
+            
+            Log.d("PreloadingManager", "Encontrados ${viewingRecords.size} registros de visualización")
+            
+        } catch (e: Exception) {
+            Log.e("PreloadingManager", "Error obteniendo historial de visualización", e)
+        }
+        
+        return viewingRecords.sortedByDescending { it.timestamp }.take(20) // Limit to recent 20 items
     }
     
     private suspend fun generateRecommendations(history: List<ViewingRecord>): List<Content> {
-        // Algoritmo simple de recomendaciones basado en historial
-        // En una implementación real, esto sería más sofisticado
-        return getPopularContentForToday().take(3)
+        Log.d("PreloadingManager", "Generando recomendaciones basadas en historial real")
+        val recommendations = mutableListOf<Content>()
+        
+        try {
+            if (history.isNotEmpty()) {
+                // Usar historial real para generar recomendaciones
+                Log.d("PreloadingManager", "Usando historial de ${history.size} elementos para recomendaciones")
+                
+                // Obtener IDs de contenido más visto
+                val mostWatchedIds = history
+                    .groupBy { it.contentId }
+                    .mapValues { it.value.sumOf { record -> record.duration } }
+                    .toList()
+                    .sortedByDescending { it.second }
+                    .take(3)
+                    .map { it.first }
+                
+                // Buscar contenido similar en la base de datos
+                val movies = vodRepository.getAllMovies(user.id).first()
+                val series = vodRepository.getAllSeries(user.id).first()
+                
+                // Recomendar películas similares a las más vistas
+                movies.filter { !mostWatchedIds.contains(it.streamId) }
+                    .take(3)
+                    .forEach { movie ->
+                        recommendations.add(
+                            Content(
+                                id = movie.streamId,
+                                streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE),
+                                title = movie.name,
+                                type = ContentType.MOVIE
+                            )
+                        )
+                    }
+                
+                // Recomendar series similares a las más vistas
+                series.filter { !mostWatchedIds.contains(it.seriesId) }
+                    .take(2)
+                    .forEach { serie ->
+                        recommendations.add(
+                            Content(
+                                id = serie.seriesId,
+                                streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES),
+                                title = serie.name,
+                                type = ContentType.SERIES
+                            )
+                        )
+                    }
+            } else {
+                // Fallback a contenido popular si no hay suficiente historial
+                Log.d("PreloadingManager", "Sin historial suficiente, usando contenido popular como fallback")
+                return getPopularContentForToday().take(3)
+            }
+            
+        } catch (e: Exception) {
+            Log.e("PreloadingManager", "Error generando recomendaciones", e)
+            // Fallback a contenido popular en caso de error
+            return getPopularContentForToday().take(3)
+        }
+        
+        Log.d("PreloadingManager", "Generadas ${recommendations.size} recomendaciones")
+        return recommendations
     }
     
     private suspend fun getNextEpisode(currentEpisodeId: Int, seriesId: Int): Episode? {
-        // Implementación simulada para obtener siguiente episodio
-        // En una implementación real, esto consultaría la base de datos
-        return Episode(
-            id = currentEpisodeId + 1,
-            seriesId = seriesId,
-            episodeNumber = 2,
-            seasonNumber = 1,
-            streamUrl = "https://example.com/next_episode.m3u8",
-            title = "Next Episode"
-        )
+        Log.d("PreloadingManager", "Obteniendo siguiente episodio real para serie: $seriesId, episodio actual: $currentEpisodeId")
+        
+        try {
+            // Obtener episodios reales de la base de datos
+            val episodes = vodRepository.getEpisodesForSeries(seriesId, user.id).first()
+            
+            if (episodes.isEmpty()) {
+                Log.w("PreloadingManager", "No se encontraron episodios para la serie: $seriesId")
+                return null
+            }
+            
+            // Encontrar el episodio actual por ID (convertir a String para coincidir con el modelo)
+            val currentEpisode = episodes.find { it.id == currentEpisodeId.toString() }
+            if (currentEpisode == null) {
+                Log.w("PreloadingManager", "No se encontró el episodio actual: $currentEpisodeId")
+                return null
+            }
+            
+            // Buscar el siguiente episodio en la misma temporada
+            val nextEpisodeInSeason = episodes
+                .filter { it.season == currentEpisode.season && it.episodeNum > currentEpisode.episodeNum }
+                .minByOrNull { it.episodeNum }
+            
+            if (nextEpisodeInSeason != null) {
+                Log.d("PreloadingManager", "Encontrado siguiente episodio en la misma temporada: ${nextEpisodeInSeason.title}")
+                return Episode(
+                    id = nextEpisodeInSeason.id.toIntOrNull() ?: 0,
+                    seriesId = seriesId,
+                    episodeNumber = nextEpisodeInSeason.episodeNum,
+                    seasonNumber = nextEpisodeInSeason.season,
+                    streamUrl = buildStreamUrl(nextEpisodeInSeason.id.toIntOrNull() ?: 0, ContentType.SERIES),
+                    title = nextEpisodeInSeason.title ?: "Episodio ${nextEpisodeInSeason.episodeNum}"
+                )
+            }
+            
+            // Si no hay más episodios en la temporada actual, buscar el primer episodio de la siguiente temporada
+            val nextSeason = episodes
+                .filter { it.season > currentEpisode.season }
+                .minByOrNull { it.season }
+            
+            if (nextSeason != null) {
+                val firstEpisodeNextSeason = episodes
+                    .filter { it.season == nextSeason.season }
+                    .minByOrNull { it.episodeNum }
+                
+                if (firstEpisodeNextSeason != null) {
+                    Log.d("PreloadingManager", "Encontrado primer episodio de la siguiente temporada: ${firstEpisodeNextSeason.title}")
+                    return Episode(
+                        id = firstEpisodeNextSeason.id.toIntOrNull() ?: 0,
+                        seriesId = seriesId,
+                        episodeNumber = firstEpisodeNextSeason.episodeNum,
+                        seasonNumber = firstEpisodeNextSeason.season,
+                        streamUrl = buildStreamUrl(firstEpisodeNextSeason.id.toIntOrNull() ?: 0, ContentType.SERIES),
+                        title = firstEpisodeNextSeason.title ?: "Episodio ${firstEpisodeNextSeason.episodeNum}"
+                    )
+                }
+            }
+            
+            Log.d("PreloadingManager", "No se encontró siguiente episodio para la serie: $seriesId")
+            return null
+            
+        } catch (e: Exception) {
+            Log.e("PreloadingManager", "Error obteniendo siguiente episodio", e)
+            return null
+        }
+    }
+    
+    /**
+     * Construye URLs reales para streams usando las credenciales del usuario
+     */
+    private fun buildStreamUrl(streamId: Int, contentType: ContentType): String {
+        val baseUrl = user.url.trimEnd('/')
+        val username = user.username
+        val password = user.password
+        
+        return when (contentType) {
+            ContentType.MOVIE -> "$baseUrl/$username/$password/$streamId.m3u8"
+            ContentType.SERIES -> "$baseUrl/series/$username/$password/$streamId.m3u8"
+            ContentType.CHANNEL -> "$baseUrl/live/$username/$password/$streamId.m3u8"
+        }
     }
 }

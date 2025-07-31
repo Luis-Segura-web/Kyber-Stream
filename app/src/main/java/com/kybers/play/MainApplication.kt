@@ -103,7 +103,7 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 }
 
-class AppContainer(context: Context) {
+class AppContainer(private val context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
     
@@ -124,7 +124,6 @@ class AppContainer(context: Context) {
     // Cache components
     val cacheManager by lazy { CacheManager(context) }
     val streamPreloader by lazy { StreamPreloader(httpClient, cacheManager.getCacheDir()) }
-    val preloadingManager by lazy { PreloadingManager(context, cacheManager, streamPreloader) }
     
     // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
     val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
@@ -162,6 +161,22 @@ class AppContainer(context: Context) {
             seriesDao = database.seriesDao(),
             episodeDao = database.episodeDao(),
             categoryCacheDao = database.categoryCacheDao()
+        )
+    }
+    
+    fun createPreloadingManager(
+        vodRepository: VodRepository,
+        liveRepository: LiveRepository,
+        user: com.kybers.play.data.local.model.User
+    ): com.kybers.play.cache.PreloadingManager {
+        return com.kybers.play.cache.PreloadingManager(
+            context = context,
+            cacheManager = cacheManager,
+            streamPreloader = streamPreloader,
+            vodRepository = vodRepository,
+            liveRepository = liveRepository,
+            user = user,
+            preferenceManager = preferenceManager
         )
     }
 }

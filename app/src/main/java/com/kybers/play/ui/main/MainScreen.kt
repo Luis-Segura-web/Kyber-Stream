@@ -75,7 +75,8 @@ fun MainScreen(
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory, // --- ¡NUEVO! ---
-    preloadingManager: PreloadingManager // NUEVO PARÁMETRO
+    preloadingManager: PreloadingManager, // NUEVO PARÁMETRO
+    currentUserId: Int // NUEVO PARÁMETRO PARA USUARIO ACTUAL
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -97,8 +98,7 @@ fun MainScreen(
             preloadingManager.preloadPopularContent()
             
             // Si hay usuario logueado, precargar sus preferencias
-            // Nota: En una implementación real, obtendrías el usuario actual del contexto
-            preloadingManager.preloadUserPreferences(1) // User ID simulado
+            preloadingManager.preloadUserPreferences(currentUserId)
             Log.d("MainScreen", "Sistema de precarga inicializado correctamente")
         } catch (e: Exception) {
             Log.e("MainScreen", "Error inicializando sistema de precarga", e)
