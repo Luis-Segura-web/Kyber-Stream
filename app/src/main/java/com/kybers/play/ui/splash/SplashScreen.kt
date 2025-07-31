@@ -19,24 +19,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kybers.play.R
+import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 
 /**
  * A simple splash screen that shows a logo and app name.
- * After a delay, it triggers a navigation callback.
+ * After a delay, it navigates to the login screen.
  *
- * @param onNavigate The callback to be invoked after the splash screen delay.
+ * @param navController The NavController to handle navigation.
  */
 @Composable
 fun SplashScreen(
-    onNavigate: () -> Unit
+    navController: NavController
 ) {
     // This effect will run once when the composable enters the composition.
     LaunchedEffect(Unit) {
         // Wait for 2 seconds to show the splash screen.
         delay(2000)
-        // Trigger the navigation.
-        onNavigate()
+        // Navigate to login and clear the splash from back stack
+        navController.navigate("login") {
+            popUpTo("splash") { inclusive = true }
+        }
     }
 
     // The UI of the splash screen

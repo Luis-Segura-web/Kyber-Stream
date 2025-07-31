@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 
 // --- ¡ACTUALIZADO! Hacemos label e icon opcionales y añadimos la ruta de Ajustes ---
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
+    object Splash : Screen("splash") // Pantalla de splash inicial
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
     object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
