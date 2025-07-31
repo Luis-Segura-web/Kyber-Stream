@@ -127,7 +127,8 @@ class MainActivity : ComponentActivity() {
                             contentViewModelFactory = contentViewModelFactory,
                             movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
                             seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
-                            settingsViewModelFactoryProvider = settingsViewModelFactoryProvider // La pasamos a MainScreen
+                            settingsViewModelFactoryProvider = settingsViewModelFactoryProvider, // La pasamos a MainScreen
+                            preloadingManager = appContainer.preloadingManager // NUEVO PARÁMETRO
                         )
                     }
                     else -> {

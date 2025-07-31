@@ -1,5 +1,6 @@
 package com.kybers.play.ui.main
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -41,6 +42,10 @@ import com.kybers.play.ui.series.SeriesScreen
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.SettingsScreen
 import com.kybers.play.ui.settings.SettingsViewModel
+import com.kybers.play.cache.PreloadingManager
+import com.kybers.play.cache.CacheVerification
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 
 // --- ¡ACTUALIZADO! Hacemos label e icon opcionales y añadimos la ruta de Ajustes ---
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
@@ -69,14 +74,36 @@ fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
-    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory // --- ¡NUEVO! ---
+    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory, // --- ¡NUEVO! ---
+    preloadingManager: PreloadingManager // NUEVO PARÁMETRO
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val context = LocalContext.current
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
+
+    // NUEVA FUNCIONALIDAD: Inicializar precarga y verificar cache
+    LaunchedEffect(Unit) {
+        try {
+            Log.d("MainScreen", "Iniciando verificación y precarga del sistema")
+            
+            // Verificar que el sistema de cache funciona
+            val cacheVerification = CacheVerification(context)
+            cacheVerification.runBasicTests()
+            
+            preloadingManager.preloadPopularContent()
+            
+            // Si hay usuario logueado, precargar sus preferencias
+            // Nota: En una implementación real, obtendrías el usuario actual del contexto
+            preloadingManager.preloadUserPreferences(1) // User ID simulado
+            Log.d("MainScreen", "Sistema de precarga inicializado correctamente")
+        } catch (e: Exception) {
+            Log.e("MainScreen", "Error inicializando sistema de precarga", e)
+        }
+    }
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
