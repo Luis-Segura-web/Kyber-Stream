@@ -41,6 +41,8 @@ import com.kybers.play.ui.series.SeriesScreen
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.SettingsScreen
 import com.kybers.play.ui.settings.SettingsViewModel
+import com.kybers.play.cache.PreloadingManager
+import androidx.compose.runtime.LaunchedEffect
 
 // --- ¡ACTUALIZADO! Hacemos label e icon opcionales y añadimos la ruta de Ajustes ---
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
@@ -69,7 +71,8 @@ fun MainScreen(
     contentViewModelFactory: ContentViewModelFactory,
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
-    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory // --- ¡NUEVO! ---
+    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory, // --- ¡NUEVO! ---
+    preloadingManager: PreloadingManager // NUEVO PARÁMETRO
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -77,6 +80,18 @@ fun MainScreen(
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
+
+    // NUEVA FUNCIONALIDAD: Inicializar precarga
+    LaunchedEffect(Unit) {
+        preloadingManager.preloadPopularContent()
+        // Si hay usuario logueado, precargar sus preferencias
+        // Nota: En una implementación real, obtendrías el usuario actual del contexto
+        try {
+            preloadingManager.preloadUserPreferences(1) // User ID simulado
+        } catch (e: Exception) {
+            // Error handling para preload de preferencias
+        }
+    }
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 

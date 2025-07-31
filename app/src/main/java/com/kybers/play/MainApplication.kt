@@ -25,6 +25,11 @@ import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
+import com.kybers.play.cache.CacheManager
+import com.kybers.play.cache.PreloadingManager
+import com.kybers.play.cache.StreamPreloader
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
 class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
@@ -101,6 +106,26 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
 class AppContainer(context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
+    
+    // HTTP Client for cache operations
+    private val httpClient: OkHttpClient by lazy {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+        
+        OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+    
+    // Cache components
+    val cacheManager by lazy { CacheManager(context) }
+    val streamPreloader by lazy { StreamPreloader(httpClient, cacheManager.getCacheDir()) }
+    val preloadingManager by lazy { PreloadingManager(context, cacheManager, streamPreloader) }
+    
     // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
     val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
 
