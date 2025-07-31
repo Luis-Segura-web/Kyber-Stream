@@ -13,6 +13,7 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
+import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsScreen
@@ -27,6 +28,9 @@ import com.kybers.play.ui.series.SeriesScreen
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.SettingsScreen
 import com.kybers.play.ui.settings.SettingsViewModel
+import com.kybers.play.ui.login.LoginScreen
+import com.kybers.play.ui.login.LoginViewModel
+import com.kybers.play.ui.splash.SplashScreen
 import com.kybers.play.cache.PreloadingManager
 
 @Composable
@@ -37,11 +41,22 @@ fun AppNavHost(
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory,
+    loginViewModelFactory: LoginViewModelFactory,
     preloadingManager: PreloadingManager,
     currentUserId: Int,
     onPlayerUiStateChanged: (isFullScreen: Boolean, isPipMode: Boolean) -> Unit
 ) {
-    NavHost(navController, startDestination = Screen.Home.route, modifier) {
+    NavHost(navController, startDestination = Screen.Splash.route, modifier) {
+        composable(Screen.Splash.route) {
+            SplashScreen(navController = navController)
+        }
+        composable(Screen.Login.route) {
+            val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)
+            LoginScreen(
+                navController = navController,
+                viewModel = loginViewModel
+            )
+        }
         composable(Screen.Home.route) {
             val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
             HomeScreen(
@@ -114,6 +129,29 @@ fun AppNavHost(
                 viewModel = viewModel,
                 onNavigateUp = { navController.popBackStack() }
             )
+        }
+        composable(
+            route = Screen.Sync.route,
+            arguments = listOf(navArgument("userId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getInt("userId") ?: 0
+            // TODO: Implement SyncScreen composable when needed
+            // For now, navigate directly to main
+            navController.navigate(Screen.Main.createRoute(userId)) {
+                popUpTo(Screen.Login.route) { inclusive = true }
+            }
+        }
+        composable(
+            route = Screen.Main.route,
+            arguments = listOf(navArgument("userId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getInt("userId") ?: 0
+            // TODO: Navigate to main app content with this userId
+            // This would typically involve transitioning to the UserBasedMainScreen
+            // For now, just show home screen
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Splash.route) { inclusive = true }
+            }
         }
     }
 }

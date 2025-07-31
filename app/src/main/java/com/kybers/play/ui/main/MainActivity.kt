@@ -22,6 +22,7 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
+import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
 import com.kybers.play.ui.theme.rememberThemeManager
 
@@ -91,13 +92,8 @@ private fun SplashToLoginNavigation(
         androidx.navigation.compose.composable("login") {
             val loginViewModel: com.kybers.play.ui.login.LoginViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = loginViewModelFactory)
             com.kybers.play.ui.login.LoginScreen(
-                viewModel = loginViewModel,
-                onUserSelected = { user ->
-                    onUserSelected(user.id)
-                },
-                onNavigateToSyncAfterUserAdded = { user ->
-                    onUserSelected(user.id)
-                }
+                navController = navController,
+                viewModel = loginViewModel
             )
         }
     }
@@ -194,11 +190,16 @@ private fun UserBasedMainScreen(
                 }
             }
 
+            val loginViewModelFactory = remember {
+                LoginViewModelFactory(appContainer.userRepository)
+            }
+
             MainScreen(
                 contentViewModelFactory = contentViewModelFactory,
                 movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
                 seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
                 settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
+                loginViewModelFactory = loginViewModelFactory,
                 preloadingManager = preloadingManager,
                 currentUserId = user!!.id
             )

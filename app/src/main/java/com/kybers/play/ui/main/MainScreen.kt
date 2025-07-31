@@ -23,6 +23,7 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
+import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.cache.PreloadingManager
 import com.kybers.play.cache.CacheVerification
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 // --- ¡ACTUALIZADO! Hacemos label e icon opcionales y añadimos la ruta de Ajustes ---
 sealed class Screen(val route: String, val label: String? = null, val icon: ImageVector? = null) {
     object Splash : Screen("splash") // Pantalla de splash inicial
+    object Login : Screen("login") // Pantalla de login
     object Home : Screen("home", "Inicio", Icons.Outlined.Home)
     object Channels : Screen("channels", "TV en Vivo", Icons.Outlined.LiveTv)
     object Movies : Screen("movies", "Películas", Icons.Outlined.Movie)
@@ -41,6 +43,12 @@ sealed class Screen(val route: String, val label: String? = null, val icon: Imag
     }
     object SeriesDetails : Screen("series_details/{seriesId}") {
         fun createRoute(seriesId: Int) = "series_details/$seriesId"
+    }
+    object Sync : Screen("sync/{userId}") {
+        fun createRoute(userId: Int) = "sync/$userId"
+    }
+    object Main : Screen("main/{userId}") {
+        fun createRoute(userId: Int) = "main/$userId"
     }
 }
 
@@ -57,6 +65,7 @@ fun MainScreen(
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory, // --- ¡NUEVO! ---
+    loginViewModelFactory: LoginViewModelFactory, // --- ¡NUEVO! ---
     preloadingManager: PreloadingManager, // NUEVO PARÁMETRO
     currentUserId: Int // NUEVO PARÁMETRO PARA USUARIO ACTUAL
 ) {
@@ -124,6 +133,7 @@ fun MainScreen(
             movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
             seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
             settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
+            loginViewModelFactory = loginViewModelFactory,
             preloadingManager = preloadingManager,
             currentUserId = currentUserId,
             onPlayerUiStateChanged = { isFull, isPip ->
