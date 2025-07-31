@@ -320,12 +320,8 @@ open class ChannelsViewModel(
                         Log.d("ChannelsViewModel", "Stream successfully started playing")
                         return true
                     }
-                    !mediaPlayer.isPlaying && _uiState.value.playerStatus == PlayerStatus.ERROR -> {
+                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
                         Log.e("ChannelsViewModel", "VLC reported error during playback attempt")
-                        return false
-                    }
-                    mediaPlayer.vlcVout.videoSurface == null -> {
-                        Log.e("ChannelsViewModel", "Video surface lost during playback")
                         return false
                     }
                 }

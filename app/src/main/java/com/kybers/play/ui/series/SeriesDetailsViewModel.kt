@@ -402,12 +402,8 @@ class SeriesDetailsViewModel(
                         Log.d("SeriesDetailsViewModel", "Episode successfully started playing")
                         return true
                     }
-                    !mediaPlayer.isPlaying && _uiState.value.playerStatus == PlayerStatus.ERROR -> {
+                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
                         Log.e("SeriesDetailsViewModel", "VLC reported error during playback attempt")
-                        return false
-                    }
-                    mediaPlayer.vlcVout.videoSurface == null -> {
-                        Log.e("SeriesDetailsViewModel", "Video surface lost during playback")
                         return false
                     }
                 }

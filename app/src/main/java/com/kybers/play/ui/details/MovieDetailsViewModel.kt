@@ -490,12 +490,8 @@ class MovieDetailsViewModel(
                         Log.d("MovieDetailsViewModel", "Movie successfully started playing")
                         return true
                     }
-                    !mediaPlayer.isPlaying && _uiState.value.playerStatus == PlayerStatus.ERROR -> {
+                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
                         Log.e("MovieDetailsViewModel", "VLC reported error during playback attempt")
-                        return false
-                    }
-                    mediaPlayer.vlcVout.videoSurface == null -> {
-                        Log.e("MovieDetailsViewModel", "Video surface lost during playback")
                         return false
                     }
                 }
