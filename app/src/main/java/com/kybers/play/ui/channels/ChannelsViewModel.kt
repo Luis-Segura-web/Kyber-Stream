@@ -81,7 +81,7 @@ data class ChannelsUiState(
     val epgUpdateMessage: String? = null,
     val totalChannelCount: Int = 0,
     val retryAttempt: Int = 0,
-    val maxRetryAttempts: Int = 5,
+    val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null
 )
 
@@ -189,19 +189,24 @@ open class ChannelsViewModel(
                 MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> {
-                    Log.e("ChannelsViewModel", "VLC encountered error, triggering retry")
-                    // Trigger retry for VLC errors
-                    val currentChannel = _uiState.value.currentlyPlaying
-                    if (currentChannel != null && !retryManager.isRetrying()) {
-                        retryManager.startRetry(viewModelScope) {
-                            try {
-                                playChannelInternal(currentChannel)
-                                true
-                            } catch (e: Exception) {
-                                Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
-                                false
+                    Log.e("ChannelsViewModel", "VLC encountered error")
+                    // Only trigger retry if we're not already in a retry state
+                    // Let the current retry system handle the failure naturally
+                    if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
+                        Log.d("ChannelsViewModel", "VLC error occurred outside retry system, triggering retry")
+                        val currentChannel = _uiState.value.currentlyPlaying
+                        if (currentChannel != null && !retryManager.isRetrying()) {
+                            retryManager.startRetry(viewModelScope) {
+                                try {
+                                    playChannelInternal(currentChannel)
+                                } catch (e: Exception) {
+                                    Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
+                                    false
+                                }
                             }
                         }
+                    } else {
+                        Log.d("ChannelsViewModel", "VLC error during retry - letting retry system handle it")
                     }
                     PlayerStatus.ERROR
                 }
@@ -277,7 +282,6 @@ open class ChannelsViewModel(
             retryManager.startRetry(viewModelScope) {
                 try {
                     playChannelInternal(channel)
-                    true
                 } catch (e: Exception) {
                     Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
                     false
@@ -300,7 +304,32 @@ open class ChannelsViewModel(
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
             _uiState.update { it.copy(playerStatus = PlayerStatus.BUFFERING) }
-            true
+            
+            // Wait for VLC to actually start playing or fail (max 10 seconds)
+            var attempts = 0
+            val maxAttempts = 100 // 10 seconds (100ms intervals)
+            
+            while (attempts < maxAttempts) {
+                delay(100) // Check every 100ms
+                attempts++
+                
+                when {
+                    mediaPlayer.isPlaying -> {
+                        Log.d("ChannelsViewModel", "Stream successfully started playing")
+                        return true
+                    }
+                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
+                        Log.e("ChannelsViewModel", "VLC reported error during playback attempt")
+                        return false
+                    }
+                }
+            }
+            
+            // Timeout - VLC didn't start playing within reasonable time
+            Log.e("ChannelsViewModel", "Timeout waiting for stream to start playing")
+            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
+            false
+            
         } catch (e: Exception) {
             Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }

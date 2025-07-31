@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * --- ¡ARCHIVO REFACTORIZADO! ---
@@ -51,7 +52,13 @@ fun ChannelPlayerControls(
     onToggleSubtitleMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
-    onToggleAspectRatio: () -> Unit
+    onToggleAspectRatio: () -> Unit,
+    // Add missing retry parameters
+    playerStatus: PlayerStatus = PlayerStatus.IDLE,
+    retryAttempt: Int = 0,
+    maxRetryAttempts: Int = 3,
+    retryMessage: String? = null,
+    onRetry: () -> Unit = {}
 ) {
     AnimatedVisibility(
         visible = isVisible,
@@ -79,9 +86,14 @@ fun ChannelPlayerControls(
                 modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
                 isFullScreen = isFullScreen,
+                playerStatus = playerStatus,
+                retryAttempt = retryAttempt,
+                maxRetryAttempts = maxRetryAttempts,
+                retryMessage = retryMessage,
                 onPlayPause = { onPlayPause(); onAnyInteraction() },
                 onNext = { onNext(); onAnyInteraction() },
-                onPrevious = { onPrevious(); onAnyInteraction() }
+                onPrevious = { onPrevious(); onAnyInteraction() },
+                onRetry = { onRetry(); onAnyInteraction() }
             )
 
             // Controles inferiores específicos para Canales
@@ -123,29 +135,93 @@ private fun CenterChannelControls(
     modifier: Modifier,
     isPlaying: Boolean,
     isFullScreen: Boolean,
+    playerStatus: PlayerStatus,
+    retryAttempt: Int,
+    maxRetryAttempts: Int,
+    retryMessage: String?,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
-    onPrevious: () -> Unit
+    onPrevious: () -> Unit,
+    onRetry: () -> Unit
 ) {
     val iconSize = if (isFullScreen) 72.dp else 40.dp
     val centerIconSize = if (isFullScreen) 96.dp else 56.dp
     val spacerWidth = if (isFullScreen) 64.dp else 32.dp
 
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(iconSize))
+        // Show retry message if available
+        retryMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = if (isFullScreen) 18.sp else 14.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
         }
-        Spacer(modifier = Modifier.width(spacerWidth))
-        IconButton(onClick = onPlayPause) {
-            Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
-        }
-        Spacer(modifier = Modifier.width(spacerWidth))
-        IconButton(onClick = onNext) {
-            Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(iconSize))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Previous button (only show if not in retry state)
+            if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
+                IconButton(onClick = onPrevious) {
+                    Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(iconSize))
+                }
+                Spacer(modifier = Modifier.width(spacerWidth))
+            }
+
+            // Center button - changes based on player status
+            when (playerStatus) {
+                PlayerStatus.RETRYING -> {
+                    // Show loading indicator with retry count
+                    Box(
+                        modifier = Modifier.size(centerIconSize),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(centerIconSize * 0.8f)
+                        )
+                        Text(
+                            text = "$retryAttempt/$maxRetryAttempts",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                PlayerStatus.RETRY_FAILED, PlayerStatus.ERROR -> {
+                    // Show retry button
+                    IconButton(onClick = onRetry) {
+                        Icon(Icons.Default.Refresh, "Reintentar", tint = Color.White, modifier = Modifier.size(centerIconSize))
+                    }
+                }
+                PlayerStatus.LOADING -> {
+                    // Show loading indicator
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(centerIconSize * 0.8f)
+                    )
+                }
+                else -> {
+                    // Normal play/pause button
+                    IconButton(onClick = onPlayPause) {
+                        Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
+                    }
+                }
+            }
+
+            // Next button (only show if not in retry state)
+            if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
+                Spacer(modifier = Modifier.width(spacerWidth))
+                IconButton(onClick = onNext) {
+                    Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(iconSize))
+                }
+            }
         }
     }
 }

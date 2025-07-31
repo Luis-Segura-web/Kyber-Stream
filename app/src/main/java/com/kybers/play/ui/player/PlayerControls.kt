@@ -96,7 +96,7 @@ fun PlayerControls(
     // New retry parameters
     playerStatus: PlayerStatus = PlayerStatus.IDLE,
     retryAttempt: Int = 0,
-    maxRetryAttempts: Int = 5,
+    maxRetryAttempts: Int = 3,
     retryMessage: String? = null,
     onRetry: () -> Unit = {}
 ) {

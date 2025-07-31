@@ -28,6 +28,7 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,7 +77,7 @@ data class SeriesDetailsUiState(
     val isInPipMode: Boolean = false,
     val playbackStates: Map<String, Pair<Long, Long>> = emptyMap(),
     val retryAttempt: Int = 0,
-    val maxRetryAttempts: Int = 5,
+    val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null
 )
 
@@ -248,19 +249,25 @@ class SeriesDetailsViewModel(
                 MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> {
-                    Log.e("SeriesDetailsViewModel", "VLC encountered error, triggering retry")
-                    // Trigger retry for VLC errors
-                    val currentEpisode = _uiState.value.currentlyPlayingEpisode
-                    if (currentEpisode != null && !retryManager.isRetrying()) {
-                        retryManager.startRetry(viewModelScope) {
-                            try {
-                                startEpisodePlaybackInternal(currentEpisode, false)
-                                true
-                            } catch (e: Exception) {
-                                Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
-                                false
+                    Log.e("SeriesDetailsViewModel", "VLC encountered error")
+                    // Only trigger retry if we're not already in a retry state
+                    // Let the current retry system handle the failure naturally
+                    val currentState = _uiState.value.playerStatus
+                    if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
+                        Log.d("SeriesDetailsViewModel", "VLC error occurred outside retry system, triggering retry")
+                        val currentEpisode = _uiState.value.currentlyPlayingEpisode
+                        if (currentEpisode != null && !retryManager.isRetrying()) {
+                            retryManager.startRetry(viewModelScope) {
+                                try {
+                                    startEpisodePlaybackInternal(currentEpisode, false)
+                                } catch (e: Exception) {
+                                    Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
+                                    false
+                                }
                             }
                         }
+                    } else {
+                        Log.d("SeriesDetailsViewModel", "VLC error during retry - letting retry system handle it")
                     }
                     PlayerStatus.ERROR
                 }
@@ -343,7 +350,6 @@ class SeriesDetailsViewModel(
         retryManager.startRetry(viewModelScope) {
             try {
                 startEpisodePlaybackInternal(episode, true)
-                true
             } catch (e: Exception) {
                 Log.e("SeriesDetailsViewModel", "Failed to play episode: ${e.message}", e)
                 false
@@ -380,7 +386,32 @@ class SeriesDetailsViewModel(
                     currentlyPlayingEpisode = episode
                 )
             }
-            true
+            
+            // Wait for VLC to actually start playing or fail (max 10 seconds)
+            var attempts = 0
+            val maxAttempts = 100 // 10 seconds (100ms intervals)
+            
+            while (attempts < maxAttempts) {
+                delay(100) // Check every 100ms
+                attempts++
+                
+                when {
+                    mediaPlayer.isPlaying -> {
+                        Log.d("SeriesDetailsViewModel", "Episode successfully started playing")
+                        return true
+                    }
+                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
+                        Log.e("SeriesDetailsViewModel", "VLC reported error during playback attempt")
+                        return false
+                    }
+                }
+            }
+            
+            // Timeout - VLC didn't start playing within reasonable time
+            Log.e("SeriesDetailsViewModel", "Timeout waiting for episode to start playing")
+            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
+            false
+            
         } catch (e: Exception) {
             Log.e("SeriesDetailsViewModel", "Error in startEpisodePlaybackInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }

@@ -335,7 +335,13 @@ private fun PlayerSection(
                     onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
                     onSelectAudioTrack = viewModel::selectAudioTrack,
                     onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
-                    onToggleAspectRatio = viewModel::toggleAspectRatio
+                    onToggleAspectRatio = viewModel::toggleAspectRatio,
+                    // Add retry parameters
+                    playerStatus = uiState.playerStatus,
+                    retryAttempt = uiState.retryAttempt,
+                    maxRetryAttempts = uiState.maxRetryAttempts,
+                    retryMessage = uiState.retryMessage,
+                    onRetry = viewModel::retryCurrentChannel
                 )
             }
         )
