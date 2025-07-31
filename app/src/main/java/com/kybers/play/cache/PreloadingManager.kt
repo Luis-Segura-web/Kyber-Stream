@@ -15,6 +15,36 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 
+/**
+ * Local data models for the preloading system
+ */
+data class Content(
+    val id: Int,
+    val streamUrl: String,
+    val title: String,
+    val type: ContentType
+)
+
+enum class ContentType {
+    MOVIE, SERIES, CHANNEL
+}
+
+data class ViewingRecord(
+    val contentId: Int,
+    val userId: Int,
+    val timestamp: Long,
+    val duration: Long
+)
+
+data class Episode(
+    val id: Int,
+    val seriesId: Int,
+    val episodeNumber: Int,
+    val seasonNumber: Int,
+    val streamUrl: String,
+    val title: String
+)
+
 class PreloadingManager(
     private val context: Context,
     private val cacheManager: CacheManager,
@@ -174,7 +204,7 @@ class PreloadingManager(
                 popularContent.add(
                     Content(
                         id = movie.streamId,
-                        streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE),
+                        streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE, movie.containerExtension),
                         title = movie.name,
                         type = ContentType.MOVIE
                     )
@@ -182,19 +212,22 @@ class PreloadingManager(
             }
             Log.d("PreloadingManager", "Encontradas ${movies.size} películas populares")
             
-            // Obtener 3 series populares desde vodRepository
+            // Series preloading disabled to avoid 403 errors
+            // TODO: Implement episode-specific preloading logic in the future
+            /*
             val series = vodRepository.getAllSeries(user.id).first().take(3)
             series.forEach { serie ->
                 popularContent.add(
                     Content(
                         id = serie.seriesId,
-                        streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES),
+                        streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES, "m3u8"),
                         title = serie.name,
                         type = ContentType.SERIES
                     )
                 )
             }
             Log.d("PreloadingManager", "Encontradas ${series.size} series populares")
+            */
             
             // Obtener 2 canales desde liveRepository
             val liveStreams = liveRepository.getRawLiveStreams(user.id).first().take(2)
@@ -202,7 +235,7 @@ class PreloadingManager(
                 popularContent.add(
                     Content(
                         id = stream.streamId,
-                        streamUrl = buildStreamUrl(stream.streamId, ContentType.CHANNEL),
+                        streamUrl = buildStreamUrl(stream.streamId, ContentType.CHANNEL, "ts"),
                         title = stream.name,
                         type = ContentType.CHANNEL
                     )
@@ -291,35 +324,38 @@ class PreloadingManager(
                 
                 // Buscar contenido similar en la base de datos
                 val movies = vodRepository.getAllMovies(user.id).first()
-                val series = vodRepository.getAllSeries(user.id).first()
                 
                 // Recomendar películas similares a las más vistas
                 movies.filter { !mostWatchedIds.contains(it.streamId) }
-                    .take(3)
+                    .take(5)
                     .forEach { movie ->
                         recommendations.add(
                             Content(
                                 id = movie.streamId,
-                                streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE),
+                                streamUrl = buildStreamUrl(movie.streamId, ContentType.MOVIE, movie.containerExtension),
                                 title = movie.name,
                                 type = ContentType.MOVIE
                             )
                         )
                     }
                 
-                // Recomendar series similares a las más vistas
+                // Series recommendations disabled to avoid 403 errors
+                // TODO: Implement episode-specific recommendation logic in the future
+                /*
+                val series = vodRepository.getAllSeries(user.id).first()
                 series.filter { !mostWatchedIds.contains(it.seriesId) }
                     .take(2)
                     .forEach { serie ->
                         recommendations.add(
                             Content(
                                 id = serie.seriesId,
-                                streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES),
+                                streamUrl = buildStreamUrl(serie.seriesId, ContentType.SERIES, "m3u8"),
                                 title = serie.name,
                                 type = ContentType.SERIES
                             )
                         )
                     }
+                */
             } else {
                 // Fallback a contenido popular si no hay suficiente historial
                 Log.d("PreloadingManager", "Sin historial suficiente, usando contenido popular como fallback")
@@ -367,7 +403,7 @@ class PreloadingManager(
                     seriesId = seriesId,
                     episodeNumber = nextEpisodeInSeason.episodeNum,
                     seasonNumber = nextEpisodeInSeason.season,
-                    streamUrl = buildStreamUrl(nextEpisodeInSeason.id.toIntOrNull() ?: 0, ContentType.SERIES),
+                    streamUrl = buildStreamUrl(nextEpisodeInSeason.id.toIntOrNull() ?: 0, ContentType.SERIES, nextEpisodeInSeason.containerExtension),
                     title = nextEpisodeInSeason.title ?: "Episodio ${nextEpisodeInSeason.episodeNum}"
                 )
             }
@@ -389,7 +425,7 @@ class PreloadingManager(
                         seriesId = seriesId,
                         episodeNumber = firstEpisodeNextSeason.episodeNum,
                         seasonNumber = firstEpisodeNextSeason.season,
-                        streamUrl = buildStreamUrl(firstEpisodeNextSeason.id.toIntOrNull() ?: 0, ContentType.SERIES),
+                        streamUrl = buildStreamUrl(firstEpisodeNextSeason.id.toIntOrNull() ?: 0, ContentType.SERIES, firstEpisodeNextSeason.containerExtension),
                         title = firstEpisodeNextSeason.title ?: "Episodio ${firstEpisodeNextSeason.episodeNum}"
                     )
                 }
@@ -407,15 +443,15 @@ class PreloadingManager(
     /**
      * Construye URLs reales para streams usando las credenciales del usuario
      */
-    private fun buildStreamUrl(streamId: Int, contentType: ContentType): String {
+    private fun buildStreamUrl(streamId: Int, contentType: ContentType, extension: String): String {
         val baseUrl = user.url.trimEnd('/')
         val username = user.username
         val password = user.password
         
         return when (contentType) {
-            ContentType.MOVIE -> "$baseUrl/$username/$password/$streamId.m3u8"
-            ContentType.SERIES -> "$baseUrl/series/$username/$password/$streamId.m3u8"
-            ContentType.CHANNEL -> "$baseUrl/live/$username/$password/$streamId.m3u8"
+            ContentType.MOVIE -> "$baseUrl/movie/$username/$password/$streamId.$extension"
+            ContentType.SERIES -> "$baseUrl/series/$username/$password/$streamId.$extension"
+            ContentType.CHANNEL -> "$baseUrl/live/$username/$password/$streamId.$extension"
         }
     }
 }
