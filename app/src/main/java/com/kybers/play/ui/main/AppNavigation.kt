@@ -14,6 +14,7 @@ import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.LoginViewModelFactory
+import com.kybers.play.ui.SyncViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.details.MovieDetailsScreen
@@ -31,6 +32,8 @@ import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.login.LoginScreen
 import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.splash.SplashScreen
+import com.kybers.play.ui.sync.SyncScreen
+import com.kybers.play.ui.sync.SyncViewModel
 import com.kybers.play.cache.PreloadingManager
 
 @Composable
@@ -42,6 +45,7 @@ fun AppNavHost(
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory,
     loginViewModelFactory: LoginViewModelFactory,
+    syncViewModelFactoryProvider: @Composable (Int) -> SyncViewModelFactory,
     preloadingManager: PreloadingManager,
     currentUserId: Int,
     onPlayerUiStateChanged: (isFullScreen: Boolean, isPipMode: Boolean) -> Unit
@@ -135,20 +139,20 @@ fun AppNavHost(
             arguments = listOf(navArgument("userId") { type = NavType.IntType })
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
-            // TODO: Implement SyncScreen composable when needed
-            // For now, navigate directly to main
-            navController.navigate(Screen.Main.createRoute(userId)) {
-                popUpTo(Screen.Login.route) { inclusive = true }
-            }
+            val factory = syncViewModelFactoryProvider(userId)
+            val viewModel: SyncViewModel = viewModel(factory = factory)
+            SyncScreen(
+                navController = navController,
+                viewModel = viewModel,
+                userId = userId
+            )
         }
         composable(
             route = Screen.Main.route,
             arguments = listOf(navArgument("userId") { type = NavType.IntType })
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
-            // TODO: Navigate to main app content with this userId
-            // This would typically involve transitioning to the UserBasedMainScreen
-            // For now, just show home screen
+            // Navigate to home screen with proper navigation stack clearing
             navController.navigate(Screen.Home.route) {
                 popUpTo(Screen.Splash.route) { inclusive = true }
             }

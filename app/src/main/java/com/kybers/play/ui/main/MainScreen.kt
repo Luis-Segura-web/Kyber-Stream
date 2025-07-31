@@ -24,6 +24,7 @@ import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.LoginViewModelFactory
+import com.kybers.play.ui.SyncViewModelFactory
 import com.kybers.play.cache.PreloadingManager
 import com.kybers.play.cache.CacheVerification
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +67,7 @@ fun MainScreen(
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory, // --- ¡NUEVO! ---
     loginViewModelFactory: LoginViewModelFactory, // --- ¡NUEVO! ---
+    syncViewModelFactoryProvider: @Composable (Int) -> SyncViewModelFactory, // --- ¡NUEVO! ---
     preloadingManager: PreloadingManager, // NUEVO PARÁMETRO
     currentUserId: Int // NUEVO PARÁMETRO PARA USUARIO ACTUAL
 ) {
@@ -134,6 +136,7 @@ fun MainScreen(
             seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
             settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
             loginViewModelFactory = loginViewModelFactory,
+            syncViewModelFactoryProvider = syncViewModelFactoryProvider,
             preloadingManager = preloadingManager,
             currentUserId = currentUserId,
             onPlayerUiStateChanged = { isFull, isPip ->

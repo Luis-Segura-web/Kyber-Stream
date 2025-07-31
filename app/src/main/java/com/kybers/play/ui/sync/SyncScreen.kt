@@ -18,20 +18,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 
 /**
  * A full-screen composable that displays a loading indicator and a message
  * that updates according to the current step of the data synchronization process.
  *
+ * @param navController The NavController for navigation between screens.
  * @param viewModel The [SyncViewModel] that controls the state of this screen.
- * @param onSyncComplete A callback that is invoked when the synchronization is successful.
- * @param onSyncFailed A callback that is invoked if the synchronization fails.
+ * @param userId The user ID to navigate to main screen after successful sync.
  */
 @Composable
 fun SyncScreen(
+    navController: NavController,
     viewModel: SyncViewModel,
-    onSyncComplete: () -> Unit,
-    onSyncFailed: () -> Unit
+    userId: Int
 ) {
     // Observe the sync state from the ViewModel.
     val syncState by viewModel.syncState.collectAsState()
@@ -39,8 +40,16 @@ fun SyncScreen(
     // This effect will trigger navigation when the sync state changes to Success or Error.
     LaunchedEffect(syncState) {
         when (syncState) {
-            is SyncState.Success -> onSyncComplete()
-            is SyncState.Error -> onSyncFailed()
+            is SyncState.Success -> {
+                navController.navigate("main/$userId") {
+                    popUpTo("login") { inclusive = true }
+                }
+            }
+            is SyncState.Error -> {
+                navController.navigate("login") {
+                    popUpTo("sync/$userId") { inclusive = true }
+                }
+            }
             else -> { /* Do nothing while syncing */
             }
         }

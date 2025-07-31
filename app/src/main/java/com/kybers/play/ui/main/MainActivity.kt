@@ -194,12 +194,24 @@ private fun UserBasedMainScreen(
                 LoginViewModelFactory(appContainer.userRepository)
             }
 
+            val syncViewModelFactoryProvider = @Composable { userId: Int ->
+                remember(userId) {
+                    com.kybers.play.ui.SyncViewModelFactory(
+                        liveRepository = liveRepository,
+                        vodRepository = vodRepository,
+                        syncManager = appContainer.syncManager,
+                        preferenceManager = appContainer.preferenceManager
+                    )
+                }
+            }
+
             MainScreen(
                 contentViewModelFactory = contentViewModelFactory,
                 movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
                 seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
                 settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
                 loginViewModelFactory = loginViewModelFactory,
+                syncViewModelFactoryProvider = syncViewModelFactoryProvider,
                 preloadingManager = preloadingManager,
                 currentUserId = user!!.id
             )
