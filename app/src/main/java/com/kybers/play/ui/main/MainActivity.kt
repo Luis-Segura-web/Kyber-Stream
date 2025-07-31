@@ -64,6 +64,9 @@ class MainActivity : ComponentActivity() {
                     user != null -> {
                         val vodRepository = remember(user!!.url) { appContainer.createVodRepository(user!!.url) }
                         val liveRepository = remember(user!!.url) { appContainer.createLiveRepository(user!!.url) }
+                        val preloadingManager = remember(user!!.id) { 
+                            appContainer.createPreloadingManager(vodRepository, liveRepository, user!!) 
+                        }
 
                         val contentViewModelFactory = remember(user!!.id) {
                             ContentViewModelFactory(
@@ -128,7 +131,8 @@ class MainActivity : ComponentActivity() {
                             movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
                             seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
                             settingsViewModelFactoryProvider = settingsViewModelFactoryProvider, // La pasamos a MainScreen
-                            preloadingManager = appContainer.preloadingManager // NUEVO PARÁMETRO
+                            preloadingManager = preloadingManager, // USAR EL PRELOADING MANAGER CREADO POR USUARIO
+                            currentUserId = user!!.id // PASAR EL ID DEL USUARIO ACTUAL
                         )
                     }
                     else -> {
