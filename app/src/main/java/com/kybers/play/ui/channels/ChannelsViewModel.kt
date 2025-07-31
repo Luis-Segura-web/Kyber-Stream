@@ -299,16 +299,12 @@ open class ChannelsViewModel(
             mediaPlayer.play()
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
-            
             _uiState.update { it.copy(playerStatus = PlayerStatus.BUFFERING) }
             true
         } catch (e: Exception) {
             Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             throw e
-        }
-    }
-            applyAspectRatio(_uiState.value.currentAspectRatioMode)
         }
     }
 

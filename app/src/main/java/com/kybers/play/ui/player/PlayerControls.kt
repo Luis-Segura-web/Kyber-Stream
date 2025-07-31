@@ -22,6 +22,8 @@ import androidx.compose.material.icons.Icons
 // --- ¡CORRECCIÓN! Se añaden las importaciones que faltaban ---
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.SkipNext
 // --- FIN DE LA CORRECCIÓN ---
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
