@@ -260,7 +260,6 @@ class SeriesDetailsViewModel(
                             retryManager.startRetry(viewModelScope) {
                                 try {
                                     startEpisodePlaybackInternal(currentEpisode, false)
-                                    true
                                 } catch (e: Exception) {
                                     Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
                                     false
@@ -351,7 +350,6 @@ class SeriesDetailsViewModel(
         retryManager.startRetry(viewModelScope) {
             try {
                 startEpisodePlaybackInternal(episode, true)
-                true
             } catch (e: Exception) {
                 Log.e("SeriesDetailsViewModel", "Failed to play episode: ${e.message}", e)
                 false

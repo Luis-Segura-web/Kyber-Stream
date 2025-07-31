@@ -357,7 +357,6 @@ class MovieDetailsViewModel(
                             retryManager.startRetry(viewModelScope) {
                                 try {
                                     startPlaybackInternal(_uiState.value.playbackPosition > 0)
-                                    true
                                 } catch (e: Exception) {
                                     Log.e("MovieDetailsViewModel", "Retry failed: ${e.message}", e)
                                     false
@@ -444,7 +443,6 @@ class MovieDetailsViewModel(
             retryManager.startRetry(viewModelScope) {
                 try {
                     startPlaybackInternal(continueFromLastPosition)
-                    true
                 } catch (e: Exception) {
                     Log.e("MovieDetailsViewModel", "Failed to start playback: ${e.message}", e)
                     false

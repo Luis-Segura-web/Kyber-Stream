@@ -199,7 +199,6 @@ open class ChannelsViewModel(
                             retryManager.startRetry(viewModelScope) {
                                 try {
                                     playChannelInternal(currentChannel)
-                                    true
                                 } catch (e: Exception) {
                                     Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
                                     false
@@ -283,7 +282,6 @@ open class ChannelsViewModel(
             retryManager.startRetry(viewModelScope) {
                 try {
                     playChannelInternal(channel)
-                    true
                 } catch (e: Exception) {
                     Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
                     false
