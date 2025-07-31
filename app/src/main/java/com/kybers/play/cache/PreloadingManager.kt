@@ -40,6 +40,7 @@ class PreloadingManager(
         try {
             // Obtener contenido popular del día
             val popularContent = getPopularContentForToday()
+            Log.d("PreloadingManager", "Encontrado ${popularContent.size} contenidos populares")
             
             popularContent.take(10).forEach { content ->
                 addToPreloadQueue(
@@ -67,6 +68,7 @@ class PreloadingManager(
             // Obtener historial del usuario
             val userHistory = getUserViewingHistory(userId)
             val recommendations = generateRecommendations(userHistory)
+            Log.d("PreloadingManager", "Generadas ${recommendations.size} recomendaciones para usuario $userId")
             
             recommendations.take(5).forEach { content ->
                 addToPreloadQueue(
@@ -90,6 +92,7 @@ class PreloadingManager(
             try {
                 val nextEpisode = getNextEpisode(currentEpisodeId, seriesId)
                 nextEpisode?.let { episode ->
+                    Log.d("PreloadingManager", "Precargando siguiente episodio: ${episode.title}")
                     addToPreloadQueue(
                         PreloadItem(
                             contentId = episode.id,
@@ -105,6 +108,22 @@ class PreloadingManager(
             }
         }
     }
+    
+    fun getPreloadingStats(): PreloadingStats {
+        val queueSize = synchronized(preloadQueue) { preloadQueue.size }
+        val cacheStats = cacheManager.getCacheStats()
+        return PreloadingStats(
+            isPreloading = _isPreloading.value,
+            queueSize = queueSize,
+            cacheStats = cacheStats
+        )
+    }
+    
+    data class PreloadingStats(
+        val isPreloading: Boolean,
+        val queueSize: Int,
+        val cacheStats: CacheManager.CacheStats
+    )
     
     private fun addToPreloadQueue(item: PreloadItem) {
         synchronized(preloadQueue) {

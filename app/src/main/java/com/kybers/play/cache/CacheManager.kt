@@ -89,7 +89,7 @@ class CacheManager(
             val availableBytes = stat.blockSizeLong * stat.availableBlocksLong
             
             // Usar máximo 10% del espacio disponible o 2GB, lo que sea menor
-            minOf(availableBytes * 0.1, 2L * 1024 * 1024 * 1024).toLong()
+            minOf((availableBytes * 0.1).toLong(), 2L * 1024 * 1024 * 1024)
         } catch (e: Exception) {
             Log.e("CacheManager", "Error calculando tamaño de cache", e)
             // Fallback to 512MB
