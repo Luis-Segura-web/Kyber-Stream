@@ -81,7 +81,7 @@ data class ChannelsUiState(
     val epgUpdateMessage: String? = null,
     val totalChannelCount: Int = 0,
     val retryAttempt: Int = 0,
-    val maxRetryAttempts: Int = 5,
+    val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null
 )
 

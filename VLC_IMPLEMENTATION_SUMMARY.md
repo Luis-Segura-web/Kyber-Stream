@@ -17,7 +17,7 @@
 - Methods: `setMediaSafely()`, `releaseCurrentMedia()`, `stopAndReleaseMedia()`
 
 **RetryManager.kt**
-- Exponential backoff retry logic (1s, 2s, 4s, 8s, 16s delays)
+- Exponential backoff retry logic (1s, 2s, 4s delays)
 - Coroutine-based async retry operations
 - UI callback system for retry status updates
 - Methods: `startRetry()`, `cancelRetry()`, `reset()`, `isRetrying()`
@@ -140,7 +140,7 @@ onRetry: () -> Unit = {}
 - **Normal States**: Play/pause button
 
 #### Status Messages:
-- "Reintentando... (2/5)" during retry attempts
+- "Reintentando... (2/3)" during retry attempts
 - "Error de conexión. Verifica tu red e inténtalo de nuevo." on failure
 - Context-aware messages for different error types
 

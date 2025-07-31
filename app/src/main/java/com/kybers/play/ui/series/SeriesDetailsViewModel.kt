@@ -76,7 +76,7 @@ data class SeriesDetailsUiState(
     val isInPipMode: Boolean = false,
     val playbackStates: Map<String, Pair<Long, Long>> = emptyMap(),
     val retryAttempt: Int = 0,
-    val maxRetryAttempts: Int = 5,
+    val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null
 )
 

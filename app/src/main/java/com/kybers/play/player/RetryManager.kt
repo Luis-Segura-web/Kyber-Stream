@@ -8,10 +8,10 @@ import kotlinx.coroutines.launch
 
 /**
  * Manages retry logic for VLC playback failures with exponential backoff
- * Implements 5 retry attempts with delays: 1s, 2s, 4s, 8s, 16s
+ * Implements 3 retry attempts with delays: 1s, 2s, 4s
  */
 class RetryManager(
-    private val maxRetries: Int = 5,
+    private val maxRetries: Int = 3,
     private val baseDelayMs: Long = 1000L,
     private val onRetryAttempt: (attempt: Int, maxRetries: Int) -> Unit,
     private val onRetrySuccess: () -> Unit,

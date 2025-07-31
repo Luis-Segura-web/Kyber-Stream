@@ -245,7 +245,13 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     onSelectAudioTrack = viewModel::selectAudioTrack,
                     onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
-                    onSeek = viewModel::seekTo
+                    onSeek = viewModel::seekTo,
+                    // Add retry parameters
+                    playerStatus = uiState.playerStatus,
+                    retryAttempt = uiState.retryAttempt,
+                    maxRetryAttempts = uiState.maxRetryAttempts,
+                    retryMessage = uiState.retryMessage,
+                    onRetry = viewModel::retryCurrentEpisode
                 )
             }
         }

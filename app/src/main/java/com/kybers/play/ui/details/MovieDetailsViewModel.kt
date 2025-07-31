@@ -81,7 +81,7 @@ data class MovieDetailsUiState(
     val duration: Long = 0L,
     val isInPipMode: Boolean = false,
     val retryAttempt: Int = 0,
-    val maxRetryAttempts: Int = 5,
+    val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null
 )
 
