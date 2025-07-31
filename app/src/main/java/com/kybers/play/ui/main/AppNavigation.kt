@@ -251,36 +251,20 @@ fun AppNavHost(
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
             
-            // Load user to get URL for creating repositories
-            var user by remember { mutableStateOf<com.kybers.play.data.local.model.User?>(null) }
-            LaunchedEffect(userId) {
-                user = appContainer.userRepository.getUserById(userId)
-            }
-            
-            user?.let { currentUser ->
-                val vodRepository = remember(currentUser.url) { appContainer.createVodRepository(currentUser.url) }
-                val liveRepository = remember(currentUser.url) { appContainer.createLiveRepository(currentUser.url) }
-                
-                val syncViewModelFactory = remember(userId) {
-                    SyncViewModelFactory(
-                        liveRepository = liveRepository,
-                        vodRepository = vodRepository,
-                        syncManager = appContainer.syncManager,
-                        preferenceManager = appContainer.preferenceManager
-                    )
-                }
-                val viewModel: SyncViewModel = viewModel(factory = syncViewModelFactory)
-                SyncScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    userId = userId
+            val syncViewModelFactory = remember(userId) {
+                SyncViewModelFactory(
+                    syncManager = appContainer.syncManager,
+                    preferenceManager = appContainer.preferenceManager,
+                    userRepository = appContainer.userRepository,
+                    appContainer = appContainer
                 )
-            } ?: run {
-                // Show loading while user is being loaded
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.CircularProgressIndicator()
-                }
             }
+            val viewModel: SyncViewModel = viewModel(factory = syncViewModelFactory)
+            SyncScreen(
+                navController = navController,
+                viewModel = viewModel,
+                userId = userId
+            )
         }
         composable(
             route = Screen.Main.route,

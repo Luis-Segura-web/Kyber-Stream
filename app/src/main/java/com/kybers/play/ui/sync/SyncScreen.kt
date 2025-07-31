@@ -37,6 +37,11 @@ fun SyncScreen(
     // Observe the sync state from the ViewModel.
     val syncState by viewModel.syncState.collectAsState()
 
+    // Start sync automatically when the screen appears
+    LaunchedEffect(Unit) {
+        viewModel.startSync(userId)
+    }
+
     // This effect will trigger navigation when the sync state changes to Success or Error.
     LaunchedEffect(syncState) {
         when (syncState) {
