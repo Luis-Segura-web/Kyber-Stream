@@ -26,17 +26,17 @@ fun ThemePreview(
 ) {
     val colors = if (isLightTheme) {
         mapOf(
-            "primary" to LightTheme.Primary,
-            "secondary" to LightTheme.Secondary,
-            "background" to LightTheme.Background,
-            "surface" to LightTheme.Surface
+            "primary" to BlueTheme.Primary,
+            "secondary" to BlueTheme.Secondary,
+            "background" to BlueTheme.BackgroundLight,
+            "surface" to BlueTheme.SurfaceLight
         )
     } else {
         mapOf(
-            "primary" to DarkTheme.Primary,
-            "secondary" to DarkTheme.Secondary,
-            "background" to DarkTheme.Background,
-            "surface" to DarkTheme.Surface
+            "primary" to BlueTheme.Primary,
+            "secondary" to BlueTheme.Secondary,
+            "background" to BlueTheme.BackgroundDark,
+            "surface" to BlueTheme.SurfaceDark
         )
     }
     
