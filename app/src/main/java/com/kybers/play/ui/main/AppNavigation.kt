@@ -95,7 +95,7 @@ private fun MainScreenWithBottomNav(
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it }
             ) {
-                ResponsiveNavigation(
+                com.kybers.play.ui.main.ResponsiveNavigation(
                     navController = navController,
                     currentDestination = currentDestination,
                     isVisible = true
@@ -108,7 +108,7 @@ private fun MainScreenWithBottomNav(
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it }
             ) {
-                ResponsiveNavigationRail(
+                com.kybers.play.ui.main.ResponsiveNavigationRail(
                     navController = navController,
                     currentDestination = currentDestination
                 )
