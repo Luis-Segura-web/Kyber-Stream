@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -167,7 +170,7 @@ private fun EnhancedTopControls(
         verticalAlignment = Alignment.CenterVertically
     ) {
         EnhancedPlayerButton(
-            icon = Icons.Default.ArrowBack,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
             onClick = onBackPressed,
             contentDescription = "Volver"
         )
@@ -293,7 +296,7 @@ private fun EnhancedBottomControls(
                 // Volume controls
                 Box {
                     EnhancedPlayerButton(
-                        icon = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        icon = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                         onClick = onVolumeSliderToggle,
                         contentDescription = "Volumen"
                     )
@@ -433,7 +436,7 @@ private fun EnhancedVolumeSlider(
         ) {
             IconButton(onClick = onMuteToggle) {
                 Icon(
-                    imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                    imageVector = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = "Alternar silencio",
                     tint = Color.White
                 )
