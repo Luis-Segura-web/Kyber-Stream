@@ -343,12 +343,37 @@ fun SeriesDetailsContent(
 fun EpisodesContent(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewModel) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
-            SeasonTabs(
-                seasons = uiState.seasons,
-                selectedSeasonNumber = uiState.selectedSeasonNumber,
-                onSeasonSelected = viewModel::selectSeason
-            )
+            Column {
+                SeasonTabs(
+                    seasons = uiState.seasons,
+                    selectedSeasonNumber = uiState.selectedSeasonNumber,
+                    onSeasonSelected = viewModel::selectSeason
+                )
+                
+                // Mostrar indicador cuando las imágenes se están cargando
+                if (uiState.isLoadingImages) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cargando imágenes...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
+        
         val episodes = uiState.episodesBySeason[uiState.selectedSeasonNumber] ?: emptyList()
         if (episodes.isEmpty() && !uiState.isLoading) {
             item {
@@ -363,7 +388,8 @@ fun EpisodesContent(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewM
                 EpisodeListItem(
                     episode = episode,
                     playbackState = uiState.playbackStates[episode.id],
-                    onPlayClick = { viewModel.playEpisode(episode) }
+                    onPlayClick = { viewModel.playEpisode(episode) },
+                    isImageLoading = uiState.isLoadingImages && episode.imageUrl.isNullOrBlank()
                 )
             }
         }
@@ -587,7 +613,8 @@ fun SeasonTabs(
 fun EpisodeListItem(
     episode: Episode,
     playbackState: Pair<Long, Long>?,
-    onPlayClick: () -> Unit
+    onPlayClick: () -> Unit,
+    isImageLoading: Boolean = false
 ) {
     val position = playbackState?.first ?: 0L
     val duration = playbackState?.second ?: 0L
@@ -605,21 +632,39 @@ fun EpisodeListItem(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(episode.imageUrl)
-                .crossfade(true)
-                .fallback(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
-                .build(),
-            contentDescription = "Imagen del episodio ${episode.title}",
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
                 .width(120.dp)
                 .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-        )
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(episode.imageUrl)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = "Imagen del episodio ${episode.title}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Mostrar indicador de carga sobre la imagen si es necesario
+            if (isImageLoading && episode.imageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.width(16.dp))
 

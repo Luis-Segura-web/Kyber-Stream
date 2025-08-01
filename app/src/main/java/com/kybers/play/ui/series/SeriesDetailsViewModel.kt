@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit
 
 data class SeriesDetailsUiState(
     val isLoading: Boolean = true,
+    val isLoadingImages: Boolean = false,
     val seriesInfo: Series? = null,
     val seasons: List<Season> = emptyList(),
     val episodesBySeason: Map<Int, List<Episode>> = emptyMap(),
@@ -155,17 +156,23 @@ class SeriesDetailsViewModel(
                 _uiState.update { it.copy(isLoading = false, error = "Error al cargar episodios: ${e.message}") }
             }.collect { seriesInfoResponse ->
                 if (seriesInfoResponse != null) {
-                    val enrichedEpisodesMap = enrichEpisodesWithTmdbData(seriesInfoResponse.episodes)
-
+                    // Mostrar la UI inmediatamente con los datos básicos
+                    val basicEpisodesMap = seriesInfoResponse.episodes.mapKeys { it.key.toInt() }
+                    
                     _uiState.update { currentState ->
                         currentState.copy(
                             isLoading = false,
                             seasons = seriesInfoResponse.seasons.sortedBy { season -> season.seasonNumber },
-                            episodesBySeason = enrichedEpisodesMap,
-                            selectedSeasonNumber = seriesInfoResponse.seasons.minOfOrNull { season -> season.seasonNumber } ?: 1
+                            episodesBySeason = basicEpisodesMap,
+                            selectedSeasonNumber = seriesInfoResponse.seasons.minOfOrNull { season -> season.seasonNumber } ?: 1,
+                            isLoadingImages = true
                         )
                     }
+                    
                     loadPlaybackStatesForSeason(_uiState.value.selectedSeasonNumber)
+                    
+                    // Cargar imágenes de TMDb en segundo plano de forma progresiva
+                    loadEpisodeImagesProgressively(basicEpisodesMap)
                 } else {
                     _uiState.update { it.copy(isLoading = false, error = "No se encontraron episodios para esta serie.") }
                 }
@@ -173,15 +180,31 @@ class SeriesDetailsViewModel(
         }
     }
 
-    private suspend fun enrichEpisodesWithTmdbData(originalEpisodes: Map<String, List<Episode>>): Map<Int, List<Episode>> {
-        val tmdbId = _uiState.value.seriesInfo?.tmdbId?.toIntOrNull() ?: return originalEpisodes.mapKeys { it.key.toInt() }
-
-        return coroutineScope {
-            val enrichedMap = mutableMapOf<Int, List<Episode>>()
-            originalEpisodes.forEach { (seasonNum, episodeList) ->
-                val deferredEnrichedList = episodeList.map { episode ->
-                    async {
-                        if (episode.imageUrl.isNullOrBlank()) {
+    private fun loadEpisodeImagesProgressively(episodesMap: Map<Int, List<Episode>>) {
+        viewModelScope.launch {
+            val tmdbId = _uiState.value.seriesInfo?.tmdbId?.toIntOrNull()
+            if (tmdbId == null) {
+                _uiState.update { it.copy(isLoadingImages = false) }
+                return@launch
+            }
+            
+            // Cargar imágenes por temporadas, empezando por la temporada seleccionada
+            val selectedSeason = _uiState.value.selectedSeasonNumber
+            val sortedSeasons = episodesMap.keys.sortedWith { a, b ->
+                when {
+                    a == selectedSeason -> -1
+                    b == selectedSeason -> 1
+                    else -> a.compareTo(b)
+                }
+            }
+            
+            for (seasonNumber in sortedSeasons) {
+                val episodes = episodesMap[seasonNumber] ?: continue
+                
+                // Cargar imágenes de esta temporada
+                val enrichedEpisodes = episodes.map { episode ->
+                    if (episode.imageUrl.isNullOrBlank()) {
+                        try {
                             val tmdbImage = detailsRepository.getEpisodeImageFromTMDb(
                                 tvId = tmdbId,
                                 seasonNumber = episode.season,
@@ -191,13 +214,25 @@ class SeriesDetailsViewModel(
                             if (tmdbImage != null) {
                                 episode.imageUrl = tmdbImage
                             }
+                        } catch (e: Exception) {
+                            Log.w("SeriesDetailsViewModel", "Failed to load image for episode ${episode.id}: ${e.message}")
                         }
-                        episode
                     }
+                    episode
                 }
-                enrichedMap[seasonNum.toInt()] = deferredEnrichedList.awaitAll()
+                
+                // Actualizar la UI con las nuevas imágenes
+                _uiState.update { currentState ->
+                    val updatedEpisodesMap = currentState.episodesBySeason.toMutableMap()
+                    updatedEpisodesMap[seasonNumber] = enrichedEpisodes
+                    currentState.copy(episodesBySeason = updatedEpisodesMap)
+                }
+                
+                // Pequeña pausa para no saturar la API de TMDb
+                delay(100)
             }
-            enrichedMap
+            
+            _uiState.update { it.copy(isLoadingImages = false) }
         }
     }
 
