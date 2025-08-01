@@ -5,13 +5,15 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
 /**
- * Centralized manager for VLC player operations with proper lifecycle management
- * and resource cleanup to prevent memory leaks.
+ * Centralized manager for VLC player operations with proper lifecycle management,
+ * network connectivity handling, and resource cleanup to prevent memory leaks.
  */
 class PlayerManager(
     private val application: Application,
@@ -20,13 +22,16 @@ class PlayerManager(
     
     companion object {
         private const val TAG = "PlayerManager"
+        private const val NETWORK_RETRY_DELAY_MS = 2000L
     }
     
     private var libVLC: LibVLC? = null
     private var mediaPlayer: MediaPlayer? = null
     private val mediaManager = MediaManager()
     private var retryManager: RetryManager? = null
+    private var networkObserver: NetworkConnectivityObserver? = null
     private var currentUrl: String? = null // Store current URL for retry
+    private var isPlaybackActive = false
     
     private var onRetryAttempt: ((Int, Int) -> Unit)? = null
     private var onRetrySuccess: (() -> Unit)? = null
@@ -34,7 +39,7 @@ class PlayerManager(
     private var onError: ((String) -> Unit)? = null
     
     /**
-     * Initialize VLC components if not already initialized
+     * Initialize VLC components and network observer if not already initialized
      */
     private fun initializeVLC() {
         if (libVLC == null) {
@@ -47,6 +52,53 @@ class PlayerManager(
             setupEventListener()
             Log.d(TAG, "MediaPlayer initialized")
         }
+        
+        if (networkObserver == null) {
+            networkObserver = NetworkConnectivityObserver(application)
+            setupNetworkObserver()
+            Log.d(TAG, "NetworkConnectivityObserver initialized")
+        }
+    }
+    
+    /**
+     * Setup network connectivity observer
+     */
+    private fun setupNetworkObserver() {
+        networkObserver?.setNetworkCallbacks(
+            onNetworkLost = {
+                Log.w(TAG, "Network lost during playback")
+                if (isPlaybackActive) {
+                    onError?.invoke("Conexión perdida. Reintentando...")
+                    // Pause playback until network is restored
+                    pause()
+                }
+            },
+            onNetworkAvailable = {
+                Log.d(TAG, "Network available, attempting to resume playback")
+                if (isPlaybackActive && currentUrl != null) {
+                    // Wait a bit for network to stabilize, then retry
+                    scope.launch {
+                        delay(NETWORK_RETRY_DELAY_MS)
+                        if (networkObserver?.isCurrentlyConnected() == true) {
+                            retryCurrentMedia()
+                        }
+                    }
+                }
+            },
+            onNetworkChanged = { networkType ->
+                Log.d(TAG, "Network type changed to: $networkType")
+                if (isPlaybackActive && currentUrl != null) {
+                    // Brief pause and resume to handle network transition
+                    scope.launch {
+                        delay(1000) // Short delay for network transition
+                        if (networkObserver?.isCurrentlyConnected() == true) {
+                            resume()
+                        }
+                    }
+                }
+            }
+        )
+        networkObserver?.startMonitoring()
     }
     
     /**
@@ -86,16 +138,30 @@ class PlayerManager(
     private fun setupEventListener() {
         mediaPlayer?.setEventListener { event ->
             when (event.type) {
+                MediaPlayer.Event.Playing -> {
+                    Log.d(TAG, "VLC Event: Playing")
+                    isPlaybackActive = true
+                }
+                MediaPlayer.Event.Paused -> {
+                    Log.d(TAG, "VLC Event: Paused")
+                }
+                MediaPlayer.Event.Stopped -> {
+                    Log.d(TAG, "VLC Event: Stopped")
+                    isPlaybackActive = false
+                }
                 MediaPlayer.Event.EncounteredError -> {
                     Log.e(TAG, "VLC Error encountered, triggering retry")
+                    isPlaybackActive = false
                     onError?.invoke("Error de reproducción detectado")
                     retryCurrentMedia()
                 }
                 MediaPlayer.Event.EndReached -> {
                     Log.d(TAG, "Media playback ended")
+                    isPlaybackActive = false
                 }
-                MediaPlayer.Event.Stopped -> {
-                    Log.d(TAG, "Media playback stopped")
+                MediaPlayer.Event.Buffering -> {
+                    Log.d(TAG, "VLC Event: Buffering (${event.buffering}%)")
+                    // Could add buffering timeout handling here
                 }
                 else -> {
                     // Handle other events as needed
@@ -110,6 +176,14 @@ class PlayerManager(
     fun playMedia(url: String) {
         initializeVLC()
         currentUrl = url // Store current URL for retry
+        isPlaybackActive = true
+        
+        // Check network connectivity before attempting playback
+        if (networkObserver?.isCurrentlyConnected() == false) {
+            Log.w(TAG, "No network connectivity, cannot start playback")
+            onError?.invoke("Sin conexión a internet. Verifica tu red.")
+            return
+        }
         
         retryManager?.startRetry(scope) {
             try {
@@ -179,6 +253,7 @@ class PlayerManager(
      */
     fun stop() {
         try {
+            isPlaybackActive = false
             mediaPlayer?.let { player ->
                 mediaManager.stopAndReleaseMedia(player)
                 Log.d(TAG, "Playback stopped and media released")
@@ -230,7 +305,11 @@ class PlayerManager(
      */
     fun release() {
         try {
+            isPlaybackActive = false
             retryManager?.cancelRetry()
+            
+            networkObserver?.stopMonitoring()
+            networkObserver = null
             
             mediaPlayer?.let { player ->
                 player.setEventListener(null)
@@ -245,6 +324,7 @@ class PlayerManager(
             mediaPlayer = null
             libVLC = null
             retryManager = null
+            currentUrl = null
             
         } catch (e: Exception) {
             Log.e(TAG, "Error during resource release", e)
