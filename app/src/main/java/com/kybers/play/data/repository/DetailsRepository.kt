@@ -111,6 +111,38 @@ class DetailsRepository(
         }
     }
 
+    suspend fun getEpisodeImageFromTMDbWithResponse(tvId: Int, seasonNumber: Int, episodeNumber: Int, episodeId: String): retrofit2.Response<String?> {
+        // No usamos caché aquí porque necesitamos la respuesta completa para el control de límites
+        return try {
+            val response = tmdbApiService.getEpisodeDetailsTMDb(
+                tvId = tvId,
+                seasonNumber = seasonNumber,
+                episodeNumber = episodeNumber,
+                apiKey = BuildConfig.TMDB_API_KEY
+            )
+            // Extraemos la URL de la imagen si la respuesta es exitosa
+            if (response.isSuccessful) {
+                val imageUrl = response.body()?.getFullStillUrl()
+                // Guardamos en caché si es necesario
+                episodeDetailsCacheDao.insertOrUpdate(
+                    com.kybers.play.data.local.model.EpisodeDetailsCache(
+                        episodeId = episodeId,
+                        imageUrl = imageUrl,
+                        lastUpdated = System.currentTimeMillis()
+                    )
+                )
+                // Devolvemos una respuesta con solo la URL de la imagen
+                retrofit2.Response.success(imageUrl)
+            } else {
+                // Devolvemos la respuesta original para manejar códigos de error y encabezados
+                retrofit2.Response.error(response.code(), response.errorBody() ?: okhttp3.ResponseBody.create(null, ""))
+            }
+        } catch (e: Exception) {
+            // En caso de error de red, devolvemos un error 500
+            retrofit2.Response.error(500, okhttp3.ResponseBody.create(null, e.message ?: "Error"))
+        }
+    }
+
     private suspend fun fetchMovieFromTMDb(streamId: Int, tmdbId: Int): MovieDetailsCache? {
         try {
             val response = tmdbApiService.getMovieDetailsTMDb(

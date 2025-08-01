@@ -188,7 +188,6 @@ class SeriesDetailsViewModel(
                 return@launch
             }
             
-            // Cargar imágenes por temporadas, empezando por la temporada seleccionada
             val selectedSeason = _uiState.value.selectedSeasonNumber
             val sortedSeasons = episodesMap.keys.sortedWith { a, b ->
                 when {
@@ -197,41 +196,57 @@ class SeriesDetailsViewModel(
                     else -> a.compareTo(b)
                 }
             }
-            
+
+            var last429Time = 0L
+            var retryAfterMs = 0L
+
             for (seasonNumber in sortedSeasons) {
                 val episodes = episodesMap[seasonNumber] ?: continue
-                
-                // Cargar imágenes de esta temporada
                 val enrichedEpisodes = episodes.map { episode ->
                     if (episode.imageUrl.isNullOrBlank()) {
-                        try {
-                            val tmdbImage = detailsRepository.getEpisodeImageFromTMDb(
-                                tvId = tmdbId,
-                                seasonNumber = episode.season,
-                                episodeNumber = episode.episodeNum,
-                                episodeId = episode.id
-                            )
-                            if (tmdbImage != null) {
-                                episode.imageUrl = tmdbImage
+                        var success = false
+                        var attempts = 0
+                        while (!success && attempts < 3) {
+                            try {
+                                val response = detailsRepository.getEpisodeImageFromTMDbWithResponse(
+                                    tvId = tmdbId,
+                                    seasonNumber = episode.season,
+                                    episodeNumber = episode.episodeNum,
+                                    episodeId = episode.id
+                                )
+                                if (response.isSuccessful) {
+                                    val tmdbImage = response.body()
+                                    if (tmdbImage != null) {
+                                        episode.imageUrl = tmdbImage
+                                    }
+                                    success = true
+                                } else if (response.code() == 429) {
+                                    // Límite de peticiones superado
+                                    val retryAfter = response.headers()["Retry-After"]?.toLongOrNull() ?: 1L
+                                    retryAfterMs = retryAfter * 1000L
+                                    last429Time = System.currentTimeMillis()
+                                    Log.w("SeriesDetailsViewModel", "TMDb rate limit reached. Waiting $retryAfterMs ms.")
+                                    delay(retryAfterMs)
+                                } else {
+                                    Log.w("SeriesDetailsViewModel", "TMDb error: ${response.code()} - ${response.message()}")
+                                    success = true // No reintentar otros errores
+                                }
+                            } catch (e: Exception) {
+                                Log.w("SeriesDetailsViewModel", "Failed to load image for episode ${episode.id}: ${e.message}")
+                                attempts++
+                                delay(200)
                             }
-                        } catch (e: Exception) {
-                            Log.w("SeriesDetailsViewModel", "Failed to load image for episode ${episode.id}: ${e.message}")
                         }
                     }
                     episode
                 }
-                
-                // Actualizar la UI con las nuevas imágenes
                 _uiState.update { currentState ->
                     val updatedEpisodesMap = currentState.episodesBySeason.toMutableMap()
                     updatedEpisodesMap[seasonNumber] = enrichedEpisodes
                     currentState.copy(episodesBySeason = updatedEpisodesMap)
                 }
-                
-                // Pequeña pausa para no saturar la API de TMDb
-                delay(100)
+                delay(30)
             }
-            
             _uiState.update { it.copy(isLoadingImages = false) }
         }
     }
