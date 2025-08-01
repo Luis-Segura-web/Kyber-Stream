@@ -12,87 +12,150 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 /**
- * Elegant theme for IPTV App with dynamic theme switching
+ * Tema azul elegante para Kyber Stream con alto contraste
  */
 @Composable
-fun IPTVAppTheme(
+fun KyberStreamTheme(
     themeManager: ThemeManager? = null,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
     val currentThemeManager = themeManager ?: rememberThemeManager(context)
     
-    // Get the current theme preference
     val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
     
-    // Create elegant color schemes
+    // === ESQUEMAS DE COLOR OPTIMIZADOS ===
     val darkColors = darkColorScheme(
-        primary = DarkTheme.Primary,
-        onPrimary = DarkTheme.OnPrimary,
-        primaryContainer = DarkTheme.PrimaryVariant,
-        onPrimaryContainer = DarkTheme.OnPrimary,
+        // Primarios
+        primary = BlueTheme.Primary,
+        onPrimary = BlueTheme.OnPrimary,
+        primaryContainer = BlueTheme.PrimaryVariant,
+        onPrimaryContainer = BlueTheme.OnPrimary,
         
-        secondary = DarkTheme.Secondary,
-        onSecondary = DarkTheme.OnSecondary,
-        secondaryContainer = DarkTheme.SecondaryVariant,
-        onSecondaryContainer = DarkTheme.OnSecondary,
+        // Secundarios
+        secondary = BlueTheme.Secondary,
+        onSecondary = BlueTheme.OnSecondary,
+        secondaryContainer = BlueTheme.SecondaryVariant,
+        onSecondaryContainer = BlueTheme.OnSecondary,
         
-        background = DarkTheme.Background,
-        onBackground = DarkTheme.OnBackground,
-        surface = DarkTheme.Surface,
-        onSurface = DarkTheme.OnSurface,
-        surfaceVariant = DarkTheme.SurfaceVariant,
-        onSurfaceVariant = DarkTheme.OnSurface,
+        // Terciarios (usando acentos)
+        tertiary = BlueTheme.Accent,
+        onTertiary = BlueTheme.OnPrimary,
+        tertiaryContainer = BlueTheme.AccentDark,
+        onTertiaryContainer = BlueTheme.OnPrimary,
         
-        outline = DarkTheme.Outline,
-        error = DarkTheme.Error,
-        onError = DarkTheme.OnError
+        // Superficies
+        background = BlueTheme.BackgroundDark,
+        onBackground = BlueTheme.OnBackgroundDark,
+        surface = BlueTheme.SurfaceDark,
+        onSurface = BlueTheme.OnSurfaceDark,
+        surfaceVariant = BlueTheme.SurfaceVariantDark,
+        onSurfaceVariant = BlueTheme.OnSurfaceDark,
+        
+        // Otros
+        outline = BlueTheme.OutlineDark,
+        outlineVariant = BlueTheme.OutlineDark.copy(alpha = 0.5f),
+        error = BlueTheme.Error,
+        onError = BlueTheme.OnError,
+        errorContainer = BlueTheme.ErrorDark,
+        onErrorContainer = BlueTheme.OnError,
+        
+        // Superficies especiales
+        surfaceTint = BlueTheme.Primary,
+        inverseSurface = BlueTheme.OnSurfaceDark,
+        inverseOnSurface = BlueTheme.SurfaceDark,
+        inversePrimary = BlueTheme.PrimaryLight,
+        
+        // Containers especiales
+        surfaceContainer = BlueTheme.SurfaceDark,
+        surfaceContainerHigh = BlueTheme.SurfaceVariantDark,
+        surfaceContainerHighest = BlueTheme.SurfaceVariantDark.copy(alpha = 0.9f),
+        surfaceContainerLow = BlueTheme.SurfaceDark.copy(alpha = 0.8f),
+        surfaceContainerLowest = BlueTheme.BackgroundDark,
+        
+        // Bordes y sombras
+        scrim = BlueUIColors.CardOverlay
     )
     
     val lightColors = lightColorScheme(
-        primary = LightTheme.Primary,
-        onPrimary = LightTheme.OnPrimary,
-        primaryContainer = LightTheme.PrimaryVariant,
-        onPrimaryContainer = LightTheme.OnPrimary,
+        // Primarios
+        primary = BlueTheme.Primary,
+        onPrimary = BlueTheme.OnPrimary,
+        primaryContainer = BlueTheme.PrimaryLight,
+        onPrimaryContainer = BlueTheme.PrimaryVariant,
         
-        secondary = LightTheme.Secondary,
-        onSecondary = LightTheme.OnSecondary,
-        secondaryContainer = LightTheme.SecondaryVariant,
-        onSecondaryContainer = LightTheme.OnSecondary,
+        // Secundarios
+        secondary = BlueTheme.Secondary,
+        onSecondary = BlueTheme.OnSecondary,
+        secondaryContainer = BlueTheme.SecondaryLight,
+        onSecondaryContainer = BlueTheme.SecondaryVariant,
         
-        background = LightTheme.Background,
-        onBackground = LightTheme.OnBackground,
-        surface = LightTheme.Surface,
-        onSurface = LightTheme.OnSurface,
-        surfaceVariant = LightTheme.SurfaceVariant,
-        onSurfaceVariant = LightTheme.OnSurface,
+        // Terciarios
+        tertiary = BlueTheme.Accent,
+        onTertiary = BlueTheme.OnPrimary,
+        tertiaryContainer = BlueTheme.AccentLight,
+        onTertiaryContainer = BlueTheme.AccentDark,
         
-        outline = LightTheme.Outline,
-        error = LightTheme.Error,
-        onError = LightTheme.OnError
+        // Superficies
+        background = BlueTheme.BackgroundLight,
+        onBackground = BlueTheme.OnBackgroundLight,
+        surface = BlueTheme.SurfaceLight,
+        onSurface = BlueTheme.OnSurfaceLight,
+        surfaceVariant = BlueTheme.SurfaceVariantLight,
+        onSurfaceVariant = BlueTheme.OnSurfaceLight,
+        
+        // Otros
+        outline = BlueTheme.OutlineLight,
+        outlineVariant = BlueTheme.OutlineLight.copy(alpha = 0.5f),
+        error = BlueTheme.ErrorDark,
+        onError = BlueTheme.OnError,
+        errorContainer = BlueTheme.Error.copy(alpha = 0.1f),
+        onErrorContainer = BlueTheme.ErrorDark,
+        
+        // Superficies especiales
+        surfaceTint = BlueTheme.Primary,
+        inverseSurface = BlueTheme.OnSurfaceLight,
+        inverseOnSurface = BlueTheme.SurfaceLight,
+        inversePrimary = BlueTheme.Primary,
+        
+        // Containers
+        surfaceContainer = BlueTheme.SurfaceLight,
+        surfaceContainerHigh = BlueTheme.SurfaceVariantLight,
+        surfaceContainerHighest = BlueTheme.SurfaceVariantLight.copy(alpha = 0.9f),
+        surfaceContainerLow = BlueTheme.SurfaceLight.copy(alpha = 0.8f),
+        surfaceContainerLowest = BlueTheme.BackgroundLight,
+        
+        scrim = BlueUIColors.CardOverlay.copy(alpha = 0.3f)
     )
 
     val colors = if (isDarkTheme) darkColors else lightColors
 
-    // Configure system UI (status bar, navigation bar)
+    // === CONFIGURACIÓN DE BARRAS DEL SISTEMA ===
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.setDecorFitsSystemWindows(window, false)
+            
+            // Color de la barra de estado
+            window.statusBarColor = colors.surface.toArgb()
+            window.navigationBarColor = colors.surface.toArgb()
+            
             val windowInsetsController = WindowInsetsControllerCompat(window, view)
             windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
             windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
         }
     }
 
-    // Apply the theme
+    // === APLICAR TEMA ===
     MaterialTheme(
         colorScheme = colors,
         typography = Typography
@@ -100,12 +163,27 @@ fun IPTVAppTheme(
         Box(
             modifier = Modifier
                 .systemBarsPadding()
-                .background(colors.background)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = if (isDarkTheme) {
+                            BlueUIColors.BackgroundGradient
+                        } else {
+                            listOf(colors.background, colors.background)
+                        }
+                    )
+                )
         ) {
             content()
         }
     }
 }
+
+// Alias para compatibilidad
+@Composable
+fun IPTVAppTheme(
+    themeManager: ThemeManager? = null,
+    content: @Composable () -> Unit
+) = KyberStreamTheme(themeManager, content)
 
 /**
  * Legacy theme composable for backward compatibility
@@ -122,7 +200,7 @@ fun IPTVAppTheme(
     
     // Override the theme based on the darkTheme parameter if needed
     // This is for backward compatibility only
-    IPTVAppTheme(
+    KyberStreamTheme(
         themeManager = themeManager,
         content = content
     )
