@@ -6,8 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.repository.LiveRepository
-import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.data.repository.UserRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,19 +35,33 @@ sealed class SyncState {
  * repositorio de forma más eficiente, evitando consultas innecesarias a la base de datos.
  */
 class SyncViewModel(
-    private val liveRepository: LiveRepository,
-    private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
-    private val preferenceManager: PreferenceManager
+    private val preferenceManager: PreferenceManager,
+    private val userRepository: UserRepository,
+    private val appContainer: com.kybers.play.AppContainer
 ) : ViewModel() {
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
-    fun startSync(user: User) {
+    fun startSync(userId: Int) {
         viewModelScope.launch {
-            Log.d("SyncViewModel", "Iniciando sincronización completa para: ${user.profileName}")
+            Log.d("SyncViewModel", "Iniciando sincronización completa para userId: $userId")
             try {
+                // First, fetch the user data
+                val user = userRepository.getUserById(userId)
+                if (user == null) {
+                    _syncState.update { SyncState.Error("Usuario no encontrado") }
+                    Log.e("SyncViewModel", "Usuario con ID $userId no encontrado")
+                    return@launch
+                }
+                
+                Log.d("SyncViewModel", "Usuario encontrado: ${user.profileName}")
+                
+                // Create repositories with the user's URL
+                val vodRepository = appContainer.createVodRepository(user.url)
+                val liveRepository = appContainer.createLiveRepository(user.url)
+                
                 val vodSyncJob = async {
                     _syncState.update { SyncState.SyncingMovies }
                     // --- ¡LÓGICA CORREGIDA Y OPTIMIZADA! ---
@@ -91,7 +104,7 @@ class SyncViewModel(
 
             } catch (e: Exception) {
                 _syncState.update { SyncState.Error("Fallo al sincronizar datos: ${e.message}") }
-                Log.e("SyncViewModel", "Error durante la sincronización para userId ${user.id}: ${e.message}", e)
+                Log.e("SyncViewModel", "Error durante la sincronización para userId $userId: ${e.message}", e)
             }
         }
     }

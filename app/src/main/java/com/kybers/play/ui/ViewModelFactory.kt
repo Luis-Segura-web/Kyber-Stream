@@ -128,15 +128,15 @@ class SeriesDetailsViewModelFactory(
 
 
 class SyncViewModelFactory(
-    private val liveRepository: LiveRepository,
-    private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
-    private val preferenceManager: PreferenceManager
+    private val preferenceManager: PreferenceManager,
+    private val userRepository: UserRepository,
+    private val appContainer: com.kybers.play.AppContainer
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SyncViewModel(liveRepository, vodRepository, syncManager, preferenceManager) as T
+            return SyncViewModel(syncManager, preferenceManager, userRepository, appContainer) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

@@ -25,12 +25,6 @@ import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
-import com.kybers.play.cache.CacheManager
-import com.kybers.play.cache.PreloadingManager
-import com.kybers.play.cache.StreamPreloader
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import java.util.concurrent.TimeUnit
 
 class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
 
@@ -107,24 +101,6 @@ class AppContainer(private val context: Context) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
     
-    // HTTP Client for cache operations
-    private val httpClient: OkHttpClient by lazy {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-        
-        OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
-    
-    // Cache components
-    val cacheManager by lazy { CacheManager(context) }
-    val streamPreloader by lazy { StreamPreloader(httpClient, cacheManager.getCacheDir()) }
-    
     // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
     val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
 
@@ -161,22 +137,6 @@ class AppContainer(private val context: Context) {
             seriesDao = database.seriesDao(),
             episodeDao = database.episodeDao(),
             categoryCacheDao = database.categoryCacheDao()
-        )
-    }
-    
-    fun createPreloadingManager(
-        vodRepository: VodRepository,
-        liveRepository: LiveRepository,
-        user: com.kybers.play.data.local.model.User
-    ): com.kybers.play.cache.PreloadingManager {
-        return com.kybers.play.cache.PreloadingManager(
-            context = context,
-            cacheManager = cacheManager,
-            streamPreloader = streamPreloader,
-            vodRepository = vodRepository,
-            liveRepository = liveRepository,
-            user = user,
-            preferenceManager = preferenceManager
         )
     }
 }

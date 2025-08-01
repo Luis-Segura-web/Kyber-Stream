@@ -1,11 +1,6 @@
 package com.kybers.play.ui.login
 
-import android.content.Intent
-import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,83 +20,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.kybers.play.MainApplication
 import com.kybers.play.data.local.model.User
-import com.kybers.play.ui.LoginViewModelFactory
-import com.kybers.play.ui.main.MainActivity
-import com.kybers.play.ui.sync.SyncActivity
-import com.kybers.play.ui.theme.IPTVAppTheme
-import com.kybers.play.ui.theme.rememberThemeManager
-
-class LoginActivity : ComponentActivity() {
-
-    private val loginViewModel: LoginViewModel by viewModels {
-        LoginViewModelFactory((application as MainApplication).container.userRepository)
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val syncManager = (application as MainApplication).container.syncManager
-
-        setContent {
-            val themeManager = rememberThemeManager(this@LoginActivity)
-            IPTVAppTheme(themeManager = themeManager) {
-                LoginScreen(
-                    viewModel = loginViewModel,
-                    onUserSelected = { user ->
-                        Log.d("LoginActivity", "Usuario seleccionado: ${user.profileName} (ID: ${user.id})")
-                        if (syncManager.isSyncNeeded(user.id)) {
-                            Log.d("LoginActivity", "Sincronización necesaria para userId: ${user.id}")
-                            navigateToSync(user.id)
-                        } else {
-                            Log.d("LoginActivity", "Sincronización NO necesaria para userId: ${user.id}. Navegando a Main.")
-                            navigateToMain(user.id)
-                        }
-                    },
-                    onNavigateToSyncAfterUserAdded = { newUser ->
-                        Log.d("LoginActivity", "Nuevo usuario añadido: ${newUser.profileName} (ID: ${newUser.id}). Forzando sincronización.")
-                        navigateToSync(newUser.id)
-                    }
-                )
-            }
-        }
-    }
-
-    private fun navigateToSync(userId: Int) {
-        Log.d("LoginActivity", "navigateToSync: Navegando a SyncActivity con userId = $userId")
-        val intent = Intent(this, SyncActivity::class.java).apply {
-            putExtra("USER_ID", userId)
-        }
-        startActivity(intent)
-        finish()
-    }
-
-    private fun navigateToMain(userId: Int) {
-        Log.d("LoginActivity", "navigateToMain: Navegando a MainActivity con userId = $userId")
-        val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra("USER_ID", userId)
-        }
-        startActivity(intent)
-        finish()
-    }
-}
+import com.kybers.play.ui.main.Screen
 
 @Composable
 fun LoginScreen(
-    viewModel: LoginViewModel,
-    onUserSelected: (User) -> Unit,
-    onNavigateToSyncAfterUserAdded: (User) -> Unit
+    navController: NavController,
+    viewModel: LoginViewModel
 ) {
+    val context = LocalContext.current
+    val syncManager = (context.applicationContext as MainApplication).container.syncManager
     val uiState by viewModel.uiState.collectAsState()
     var showAddUserForm by remember { mutableStateOf(false) }
+
+    fun onUserSelected(user: User) {
+        Log.d("LoginScreen", "Usuario seleccionado: ${user.profileName} (ID: ${user.id})")
+        if (syncManager.isSyncNeeded(user.id)) {
+            Log.d("LoginScreen", "Sincronización necesaria para userId: ${user.id}")
+            navController.navigate(Screen.Sync.createRoute(user.id))
+        } else {
+            Log.d("LoginScreen", "Sincronización NO necesaria para userId: ${user.id}. Navegando a Main.")
+            navController.navigate(Screen.Main.createRoute(user.id))
+        }
+    }
+
+    fun onNavigateToSyncAfterUserAdded(newUser: User) {
+        Log.d("LoginScreen", "Nuevo usuario añadido: ${newUser.profileName} (ID: ${newUser.id}). Forzando sincronización.")
+        navController.navigate(Screen.Sync.createRoute(newUser.id))
+    }
 
     LaunchedEffect(uiState) {
         val currentState = uiState
@@ -150,7 +105,7 @@ fun LoginScreen(
                 } else {
                     UserSelectionContent(
                         users = state.users,
-                        onUserSelected = onUserSelected,
+                        onUserSelected = ::onUserSelected,
                         onDeleteUser = { user -> viewModel.deleteUser(user) },
                         onAddUserClicked = { showAddUserForm = true }
                     )

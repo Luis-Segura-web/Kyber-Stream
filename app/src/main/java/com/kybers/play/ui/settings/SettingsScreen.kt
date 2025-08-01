@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.remote.model.Category
-import com.kybers.play.ui.login.LoginActivity
 import com.kybers.play.ui.theme.ThemeSelectionDialog
 import com.kybers.play.ui.theme.ThemeMode
 
@@ -37,7 +36,8 @@ import com.kybers.play.ui.theme.ThemeMode
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateUp: () -> Unit
+    onNavigateUp: () -> Unit,
+    onNavigateToLogin: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -53,10 +53,7 @@ fun SettingsScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is SettingsEvent.NavigateToLogin -> {
-                    val intent = Intent(context, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    context.startActivity(intent)
+                    onNavigateToLogin()
                 }
                 is SettingsEvent.ShowSyncForcedMessage -> Toast.makeText(context, "La sincronización se forzará la próxima vez que inicies sesión.", Toast.LENGTH_LONG).show()
                 is SettingsEvent.ShowSyncCompletedMessage -> Toast.makeText(context, "Sincronización completada exitosamente.", Toast.LENGTH_LONG).show()
