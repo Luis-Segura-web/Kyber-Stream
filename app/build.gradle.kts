@@ -44,10 +44,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("boolean", "DEBUG", "false")
             buildConfigField("String", "TMDB_API_KEY", "\"${localProperties.getProperty("tmdb.api.key")}\"")
             buildConfigField("String", "OMDB_API_KEY", "\"${localProperties.getProperty("omdb.api.key")}\"")
         }
         debug {
+            buildConfigField("boolean", "DEBUG", "true")
             buildConfigField("String", "TMDB_API_KEY", "\"${localProperties.getProperty("tmdb.api.key")}\"")
             buildConfigField("String", "OMDB_API_KEY", "\"${localProperties.getProperty("omdb.api.key")}\"")
         }
