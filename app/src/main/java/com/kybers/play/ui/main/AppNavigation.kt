@@ -34,7 +34,6 @@ import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.splash.SplashScreen
 import com.kybers.play.ui.sync.SyncScreen
 import com.kybers.play.ui.sync.SyncViewModel
-import com.kybers.play.cache.PreloadingManager
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -57,7 +56,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
-import com.kybers.play.cache.CacheVerification
 import com.kybers.play.ui.theme.rememberThemeManager
 
 // Bottom navigation items for the main app
@@ -74,7 +72,6 @@ private fun MainScreenWithBottomNav(
     movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
     seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
     settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory,
-    preloadingManager: PreloadingManager,
     currentUserId: Int,
     onPlayerUiStateChanged: (isFullScreen: Boolean, isPipMode: Boolean) -> Unit,
     onLogout: () -> Unit
@@ -82,29 +79,9 @@ private fun MainScreenWithBottomNav(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val context = LocalContext.current
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
-
-    // Initialize preloading and cache verification
-    LaunchedEffect(Unit) {
-        try {
-            Log.d("MainScreen", "Iniciando verificación y precarga del sistema")
-            
-            // Verify cache system works
-            val cacheVerification = CacheVerification(context)
-            cacheVerification.runBasicTests()
-            
-            preloadingManager.preloadPopularContent()
-            
-            // If user is logged in, preload their preferences
-            preloadingManager.preloadUserPreferences(currentUserId)
-            Log.d("MainScreen", "Sistema de precarga inicializado correctamente")
-        } catch (e: Exception) {
-            Log.e("MainScreen", "Error inicializando sistema de precarga", e)
-        }
-    }
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
@@ -290,9 +267,6 @@ fun AppNavHost(
                 user != null -> {
                     val vodRepository = remember(user!!.url) { appContainer.createVodRepository(user!!.url) }
                     val liveRepository = remember(user!!.url) { appContainer.createLiveRepository(user!!.url) }
-                    val preloadingManager = remember(user!!.id) { 
-                        appContainer.createPreloadingManager(vodRepository, liveRepository, user!!) 
-                    }
 
                     val contentViewModelFactory = remember(user!!.id) {
                         ContentViewModelFactory(
@@ -359,7 +333,6 @@ fun AppNavHost(
                         movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
                         seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
                         settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
-                        preloadingManager = preloadingManager,
                         currentUserId = userId,
                         onPlayerUiStateChanged = { _, _ -> /* Handle player UI state changes if needed */ },
                         onLogout = {
