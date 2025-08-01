@@ -34,6 +34,10 @@ import com.kybers.play.R
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.Series
+import com.kybers.play.ui.responsive.LoadingScreen
+import com.kybers.play.ui.responsive.ResponsiveCard
+import com.kybers.play.ui.theme.LocalDeviceSize
+import com.kybers.play.ui.responsive.DeviceSize
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,60 +50,53 @@ fun HomeScreen(
     onSettingsClick: () -> Unit
 ) {
     val uiState by homeViewModel.uiState.collectAsState()
+    val deviceSize = LocalDeviceSize.current
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Inicio", fontWeight = FontWeight.Bold) },
-                actions = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Person, contentDescription = "Perfil")
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(uiState.userName, fontSize = 14.sp)
-                        IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
-                        }
-                    }
+    // Mostrar pantalla de carga responsiva si está cargando
+    if (uiState.isLoading) {
+        LoadingScreen()
+        return
+    }
+
+    // Usar Surface en lugar de Scaffold para un diseño más limpio
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                // Adaptar padding según tamaño de dispositivo
+                horizontal = when (deviceSize) {
+                    DeviceSize.COMPACT -> 8.dp
+                    DeviceSize.MEDIUM -> 16.dp
+                    DeviceSize.EXPANDED -> 24.dp
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                )
-            )
-        }
-    ) { paddingValues ->
-        if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                if (uiState.bannerContent.isNotEmpty()) {
-                    item {
-                        BannerPager(
-                            content = uiState.bannerContent,
-                            onMovieClick = { onMovieClick(it.streamId) }
-                        )
-                    }
-                }
-
-                // Renderiza dinámicamente cada carrusel de la lista.
-                items(uiState.carousels) { carousel ->
-                    ContentRow(
-                        title = carousel.title,
-                        items = carousel.items,
-                        onMovieClick = onMovieClick,
-                        onSeriesClick = onSeriesClick,
-                        onChannelClick = onChannelClick
+                vertical = 8.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Banner principal con diseño responsivo
+            if (uiState.bannerContent.isNotEmpty()) {
+                item {
+                    ResponsiveBannerPager(
+                        content = uiState.bannerContent,
+                        onMovieClick = { onMovieClick(it.streamId) },
+                        deviceSize = deviceSize
                     )
                 }
+            }
+
+            // Renderiza dinámicamente cada carrusel de la lista con diseño responsivo
+            items(uiState.carousels) { carousel ->
+                ResponsiveContentRow(
+                    title = carousel.title,
+                    items = carousel.items,
+                    onMovieClick = onMovieClick,
+                    onSeriesClick = onSeriesClick,
+                    onChannelClick = onChannelClick,
+                    deviceSize = deviceSize
+                )
             }
         }
     }
@@ -319,4 +316,224 @@ private fun calculateEpgProgress(start: Long, end: Long): Float {
     val totalDuration = (end - start).toFloat()
     val elapsed = (now - start).toFloat()
     return (elapsed / totalDuration).coerceIn(0f, 1f)
+}
+
+// ================================
+// RESPONSIVE COMPONENTS FOR HOME SCREEN
+// ================================
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ResponsiveBannerPager(
+    content: List<Pair<Movie, String?>>, 
+    onMovieClick: (Movie) -> Unit,
+    deviceSize: DeviceSize
+) {
+    val pagerState = rememberPagerState(pageCount = { content.size })
+
+    LaunchedEffect(pagerState.pageCount) {
+        if (pagerState.pageCount > 1) {
+            while (true) {
+                delay(5000L)
+                val nextPage = (pagerState.currentPage + 1) % pagerState.pageCount
+                pagerState.animateScrollToPage(nextPage)
+            }
+        }
+    }
+
+    ResponsiveCard {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(
+                    when (deviceSize) {
+                        DeviceSize.COMPACT -> 200.dp
+                        DeviceSize.MEDIUM -> 250.dp
+                        DeviceSize.EXPANDED -> 300.dp
+                    }
+                )
+        ) { page ->
+            val (movie, backdropUrl) = content[page]
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { onMovieClick(movie) }
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(backdropUrl ?: movie.streamIcon)
+                        .crossfade(true)
+                        .fallback(R.drawable.ic_launcher_background)
+                        .error(R.drawable.ic_launcher_background)
+                        .build(),
+                    contentDescription = movie.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)),
+                                startY = 400f
+                            )
+                        )
+                )
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = movie.name,
+                        style = when (deviceSize) {
+                            DeviceSize.COMPACT -> MaterialTheme.typography.titleMedium
+                            DeviceSize.MEDIUM -> MaterialTheme.typography.titleLarge
+                            DeviceSize.EXPANDED -> MaterialTheme.typography.headlineMedium
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResponsiveContentRow(
+    title: String,
+    items: List<Any>,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    deviceSize: DeviceSize
+) {
+    if (items.isEmpty()) return
+
+    ResponsiveCard {
+        Column {
+            // Título de la sección
+            Text(
+                text = title,
+                style = when (deviceSize) {
+                    DeviceSize.COMPACT -> MaterialTheme.typography.titleMedium
+                    DeviceSize.MEDIUM -> MaterialTheme.typography.titleLarge
+                    DeviceSize.EXPANDED -> MaterialTheme.typography.headlineMedium
+                },
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            
+            // Lista horizontal de elementos
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(items) { item ->
+                    ResponsiveContentItem(
+                        item = item,
+                        onMovieClick = onMovieClick,
+                        onSeriesClick = onSeriesClick,
+                        onChannelClick = onChannelClick,
+                        deviceSize = deviceSize
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResponsiveContentItem(
+    item: Any,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    deviceSize: DeviceSize
+) {
+    val itemWidth = when (deviceSize) {
+        DeviceSize.COMPACT -> 120.dp
+        DeviceSize.MEDIUM -> 150.dp
+        DeviceSize.EXPANDED -> 180.dp
+    }
+    
+    val itemHeight = when (deviceSize) {
+        DeviceSize.COMPACT -> 180.dp
+        DeviceSize.MEDIUM -> 225.dp
+        DeviceSize.EXPANDED -> 270.dp
+    }
+
+    Card(
+        modifier = Modifier
+            .width(itemWidth)
+            .height(itemHeight)
+            .clickable {
+                when (item) {
+                    is Movie -> onMovieClick(item.streamId)
+                    is Series -> onSeriesClick(item.seriesId)
+                    is LiveStream -> onChannelClick(item)
+                }
+            },
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(when (item) {
+                        is Movie -> item.streamIcon
+                        is Series -> item.cover
+                        is LiveStream -> item.streamIcon
+                        else -> ""
+                    })
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = when (item) {
+                    is Movie -> item.name
+                    is Series -> item.name
+                    is LiveStream -> item.name
+                    else -> ""
+                },
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Overlay con título
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
+                            startY = 200f
+                        )
+                    )
+            )
+            
+            Text(
+                text = when (item) {
+                    is Movie -> item.name
+                    is Series -> item.name
+                    is LiveStream -> item.name
+                    else -> ""
+                },
+                style = when (deviceSize) {
+                    DeviceSize.COMPACT -> MaterialTheme.typography.bodySmall
+                    DeviceSize.MEDIUM -> MaterialTheme.typography.bodyMedium
+                    DeviceSize.EXPANDED -> MaterialTheme.typography.bodyLarge
+                },
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+            )
+        }
+    }
 }
