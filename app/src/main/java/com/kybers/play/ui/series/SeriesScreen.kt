@@ -49,6 +49,7 @@ fun SeriesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = rememberLazyListState()
+    val deviceSize = com.kybers.play.ui.theme.LocalDeviceSize.current
 
     LaunchedEffect(Unit) {
         viewModel.scrollToItemEvent.collectLatest { categoryId ->
@@ -66,7 +67,7 @@ fun SeriesScreen(
         }
     }
 
-    Scaffold(
+    com.kybers.play.ui.theme.ResponsiveScaffold(
         topBar = {
             TopAppBar(
                 title = {
