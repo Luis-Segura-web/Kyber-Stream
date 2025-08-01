@@ -74,6 +74,7 @@ fun ErrorView(
 }
 
 // Animaciones para transiciones entre pantallas
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun <T> AnimatedContentTransitions(
     targetState: T,
