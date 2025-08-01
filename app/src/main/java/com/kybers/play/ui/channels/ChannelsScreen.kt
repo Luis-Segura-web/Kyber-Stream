@@ -78,6 +78,7 @@ fun ChannelsScreen(
     val activity = context as? ComponentActivity
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     val lazyListState = rememberLazyListState()
+    val deviceSize = com.kybers.play.ui.theme.LocalDeviceSize.current
 
     LaunchedEffect(uiState.isFullScreen, uiState.isInPipMode) {
         onPlayerUiStateChanged(uiState.isFullScreen, uiState.isInPipMode)
@@ -188,7 +189,7 @@ fun ChannelsScreen(
         }
     }
 
-    Scaffold(
+    com.kybers.play.ui.theme.ResponsiveScaffold(
         topBar = {
             AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isPlayerVisible && !uiState.isInPipMode) {
                 TopAppBar(

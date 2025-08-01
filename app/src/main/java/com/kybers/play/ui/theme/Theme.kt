@@ -8,29 +8,54 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
+// Local composition para acceder al tamaño del dispositivo desde cualquier parte
+val LocalDeviceSize = compositionLocalOf { DeviceSize.COMPACT }
+
+// Formas redondeadas para toda la aplicación
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(24.dp)
+)
+
 /**
- * Tema azul elegante para Kyber Stream con alto contraste
+ * Tema azul elegante para Kyber Stream con alto contraste y diseño responsivo
  */
 @Composable
 fun KyberStreamTheme(
     themeManager: ThemeManager? = null,
+    deviceSize: DeviceSize = rememberDeviceSize(),
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
     val currentThemeManager = themeManager ?: rememberThemeManager(context)
     
     val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
+    
+    // Adaptar tipografía según el tamaño del dispositivo
+    val typography = when (deviceSize) {
+        DeviceSize.COMPACT -> CompactTypography
+        DeviceSize.MEDIUM -> MediumTypography
+        DeviceSize.EXPANDED -> ExpandedTypography
+    }
     
     // === ESQUEMAS DE COLOR OPTIMIZADOS ===
     val darkColors = darkColorScheme(
@@ -156,25 +181,29 @@ fun KyberStreamTheme(
     }
 
     // === APLICAR TEMA ===
-    MaterialTheme(
-        colorScheme = colors,
-        typography = Typography
-    ) {
-        Box(
-            modifier = Modifier
-                .systemBarsPadding()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = if (isDarkTheme) {
-                            BlueUIColors.BackgroundGradient
-                        } else {
-                            listOf(colors.background, colors.background)
-                        }
-                    )
-                )
-        ) {
-            content()
-        }
+    CompositionLocalProvider(LocalDeviceSize provides deviceSize) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = typography,
+            shapes = AppShapes,
+            content = {
+                Box(
+                    modifier = Modifier
+                        .systemBarsPadding()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = if (isDarkTheme) {
+                                    BlueUIColors.BackgroundGradient
+                                } else {
+                                    listOf(colors.background, colors.background)
+                                }
+                            )
+                        )
+                ) {
+                    content()
+                }
+            }
+        )
     }
 }
 
@@ -183,7 +212,7 @@ fun KyberStreamTheme(
 fun IPTVAppTheme(
     themeManager: ThemeManager? = null,
     content: @Composable () -> Unit
-) = KyberStreamTheme(themeManager, content)
+) = KyberStreamTheme(themeManager, content = content)
 
 /**
  * Legacy theme composable for backward compatibility

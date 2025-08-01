@@ -85,31 +85,33 @@ private fun MainScreenWithBottomNav(
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
-    Scaffold(
+    com.kybers.play.ui.theme.ResponsiveScaffold(
+        topBar = {
+            // Top bar can be empty for now, screens will handle their own top bars
+        },
         bottomBar = {
             AnimatedVisibility(
                 visible = isBottomBarVisible,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it }
             ) {
-                NavigationBar {
-                    bottomBarItems.forEach { screen ->
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon!!, contentDescription = screen.label) },
-                            label = { Text(screen.label!!) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        )
-                    }
-                }
+                com.kybers.play.ui.main.ResponsiveNavigation(
+                    navController = navController,
+                    currentDestination = currentDestination,
+                    isVisible = true
+                )
+            }
+        },
+        navigationRail = {
+            AnimatedVisibility(
+                visible = isBottomBarVisible,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it }
+            ) {
+                com.kybers.play.ui.main.ResponsiveNavigationRail(
+                    navController = navController,
+                    currentDestination = currentDestination
+                )
             }
         }
     ) { innerPadding ->
