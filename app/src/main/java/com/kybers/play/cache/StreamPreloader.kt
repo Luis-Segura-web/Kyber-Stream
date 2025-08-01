@@ -76,7 +76,7 @@ class StreamPreloader(
         return withContext(Dispatchers.IO) {
             var lastException: Exception? = null
             
-            repeat(MAX_RETRIES) { attempt ->
+            for (attempt in 0 until MAX_RETRIES) {
                 try {
                     Log.d("StreamPreloader", "Descargando playlist (intento ${attempt + 1}/$MAX_RETRIES): $url")
                     
@@ -138,7 +138,7 @@ class StreamPreloader(
         withContext(Dispatchers.IO) {
             var lastException: Exception? = null
             
-            repeat(MAX_RETRIES) { attempt ->
+            for (attempt in 0 until MAX_RETRIES) {
                 try {
                     Log.d("StreamPreloader", "Descargando segmento $index (intento ${attempt + 1}/$MAX_RETRIES): $segmentUrl")
                     
