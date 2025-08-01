@@ -42,6 +42,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -57,6 +60,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import com.kybers.play.ui.theme.rememberThemeManager
+import com.kybers.play.ui.responsive.ResponsiveScaffold
+import com.kybers.play.ui.responsive.ResponsiveNavigation
+import com.kybers.play.ui.theme.LocalDeviceSize
+import com.kybers.play.ui.responsive.DeviceSize
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(
@@ -84,32 +91,52 @@ private fun MainScreenWithBottomNav(
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
+    val deviceSize = LocalDeviceSize.current
 
-    Scaffold(
+    // Usar ResponsiveScaffold en lugar de Scaffold normal
+    ResponsiveScaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = when(currentDestination?.route) {
+                            Screen.Home.route -> "Inicio"
+                            Screen.Channels.route -> "TV en Vivo" 
+                            Screen.Movies.route -> "Películas"
+                            Screen.Series.route -> "Series"
+                            Screen.Settings.route -> "Ajustes"
+                            else -> "Kyber Stream"
+                        }
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        },
         bottomBar = {
-            AnimatedVisibility(
-                visible = isBottomBarVisible,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it }
-            ) {
-                NavigationBar {
-                    bottomBarItems.forEach { screen ->
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon!!, contentDescription = screen.label) },
-                            label = { Text(screen.label!!) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        )
-                    }
+            // Solo mostrar barra inferior en dispositivos compactos
+            if (deviceSize == DeviceSize.COMPACT && isBottomBarVisible) {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = slideInVertically { it },
+                    exit = slideOutVertically { it }
+                ) {
+                    ResponsiveNavigation(
+                        navController = navController,
+                        currentDestination = currentDestination?.route
+                    )
                 }
+            }
+        },
+        navigationRail = {
+            // Solo mostrar rail de navegación en dispositivos medianos y grandes
+            if (deviceSize != DeviceSize.COMPACT && isBottomBarVisible) {
+                ResponsiveNavigation(
+                    navController = navController,
+                    currentDestination = currentDestination?.route
+                )
             }
         }
     ) { innerPadding ->
@@ -125,7 +152,89 @@ private fun MainScreenWithBottomNav(
                     homeViewModel = homeViewModel,
                     onMovieClick = { movieId -> navController.navigate(Screen.MovieDetails.createRoute(movieId)) },
                     onSeriesClick = { seriesId -> navController.navigate(Screen.SeriesDetails.createRoute(seriesId)) },
-                    onChannelClick = { navController.navigate(Screen.Channels.route) },
+                    onChannelClick = { _ -> navController.navigate(Screen.Channels.route) },
+                    onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                )
+            }
+            composable(Screen.Channels.route) {
+                val channelsViewModel: ChannelsViewModel = viewModel(factory = contentViewModelFactory)
+                ChannelsScreen(
+                    viewModel = channelsViewModel,
+                    onPlayerUiStateChanged = { isFull, isPip ->
+                        isPlayerFullScreen = isFull
+                        isPlayerInPipMode = isPip
+                        onPlayerUiStateChanged(isFull, isPip)
+                    }
+                )
+            }
+            composable(Screen.Movies.route) {
+                val moviesViewModel: MoviesViewModel = viewModel(factory = contentViewModelFactory)
+                MoviesScreen(
+                    viewModel = moviesViewModel,
+                    onNavigateToDetails = { movieId -> navController.navigate(Screen.MovieDetails.createRoute(movieId)) }
+                )
+            }
+            composable(Screen.Series.route) {
+                val seriesViewModel: SeriesViewModel = viewModel(factory = contentViewModelFactory)
+                SeriesScreen(
+                    viewModel = seriesViewModel,
+                    onNavigateToDetails = { seriesId -> navController.navigate(Screen.SeriesDetails.createRoute(seriesId)) }
+                )
+            }
+            composable(
+                route = Screen.MovieDetails.route,
+                arguments = listOf(navArgument("movieId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val movieId = backStackEntry.arguments?.getInt("movieId") ?: 0
+                val factory = movieDetailsViewModelFactoryProvider(movieId)
+                val viewModel: MovieDetailsViewModel = viewModel(factory = factory)
+                MovieDetailsScreen(
+                    viewModel = viewModel,
+                    onNavigateUp = { navController.popBackStack() },
+                    onNavigateToMovie = { newMovieId ->
+                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
+                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(
+                route = Screen.SeriesDetails.route,
+                arguments = listOf(navArgument("seriesId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                val seriesId = backStackEntry.arguments?.getInt("seriesId") ?: 0
+                val factory = seriesDetailsViewModelFactoryProvider(seriesId)
+                val viewModel: SeriesDetailsViewModel = viewModel(factory = factory)
+                SeriesDetailsScreen(
+                    viewModel = viewModel,
+                    onNavigateUp = { navController.popBackStack() },
+                    onNavigateToSeries = { newSeriesId ->
+                        navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
+                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(Screen.Settings.route) {
+                val factory = settingsViewModelFactoryProvider()
+                val viewModel: SettingsViewModel = viewModel(factory = factory)
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateUp = { navController.popBackStack() },
+                    onNavigateToLogin = onLogout
+                )
+            }
+        }
+    }
+}
+        ) {
+            composable(Screen.Home.route) {
+                val homeViewModel: HomeViewModel = viewModel(factory = contentViewModelFactory)
+                HomeScreen(
+                    homeViewModel = homeViewModel,
+                    onMovieClick = { movieId -> navController.navigate(Screen.MovieDetails.createRoute(movieId)) },
+                    onSeriesClick = { seriesId -> navController.navigate(Screen.SeriesDetails.createRoute(seriesId)) },
+                    onChannelClick = { _ -> navController.navigate(Screen.Channels.route) },
                     onSettingsClick = { navController.navigate(Screen.Settings.route) }
                 )
             }

@@ -9,8 +9,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.toArgb
@@ -18,13 +20,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.kybers.play.ui.responsive.DeviceSize
+import com.kybers.play.ui.responsive.rememberDeviceSize
+
+// Local composition para acceder al tamaño del dispositivo desde cualquier parte
+val LocalDeviceSize = compositionLocalOf { DeviceSize.COMPACT }
 
 /**
- * Tema azul elegante para Kyber Stream con alto contraste
+ * Tema azul elegante para Kyber Stream con alto contraste y diseño responsivo
  */
 @Composable
 fun KyberStreamTheme(
     themeManager: ThemeManager? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
+    deviceSize: DeviceSize = rememberDeviceSize(),
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -138,6 +148,9 @@ fun KyberStreamTheme(
 
     val colors = if (isDarkTheme) darkColors else lightColors
 
+    // Adaptar tipografía según el tamaño del dispositivo
+    val typography = getTypographyForDevice(deviceSize)
+
     // === CONFIGURACIÓN DE BARRAS DEL SISTEMA ===
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -155,25 +168,28 @@ fun KyberStreamTheme(
         }
     }
 
-    // === APLICAR TEMA ===
-    MaterialTheme(
-        colorScheme = colors,
-        typography = Typography
-    ) {
-        Box(
-            modifier = Modifier
-                .systemBarsPadding()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = if (isDarkTheme) {
-                            BlueUIColors.BackgroundGradient
-                        } else {
-                            listOf(colors.background, colors.background)
-                        }
-                    )
-                )
+    // === APLICAR TEMA CON SOPORTE RESPONSIVO ===
+    CompositionLocalProvider(LocalDeviceSize provides deviceSize) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = typography,
+            shapes = AppShapes
         ) {
-            content()
+            Box(
+                modifier = Modifier
+                    .systemBarsPadding()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = if (isDarkTheme) {
+                                BlueUIColors.BackgroundGradient
+                            } else {
+                                listOf(colors.background, colors.background)
+                            }
+                        )
+                    )
+            ) {
+                content()
+            }
         }
     }
 }
@@ -183,7 +199,7 @@ fun KyberStreamTheme(
 fun IPTVAppTheme(
     themeManager: ThemeManager? = null,
     content: @Composable () -> Unit
-) = KyberStreamTheme(themeManager, content)
+) = KyberStreamTheme(themeManager = themeManager, content = content)
 
 /**
  * Legacy theme composable for backward compatibility
