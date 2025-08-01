@@ -13,7 +13,6 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
-import com.kybers.play.BuildConfig
 import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -49,7 +48,7 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
 
     override val workManagerConfiguration: androidx.work.Configuration
         get() = androidx.work.Configuration.Builder()
-            .setMinimumLoggingLevel(android.util.Log.INFO)
+            .setMinimumLoggingLevel(Log.INFO)
             .build()
 
     override fun newImageLoader(): ImageLoader {
