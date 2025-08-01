@@ -46,8 +46,9 @@ fun HomeScreen(
     onSettingsClick: () -> Unit
 ) {
     val uiState by homeViewModel.uiState.collectAsState()
+    val deviceSize = com.kybers.play.ui.theme.LocalDeviceSize.current
 
-    Scaffold(
+    com.kybers.play.ui.theme.ResponsiveScaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Inicio", fontWeight = FontWeight.Bold) },
@@ -71,35 +72,31 @@ fun HomeScreen(
         }
     ) { paddingValues ->
         if (uiState.isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            com.kybers.play.ui.components.LoadingScreen()
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                if (uiState.bannerContent.isNotEmpty()) {
-                    item {
-                        BannerPager(
-                            content = uiState.bannerContent,
-                            onMovieClick = { onMovieClick(it.streamId) }
-                        )
-                    }
-                }
-
-                // Renderiza dinámicamente cada carrusel de la lista.
-                items(uiState.carousels) { carousel ->
-                    ContentRow(
-                        title = carousel.title,
-                        items = carousel.items,
-                        onMovieClick = onMovieClick,
-                        onSeriesClick = onSeriesClick,
-                        onChannelClick = onChannelClick
-                    )
-                }
+            // Contenido que se adapta al tamaño de pantalla
+            when (deviceSize) {
+                com.kybers.play.ui.theme.DeviceSize.COMPACT -> CompactHomeContent(
+                    uiState = uiState,
+                    onMovieClick = onMovieClick,
+                    onSeriesClick = onSeriesClick,
+                    onChannelClick = onChannelClick,
+                    paddingValues = paddingValues
+                )
+                com.kybers.play.ui.theme.DeviceSize.MEDIUM -> MediumHomeContent(
+                    uiState = uiState,
+                    onMovieClick = onMovieClick,
+                    onSeriesClick = onSeriesClick,
+                    onChannelClick = onChannelClick,
+                    paddingValues = paddingValues
+                )
+                com.kybers.play.ui.theme.DeviceSize.EXPANDED -> ExpandedHomeContent(
+                    uiState = uiState,
+                    onMovieClick = onMovieClick,
+                    onSeriesClick = onSeriesClick,
+                    onChannelClick = onChannelClick,
+                    paddingValues = paddingValues
+                )
             }
         }
     }
@@ -319,4 +316,115 @@ private fun calculateEpgProgress(start: Long, end: Long): Float {
     val totalDuration = (end - start).toFloat()
     val elapsed = (now - start).toFloat()
     return (elapsed / totalDuration).coerceIn(0f, 1f)
+}
+
+@Composable
+private fun CompactHomeContent(
+    uiState: com.kybers.play.ui.home.HomeUiState,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    paddingValues: PaddingValues
+) {
+    // Diseño para teléfonos: lista vertical simple
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues),
+        contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+        if (uiState.bannerContent.isNotEmpty()) {
+            item {
+                BannerPager(
+                    content = uiState.bannerContent,
+                    onMovieClick = { onMovieClick(it.streamId) }
+                )
+            }
+        }
+
+        // Renderiza dinámicamente cada carrusel de la lista.
+        items(uiState.carousels) { carousel ->
+            ContentRow(
+                title = carousel.title,
+                items = carousel.items,
+                onMovieClick = onMovieClick,
+                onSeriesClick = onSeriesClick,
+                onChannelClick = onChannelClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun MediumHomeContent(
+    uiState: com.kybers.play.ui.home.HomeUiState,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    paddingValues: PaddingValues
+) {
+    // Diseño para tablets medianas: contenido similar pero con más espacio
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)
+    ) {
+        if (uiState.bannerContent.isNotEmpty()) {
+            item {
+                BannerPager(
+                    content = uiState.bannerContent,
+                    onMovieClick = { onMovieClick(it.streamId) }
+                )
+            }
+        }
+
+        // Renderiza dinámicamente cada carrusel de la lista.
+        items(uiState.carousels) { carousel ->
+            ContentRow(
+                title = carousel.title,
+                items = carousel.items,
+                onMovieClick = onMovieClick,
+                onSeriesClick = onSeriesClick,
+                onChannelClick = onChannelClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedHomeContent(
+    uiState: com.kybers.play.ui.home.HomeUiState,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    onChannelClick: (LiveStream) -> Unit,
+    paddingValues: PaddingValues
+) {
+    // Diseño para pantallas grandes: contenido con más espacio y posible diseño de dos columnas
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp)
+    ) {
+        if (uiState.bannerContent.isNotEmpty()) {
+            item {
+                BannerPager(
+                    content = uiState.bannerContent,
+                    onMovieClick = { onMovieClick(it.streamId) }
+                )
+            }
+        }
+
+        // Renderiza dinámicamente cada carrusel de la lista.
+        items(uiState.carousels) { carousel ->
+            ContentRow(
+                title = carousel.title,
+                items = carousel.items,
+                onMovieClick = onMovieClick,
+                onSeriesClick = onSeriesClick,
+                onChannelClick = onChannelClick
+            )
+        }
+    }
 }
