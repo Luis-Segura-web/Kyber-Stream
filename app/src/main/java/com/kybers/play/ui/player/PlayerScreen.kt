@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +53,14 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     val mediaPlayer = playerViewModel.mediaPlayer
+    
+    // Collect retry state from ViewModel
+    val playerStatus by playerViewModel.playerStatus.collectAsState()
+    val retryAttempt by playerViewModel.retryAttempt.collectAsState()
+    val maxRetryAttempts by playerViewModel.maxRetryAttempts.collectAsState()
+    val retryMessage by playerViewModel.retryMessage.collectAsState()
+    val errorMessage by playerViewModel.errorMessage.collectAsState()
+    
     var controlsVisible by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
@@ -68,6 +77,9 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
+        // Add lifecycle observer to PlayerViewModel
+        playerViewModel.addLifecycleObserver(lifecycleOwner)
+        
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP && !isFullScreen) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -82,6 +94,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            playerViewModel.removeLifecycleObserver(lifecycleOwner)
         }
     }
 
@@ -183,14 +196,10 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         controlsVisible = true
     }
 
-    // --- ¡CORRECCIÓN DE FUGA DE MEMORIA! ---
+    // --- FIXED MEMORY LEAK: Using PlayerManager for safe media handling ---
     LaunchedEffect(streamUrl) {
         Log.d("PlayerScreen", "Loading stream: $streamUrl")
-        // Liberamos el 'Media' anterior antes de crear y asignar uno nuevo.
-        mediaPlayer.media?.release()
-        val media = Media(mediaPlayer.libVLC, streamUrl.toUri())
-        mediaPlayer.media = media
-        mediaPlayer.play()
+        playerViewModel.playMedia(streamUrl)
     }
 
     Box(
@@ -271,7 +280,13 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 currentPosition = currentPosition,
                 duration = duration,
                 onSeek = onSeek,
-                onAnyInteraction = onAnyInteraction
+                onAnyInteraction = onAnyInteraction,
+                // Enhanced retry parameters
+                playerStatus = playerStatus,
+                retryAttempt = retryAttempt,
+                maxRetryAttempts = maxRetryAttempts,
+                retryMessage = retryMessage,
+                onRetry = { playerViewModel.retryPlayback() }
             )
         }
     }
