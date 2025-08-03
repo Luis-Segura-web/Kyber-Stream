@@ -36,6 +36,9 @@ class PreferenceManager(context: Context) {
         private const val KEY_PARENTAL_CONTROL_ENABLED = "parental_control_enabled"
         private const val KEY_PARENTAL_CONTROL_PIN = "parental_control_pin"
         private const val KEY_BLOCKED_CATEGORIES = "blocked_categories"
+
+        // --- NUEVA CLAVE PARA CATEGORÍAS OCULTAS EN TV EN VIVO ---
+        private const val KEY_HIDDEN_LIVE_CATEGORIES = "hidden_live_categories"
     }
 
     // --- Métodos existentes (sin cambios) ---
@@ -132,6 +135,10 @@ class PreferenceManager(context: Context) {
 
     fun saveBlockedCategories(categoryIds: Set<String>) = sharedPreferences.edit().putStringSet(KEY_BLOCKED_CATEGORIES, categoryIds).apply()
     fun getBlockedCategories(): Set<String> = sharedPreferences.getStringSet(KEY_BLOCKED_CATEGORIES, emptySet()) ?: emptySet()
+
+    // --- Preferencias de categorías ocultas en TV en Vivo ---
+    fun saveHiddenLiveCategories(ids: Set<String>) = sharedPreferences.edit().putStringSet(KEY_HIDDEN_LIVE_CATEGORIES, ids).apply()
+    fun getHiddenLiveCategories(): Set<String> = sharedPreferences.getStringSet(KEY_HIDDEN_LIVE_CATEGORIES, emptySet()) ?: emptySet()
 
     /**
      * Generates VLC options based on current user preferences.

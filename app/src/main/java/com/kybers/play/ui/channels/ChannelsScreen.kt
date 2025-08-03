@@ -28,14 +28,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
@@ -69,6 +73,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -191,36 +196,51 @@ fun ChannelsScreen(
         }
     }
 
+    var showCategoryVisibilityScreen by rememberSaveable { mutableStateOf(false) }
+
     com.kybers.play.ui.theme.ResponsiveScaffold(
         topBar = {
-            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
+            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode && !uiState.isPlayerVisible) {
                 ImprovedChannelTopBar(
                     uiState = uiState,
                     onRefresh = { viewModel.refreshChannelsManually() },
-                    onToggleCategoryVisibility = { viewModel.toggleCategoryVisibility() },
+                    onToggleCategoryVisibility = { showCategoryVisibilityScreen = true },
                     onSortCategories = { viewModel.toggleSortMenu(true) }
                 )
             }
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
-        ) {
-            PlayerSection(
-                viewModel = viewModel,
-                onPictureInPicture = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val aspectRatio = Rational(16, 9)
-                        val pipParams = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
-                        activity?.enterPictureInPictureMode(pipParams)
-                    }
+        if (showCategoryVisibilityScreen) {
+            CategoryVisibilityScreen(
+                categories = uiState.categories,
+                hiddenCategoryIds = uiState.hiddenCategoryIds,
+                onCategoryToggle = { viewModel.toggleCategoryVisibility(it) },
+                onBack = { showCategoryVisibilityScreen = false },
+                onSave = { ids ->
+                    viewModel.setHiddenCategories(ids)
+                    showCategoryVisibilityScreen = false
                 }
             )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
+            ) {
+                PlayerSection(
+                    viewModel = viewModel,
+                    onPictureInPicture = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val aspectRatio = Rational(16, 9)
+                            val pipParams = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
+                            activity?.enterPictureInPictureMode(pipParams)
+                        }
+                    }
+                )
 
-            AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
-                ChannelListSection(viewModel = viewModel, lazyListState = lazyListState, favoriteChannels = favoriteChannels)
+                AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
+                    ChannelListSection(viewModel = viewModel, lazyListState = lazyListState, favoriteChannels = favoriteChannels)
+                }
             }
         }
     }
@@ -780,7 +800,7 @@ fun SortOptionsDialog(
         text = {
             Column {
                 Text("Ordenar Categorías por:", style = MaterialTheme.typography.titleSmall)
-                SortOrder.values().forEach { order ->
+                SortOrder.entries.forEach { order ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -799,7 +819,7 @@ fun SortOptionsDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Ordenar Canales por:", style = MaterialTheme.typography.titleSmall)
-                SortOrder.values().forEach { order ->
+                SortOrder.entries.forEach { order ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -841,6 +861,7 @@ fun ImprovedChannelTopBar(
     onToggleCategoryVisibility: () -> Unit,
     onSortCategories: () -> Unit,
 ) {
+    val hasHiddenCategories = uiState.hiddenCategoryIds.isNotEmpty()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -848,64 +869,66 @@ fun ImprovedChannelTopBar(
         color = MaterialTheme.colorScheme.primary,
         shape = RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp)
     ) {
-        Column {
-            // Top section with logo and title
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            // Sección principal - Logo, título y botones
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Logo and title section
+                // Logo y título más compactos
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // App logo placeholder (you can replace with actual logo)
                     Icon(
                         imageVector = Icons.Default.Tv,
                         contentDescription = "Logo",
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Column {
+                    Column(
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
                             text = "TV en Vivo",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            maxLines = 1
                         )
                         Text(
                             text = "${uiState.totalChannelCount} canales",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            )
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                            maxLines = 1
                         )
                     }
                 }
 
-                // Action buttons
+                // Botones de acción más compactos
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Refresh button
                     IconButton(
                         onClick = onRefresh,
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = "Actualizar",
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -913,15 +936,15 @@ fun ImprovedChannelTopBar(
                     IconButton(
                         onClick = onToggleCategoryVisibility,
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.VisibilityOff,
-                            contentDescription = "Ocultar categorías",
+                            imageVector = if (hasHiddenCategories) Icons.Filled.Visibility else Icons.Outlined.VisibilityOff,
+                            contentDescription = if (hasHiddenCategories) "Mostrar categorías ocultas" else "Ocultar categorías",
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -929,52 +952,66 @@ fun ImprovedChannelTopBar(
                     IconButton(
                         onClick = onSortCategories,
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Sort,
+                            imageVector = Icons.AutoMirrored.Filled.Sort,
                             contentDescription = "Ordenar",
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             }
 
-            // Bottom section with update info
-            if (uiState.lastUpdatedTimestamp > 0) {
+            // Sección inferior con info de actualización (solo si es necesaria)
+            if (uiState.lastUpdatedTimestamp > 0 || uiState.isRefreshing) {
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "Ult. Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                        )
+                    if (uiState.lastUpdatedTimestamp > 0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                maxLines = 1
+                            )
+                        }
                     }
 
                     if (uiState.isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 1.5.dp
+                            )
+                            Text(
+                                text = "Actualizando...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -986,4 +1023,233 @@ private fun formatTimestamp(timestamp: Long): String {
     if (timestamp == 0L) return "Nunca"
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
     return sdf.format(Date(timestamp))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategoryVisibilityScreen(
+    categories: List<ExpandableCategory>,
+    hiddenCategoryIds: Set<String>,
+    onCategoryToggle: (String) -> Unit,
+    onBack: () -> Unit,
+    onSave: (Set<String>) -> Unit
+) {
+    var selectedHidden by remember { mutableStateOf(hiddenCategoryIds.toSet()) }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "Gestión de Categorías",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = { onBack() },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Atrás",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.shadow(4.dp)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+        ) {
+            // Header reducido
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.VisibilityOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = "Seleccione las categorías a ocultar",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (selectedHidden.isNotEmpty()) {
+                        Text(
+                            text = "${selectedHidden.size}",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            // Lista de categorías mejorada
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(categories) { cat ->
+                    val checked = selectedHidden.contains(cat.category.categoryId)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedHidden = if (checked) {
+                                    selectedHidden - cat.category.categoryId
+                                } else {
+                                    selectedHidden + cat.category.categoryId
+                                }
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (checked)
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                            else
+                                MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = if (checked) 4.dp else 1.dp
+                        ),
+                        border = if (checked)
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                        else null
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { isChecked ->
+                                    selectedHidden = if (isChecked) {
+                                        selectedHidden + cat.category.categoryId
+                                    } else {
+                                        selectedHidden - cat.category.categoryId
+                                    }
+                                },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = MaterialTheme.colorScheme.error,
+                                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    checkmarkColor = MaterialTheme.colorScheme.onError
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = cat.category.categoryName,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium
+                                    ),
+                                    color = if (checked)
+                                        MaterialTheme.colorScheme.error
+                                    else
+                                        MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Text(
+                                    text = "${cat.channels.size} canal${if (cat.channels.size != 1) "es" else ""}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            if (checked) {
+                                Icon(
+                                    Icons.Outlined.VisibilityOff,
+                                    contentDescription = "Oculta",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Botones en la parte inferior
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                // Botones principales
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    OutlinedButton(
+                        onClick = { onBack() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text("Cancelar")
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        onClick = { onSave(selectedHidden) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Aceptar")
+                    }
+                }
+
+                // Botón de deseleccionar todo
+                TextButton(
+                    onClick = { selectedHidden = emptySet() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Deseleccionar todo",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
 }

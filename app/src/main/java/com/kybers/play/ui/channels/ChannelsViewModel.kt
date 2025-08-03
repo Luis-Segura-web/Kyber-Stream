@@ -83,7 +83,8 @@ data class ChannelsUiState(
     val retryAttempt: Int = 0,
     val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null,
-    val areCategoriesHidden: Boolean = false
+    val areCategoriesHidden: Boolean = false,
+    val hiddenCategoryIds: Set<String> = emptySet() // NUEVO: ids de categorías ocultas
 )
 
 open class ChannelsViewModel(
@@ -122,13 +123,15 @@ open class ChannelsViewModel(
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
         val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)
+        val savedHiddenCategories = preferenceManager.getHiddenLiveCategories()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 channelSortOrder = savedChannelSortOrder,
                 currentAspectRatioMode = savedAspectRatioMode,
-                lastUpdatedTimestamp = lastSyncTime
+                lastUpdatedTimestamp = lastSyncTime,
+                hiddenCategoryIds = savedHiddenCategories
             )
         }
         loadInitialChannelsAndPreloadEpg()
@@ -626,13 +629,14 @@ open class ChannelsViewModel(
         val masterList = _originalCategories.value
         val currentCategorySortOrder = _uiState.value.categorySortOrder
         val currentChannelSortOrder = _uiState.value.channelSortOrder
+        val hiddenIds = _uiState.value.hiddenCategoryIds
 
         Log.d("ChannelsViewModel", "Filtrando categorías: ${masterList.size} categorías originales")
 
         // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
         // Use ParentalControlManager for filtering
         val categoriesToDisplay = parentalControlManager.filterCategories(masterList) { it.category.categoryId }
-        
+            .filter { it.category.categoryId !in hiddenIds } // OCULTAR SELECCIONADAS
         Log.d("ChannelsViewModel", "Control parental habilitado: ${parentalControlManager.isParentalControlEnabled()}")
         Log.d("ChannelsViewModel", "Categorías después del filtro parental: ${categoriesToDisplay.size}")
         // --- FIN DE LA LÓGICA ---
@@ -771,9 +775,25 @@ open class ChannelsViewModel(
     }
 
     /**
-     * Alternar visibilidad de categorías - cuando están ocultas, solo se muestran canales favoritos
+     * Alternar visibilidad de categorías - ahora permite seleccionar cuáles ocultar
      */
-    fun toggleCategoryVisibility() {
-        _uiState.update { it.copy(areCategoriesHidden = !it.areCategoriesHidden) }
+    fun toggleCategoryVisibility(categoryId: String) {
+        _uiState.update { state ->
+            val newHidden = state.hiddenCategoryIds.toMutableSet()
+            if (newHidden.contains(categoryId)) newHidden.remove(categoryId) else newHidden.add(categoryId)
+            state.copy(hiddenCategoryIds = newHidden)
+        }
+        saveHiddenCategoriesToPrefs()
+        filterAndSortCategories()
+    }
+
+    fun saveHiddenCategoriesToPrefs() {
+        preferenceManager.saveHiddenLiveCategories(_uiState.value.hiddenCategoryIds)
+    }
+
+    fun setHiddenCategories(ids: Set<String>) {
+        _uiState.update { it.copy(hiddenCategoryIds = ids) }
+        saveHiddenCategoriesToPrefs()
+        filterAndSortCategories()
     }
 }
