@@ -82,7 +82,8 @@ data class ChannelsUiState(
     val totalChannelCount: Int = 0,
     val retryAttempt: Int = 0,
     val maxRetryAttempts: Int = 3,
-    val retryMessage: String? = null
+    val retryMessage: String? = null,
+    val areCategoriesHidden: Boolean = false
 )
 
 open class ChannelsViewModel(
@@ -767,5 +768,12 @@ open class ChannelsViewModel(
                 mediaPlayer.time = currentPosition
             }
         }
+    }
+
+    /**
+     * Alternar visibilidad de categorías - cuando están ocultas, solo se muestran canales favoritos
+     */
+    fun toggleCategoryVisibility() {
+        _uiState.update { it.copy(areCategoriesHidden = !it.areCategoriesHidden) }
     }
 }
