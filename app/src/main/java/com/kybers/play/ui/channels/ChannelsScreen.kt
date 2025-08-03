@@ -75,6 +75,17 @@ import java.util.Locale
 import java.util.TimeZone
 import androidx.compose.runtime.saveable.rememberSaveable
 
+/**
+ * The main screen for browsing and watching live TV channels.
+ *
+ * This screen displays a list of channels, categorized and searchable. It includes a video player
+ * for watching selected channels, with controls for playback, volume, and full-screen mode.
+ * Users can also manage favorite channels and customize the visibility of channel categories.
+ *
+ * @param viewModel The [ChannelsViewModel] that provides the data and logic for this screen.
+ * @param onPlayerUiStateChanged A callback that notifies the parent composable of changes to the
+ * player's UI state, such as entering or exiting full-screen or Picture-in-Picture mode.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChannelsScreen(
@@ -212,9 +223,8 @@ fun ChannelsScreen(
     ) { paddingValues ->
         if (showCategoryVisibilityScreen) {
             CategoryVisibilityScreen(
-                categories = uiState.categories,
+                allCategories = uiState.masterCategoryList,
                 hiddenCategoryIds = uiState.hiddenCategoryIds,
-                onCategoryToggle = { viewModel.toggleCategoryVisibility(it) },
                 onBack = { showCategoryVisibilityScreen = false },
                 onSave = { ids ->
                     viewModel.setHiddenCategories(ids)
@@ -477,6 +487,13 @@ private fun ChannelListSection(
     }
 }
 
+/**
+ * A search bar composable that allows users to filter the list of channels.
+ *
+ * @param query The current search query.
+ * @param onQueryChange A callback that is invoked when the search query changes.
+ * @param onClear A callback that is invoked when the clear button is clicked.
+ */
 @Composable
 fun SearchBar(
     query: String,
@@ -532,6 +549,16 @@ fun SearchBar(
 }
 
 
+/**
+ * A composable that displays a category header.
+ *
+ * The header displays the category name and an expand/collapse icon.
+ *
+ * @param categoryName The name of the category.
+ * @param isExpanded Whether the category is currently expanded.
+ * @param onHeaderClick A callback that is invoked when the header is clicked.
+ * @param itemCount The number of items in the category.
+ */
 @Composable
 fun CategoryHeader(
     categoryName: String,
@@ -601,6 +628,15 @@ fun CategoryHeader(
     }
 }
 
+/**
+ * A composable that displays a single channel in the list.
+ *
+ * @param channel The channel to display.
+ * @param isSelected Whether the channel is currently selected.
+ * @param onChannelClick A callback that is invoked when the channel is clicked.
+ * @param isFavorite Whether the channel is a favorite.
+ * @param onToggleFavorite A callback that is invoked when the favorite button is clicked.
+ */
 @Composable
 fun ChannelListItem(
     channel: LiveStream,
@@ -689,6 +725,12 @@ fun ChannelListItem(
     }
 }
 
+/**
+ * A composable that displays minimal EPG (Electronic Program Guide) information.
+ *
+ * @param currentEvent The current EPG event.
+ * @param nextEvent The next EPG event.
+ */
 @Composable
 fun MinimalEpgInfo(
     currentEvent: EpgEvent?,
@@ -786,6 +828,15 @@ private fun formatTimestampToHour(timestamp: Long): String {
     return sdf.format(Date(timestamp * 1000))
 }
 
+/**
+ * A dialog that allows the user to select sort options for categories and channels.
+ *
+ * @param currentCategorySortOrder The currently selected sort order for categories.
+ * @param currentChannelSortOrder The currently selected sort order for channels.
+ * @param onCategorySortOrderSelected A callback that is invoked when a category sort order is selected.
+ * @param onChannelSortOrderSelected A callback that is invoked when a channel sort order is selected.
+ * @param onDismiss A callback that is invoked when the dialog is dismissed.
+ */
 @Composable
 fun SortOptionsDialog(
     currentCategorySortOrder: SortOrder,
@@ -844,6 +895,11 @@ fun SortOptionsDialog(
     )
 }
 
+/**
+ * Converts a [SortOrder] enum to a localized string.
+ *
+ * @return The localized string representation of the sort order.
+ */
 @Composable
 fun SortOrder.toLocalizedName(): String {
     return when (this) {
@@ -853,6 +909,14 @@ fun SortOrder.toLocalizedName(): String {
     }
 }
 
+/**
+ * An improved top app bar for the channels screen.
+ *
+ * @param uiState The current UI state.
+ * @param onRefresh A callback that is invoked when the refresh button is clicked.
+ * @param onToggleCategoryVisibility A callback that is invoked when the category visibility button is clicked.
+ * @param onSortCategories A callback that is invoked when the sort button is clicked.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImprovedChannelTopBar(
@@ -987,7 +1051,7 @@ fun ImprovedChannelTopBar(
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = "Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                text = "{Ult. Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                                 maxLines = 1
@@ -1025,16 +1089,23 @@ private fun formatTimestamp(timestamp: Long): String {
     return sdf.format(Date(timestamp))
 }
 
+/**
+ * A screen for managing the visibility of channel categories.
+ *
+ * @param allCategories The list of all expandable categories (unfiltered).
+ * @param hiddenCategoryIds A set of IDs for the categories that are currently hidden.
+ * @param onBack A callback that is invoked when the back button is clicked.
+ * @param onSave A callback that is invoked when the save button is clicked with the new set of hidden IDs.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryVisibilityScreen(
-    categories: List<ExpandableCategory>,
+    allCategories: List<ExpandableCategory>,
     hiddenCategoryIds: Set<String>,
-    onCategoryToggle: (String) -> Unit,
     onBack: () -> Unit,
     onSave: (Set<String>) -> Unit
 ) {
-    var selectedHidden by remember { mutableStateOf(hiddenCategoryIds.toSet()) }
+    var selectedHidden by remember { mutableStateOf(hiddenCategoryIds) }
 
     Scaffold(
         topBar = {
@@ -1123,29 +1194,29 @@ fun CategoryVisibilityScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(categories) { cat ->
-                    val checked = selectedHidden.contains(cat.category.categoryId)
+                items(allCategories, key = { it.category.categoryId }) { cat ->
+                    val isChecked = selectedHidden.contains(cat.category.categoryId)
 
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                selectedHidden = if (checked) {
+                                selectedHidden = if (isChecked) {
                                     selectedHidden - cat.category.categoryId
                                 } else {
                                     selectedHidden + cat.category.categoryId
                                 }
                             },
                         colors = CardDefaults.cardColors(
-                            containerColor = if (checked)
+                            containerColor = if (isChecked)
                                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                             else
                                 MaterialTheme.colorScheme.surface
                         ),
                         elevation = CardDefaults.cardElevation(
-                            defaultElevation = if (checked) 4.dp else 1.dp
+                            defaultElevation = if (isChecked) 4.dp else 1.dp
                         ),
-                        border = if (checked)
+                        border = if (isChecked)
                             BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
                         else null
                     ) {
@@ -1156,9 +1227,9 @@ fun CategoryVisibilityScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
-                                checked = checked,
-                                onCheckedChange = { isChecked ->
-                                    selectedHidden = if (isChecked) {
+                                checked = isChecked,
+                                onCheckedChange = { checked ->
+                                    selectedHidden = if (checked) {
                                         selectedHidden + cat.category.categoryId
                                     } else {
                                         selectedHidden - cat.category.categoryId
@@ -1177,9 +1248,9 @@ fun CategoryVisibilityScreen(
                                 Text(
                                     text = cat.category.categoryName,
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium
+                                        fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Medium
                                     ),
-                                    color = if (checked)
+                                    color = if (isChecked)
                                         MaterialTheme.colorScheme.error
                                     else
                                         MaterialTheme.colorScheme.onSurface
@@ -1192,7 +1263,7 @@ fun CategoryVisibilityScreen(
                                 )
                             }
 
-                            if (checked) {
+                            if (isChecked) {
                                 Icon(
                                     Icons.Outlined.VisibilityOff,
                                     contentDescription = "Oculta",

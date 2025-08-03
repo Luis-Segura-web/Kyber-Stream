@@ -53,6 +53,7 @@ data class ChannelsUiState(
     val isLoading: Boolean = true,
     val searchQuery: String = "",
     val categories: List<ExpandableCategory> = emptyList(),
+    val masterCategoryList: List<ExpandableCategory> = emptyList(), // Lista maestra sin filtrar
     val currentlyPlaying: LiveStream? = null,
     val isPlayerVisible: Boolean = false,
     val screenTitle: String = "Canales",
@@ -84,7 +85,7 @@ data class ChannelsUiState(
     val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null,
     val areCategoriesHidden: Boolean = false,
-    val hiddenCategoryIds: Set<String> = emptySet() // NUEVO: ids de categorías ocultas
+    val hiddenCategoryIds: Set<String> = emptySet()
 )
 
 open class ChannelsViewModel(
@@ -568,6 +569,8 @@ open class ChannelsViewModel(
                 currentOriginals[categoryIndex] = updatedCategory
 
                 _originalCategories.value = currentOriginals
+                // Actualizar también la lista maestra en el estado de la UI
+                _uiState.update { it.copy(masterCategoryList = currentOriginals) }
                 filterAndSortCategories()
 
                 _scrollToItemEvent.emit(categoryId)
@@ -580,26 +583,19 @@ open class ChannelsViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val categories = liveRepository.getLiveCategories(currentUser.username, currentUser.password, currentUser.id)
-                Log.d("ChannelsViewModel", "Categorías cargadas: ${categories.size}")
-                categories.forEach { category ->
-                    Log.d("ChannelsViewModel", "Categoría: ${category.categoryName} (ID: ${category.categoryId})")
-                }
-                
                 val allChannels = liveRepository.getRawLiveStreams(currentUser.id).first()
-                Log.d("ChannelsViewModel", "Canales cargados: ${allChannels.size}")
-                
                 val channelsByCategory = allChannels.groupBy { it.categoryId }
-                Log.d("ChannelsViewModel", "Canales agrupados por categoría: ${channelsByCategory.keys}")
                 
                 val expandableCategories = categories.map { category ->
                     val channelsInCategory = channelsByCategory[category.categoryId] ?: emptyList()
-                    Log.d("ChannelsViewModel", "Categoría ${category.categoryName}: ${channelsInCategory.size} canales")
                     ExpandableCategory(
                         category = category,
                         channels = channelsInCategory
                     )
                 }
                 _originalCategories.value = expandableCategories
+                // Actualizar la nueva lista maestra en el estado
+                _uiState.update { it.copy(masterCategoryList = expandableCategories) }
                 filterAndSortCategories()
                 _uiState.update { it.copy(isLoading = false, totalChannelCount = allChannels.size) }
 
@@ -631,21 +627,15 @@ open class ChannelsViewModel(
         val currentChannelSortOrder = _uiState.value.channelSortOrder
         val hiddenIds = _uiState.value.hiddenCategoryIds
 
-        Log.d("ChannelsViewModel", "Filtrando categorías: ${masterList.size} categorías originales")
-
-        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
-        // Use ParentalControlManager for filtering
+        // Usar ParentalControlManager para filtrar
         val categoriesToDisplay = parentalControlManager.filterCategories(masterList) { it.category.categoryId }
-            .filter { it.category.categoryId !in hiddenIds } // OCULTAR SELECCIONADAS
-        Log.d("ChannelsViewModel", "Control parental habilitado: ${parentalControlManager.isParentalControlEnabled()}")
-        Log.d("ChannelsViewModel", "Categorías después del filtro parental: ${categoriesToDisplay.size}")
-        // --- FIN DE LA LÓGICA ---
+            .filter { it.category.categoryId !in hiddenIds } // Ocultar las seleccionadas
 
-        val filteredCategories = categoriesToDisplay.map { originalCategory ->
-            val filteredChannels = originalCategory.channels.filter {
+        val filteredCategories = categoriesToDisplay.map { category ->
+            val filteredChannels = category.channels.filter {
                 it.name.contains(query, ignoreCase = true)
             }
-            originalCategory.copy(channels = filteredChannels)
+            category.copy(channels = filteredChannels)
         }.filter {
             it.category.categoryName.contains(query, ignoreCase = true) || it.channels.isNotEmpty() || query.isBlank()
         }
@@ -663,11 +653,6 @@ open class ChannelsViewModel(
             SortOrder.AZ -> sortedChannelsInCategories.sortedBy { it.category.categoryName }
             SortOrder.ZA -> sortedChannelsInCategories.sortedByDescending { it.category.categoryName }
             SortOrder.DEFAULT -> sortedChannelsInCategories
-        }
-
-        Log.d("ChannelsViewModel", "Categorías finales mostradas: ${finalSortedCategories.size}")
-        finalSortedCategories.forEach { category ->
-            Log.d("ChannelsViewModel", "- ${category.category.categoryName}: ${category.channels.size} canales")
         }
 
         _uiState.update { it.copy(categories = finalSortedCategories) }
@@ -775,25 +760,12 @@ open class ChannelsViewModel(
     }
 
     /**
-     * Alternar visibilidad de categorías - ahora permite seleccionar cuáles ocultar
+     * Guarda el conjunto de categorías a ocultar.
+     * Se llama desde la pantalla de visibilidad al pulsar 'Guardar'.
      */
-    fun toggleCategoryVisibility(categoryId: String) {
-        _uiState.update { state ->
-            val newHidden = state.hiddenCategoryIds.toMutableSet()
-            if (newHidden.contains(categoryId)) newHidden.remove(categoryId) else newHidden.add(categoryId)
-            state.copy(hiddenCategoryIds = newHidden)
-        }
-        saveHiddenCategoriesToPrefs()
-        filterAndSortCategories()
-    }
-
-    fun saveHiddenCategoriesToPrefs() {
-        preferenceManager.saveHiddenLiveCategories(_uiState.value.hiddenCategoryIds)
-    }
-
     fun setHiddenCategories(ids: Set<String>) {
         _uiState.update { it.copy(hiddenCategoryIds = ids) }
-        saveHiddenCategoriesToPrefs()
+        preferenceManager.saveHiddenLiveCategories(ids)
         filterAndSortCategories()
     }
 }
