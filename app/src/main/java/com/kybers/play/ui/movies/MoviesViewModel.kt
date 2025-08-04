@@ -251,21 +251,23 @@ class MoviesViewModel(
         val specialCategories = mutableListOf<ExpandableMovieCategory>()
         val regularCategories = mutableListOf<ExpandableMovieCategory>()
 
-        if (lowercasedQuery.isBlank()) {
-            val favoriteIds = _uiState.value.favoriteMovieIds
-            if (favoriteIds.isNotEmpty()) {
-                val favoriteMovies = parentalFilteredMovies.filter { favoriteIds.contains(it.streamId.toString()) }
-                if (favoriteMovies.isNotEmpty()) {
-                    specialCategories.add(
-                        ExpandableMovieCategory(
-                            category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
-                            movies = favoriteMovies,
-                            isExpanded = expansionState.getOrPut("favorites") { true }
-                        )
+        // Always show favorites (even during search) as requested
+        val favoriteIds = _uiState.value.favoriteMovieIds
+        if (favoriteIds.isNotEmpty()) {
+            val favoriteMovies = parentalFilteredMovies.filter { favoriteIds.contains(it.streamId.toString()) }
+            if (favoriteMovies.isNotEmpty()) {
+                specialCategories.add(
+                    ExpandableMovieCategory(
+                        category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
+                        movies = favoriteMovies,
+                        isExpanded = expansionState.getOrPut("favorites") { true }
                     )
-                }
+                )
             }
+        }
 
+        // Continue watching only when not searching
+        if (lowercasedQuery.isBlank()) {
             val playbackPositions = preferenceManager.getAllPlaybackPositions()
             if (playbackPositions.isNotEmpty()) {
                 val resumeMovies = parentalFilteredMovies.filter { movie ->

@@ -96,28 +96,154 @@ class HomeViewModel(
     private suspend fun loadCarousels(): List<HomeCarousel> = coroutineScope {
         val carousels = mutableListOf<HomeCarousel>()
 
-        val continueMoviesJob = async { loadContinueMovies() }
-        // val liveNowJob = async { loadLiveNow() } // Carousel "En Directo Ahora" eliminado
-        val recentMoviesJob = async { loadRecentlyAddedMovies() }
-        val recentSeriesJob = async { loadRecentlyAddedSeries() }
-        val favMoviesJob = async { loadFavoriteMovies() }
-        val favSeriesJob = async { loadFavoriteSeries() }
+        // Load all carousels in parallel
+        val favoritesJob = async { loadMixedFavorites() }
+        val continueWatchingJob = async { loadMixedContinueWatching() }
+        val recentContentJob = async { loadMixedRecentContent() }
+        val trendingMoviesJob = async { loadTrendingMoviesWeek() }
+        val trendingSeriesJob = async { loadTrendingSeriesWeek() }
 
-        val continueMovies = continueMoviesJob.await()
-        // val liveNow = liveNowJob.await() // Carousel "En Directo Ahora" eliminado
-        val recentMovies = recentMoviesJob.await()
-        val recentSeries = recentSeriesJob.await()
-        val favMovies = favMoviesJob.await()
-        val favSeries = favSeriesJob.await()
+        val favorites = favoritesJob.await()
+        val continueWatching = continueWatchingJob.await()
+        val recentContent = recentContentJob.await()
+        val trendingMovies = trendingMoviesJob.await()
+        val trendingSeries = trendingSeriesJob.await()
 
-        if (continueMovies.isNotEmpty()) carousels.add(HomeCarousel("Continuar Viendo Películas", continueMovies))
-        // if (liveNow.isNotEmpty()) carousels.add(HomeCarousel("En Directo Ahora", liveNow)) // Carousel "En Directo Ahora" eliminado
-        if (recentMovies.isNotEmpty()) carousels.add(HomeCarousel("Películas Recientes", recentMovies))
-        if (recentSeries.isNotEmpty()) carousels.add(HomeCarousel("Series Recientes", recentSeries))
-        if (favMovies.isNotEmpty()) carousels.add(HomeCarousel("Mis Películas Favoritas", favMovies))
-        if (favSeries.isNotEmpty()) carousels.add(HomeCarousel("Mis Series Favoritas", favSeries))
+        // Add carousels in the specified order
+        if (favorites.isNotEmpty()) carousels.add(HomeCarousel("Mis Favoritas", favorites))
+        if (continueWatching.isNotEmpty()) carousels.add(HomeCarousel("Continuar Viendo", continueWatching))
+        if (recentContent.isNotEmpty()) carousels.add(HomeCarousel("Películas y series Recientes", recentContent))
+        if (trendingMovies.isNotEmpty()) carousels.add(HomeCarousel("Películas más vistas de la semana", trendingMovies))
+        if (trendingSeries.isNotEmpty()) carousels.add(HomeCarousel("Series más vistas de la semana", trendingSeries))
 
         return@coroutineScope carousels
+    }
+
+    private suspend fun loadMixedFavorites(): List<HomeContentItem> {
+        val favMovieIds = preferenceManager.getFavoriteMovieIds()
+        val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
+        
+        val favorites = mutableListOf<HomeContentItem>()
+        
+        if (favMovieIds.isNotEmpty()) {
+            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+                .filter { favMovieIds.contains(it.streamId.toString()) }
+            val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
+            favorites.addAll(filteredMovies.map { HomeContentItem.MovieItem(it) })
+        }
+        
+        if (favSeriesIds.isNotEmpty()) {
+            val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+                .filter { favSeriesIds.contains(it.seriesId.toString()) }
+            val filteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
+            favorites.addAll(filteredSeries.map { HomeContentItem.SeriesItem(it) })
+        }
+        
+        return favorites.shuffled() // Mix movies and series randomly
+    }
+
+    private suspend fun loadMixedContinueWatching(): List<HomeContentItem> {
+        val limit = preferenceManager.getRecentlyWatchedLimit()
+        val moviePositions = preferenceManager.getAllPlaybackPositions()
+        val continueWatching = mutableListOf<HomeContentItem>()
+        
+        if (moviePositions.isNotEmpty()) {
+            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+            val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
+            
+            moviePositions
+                .filter { (_, position) -> position > 10000 }
+                .mapNotNull { (id, _) -> filteredMovies.find { it.streamId.toString() == id } }
+                .take(limit)
+                .forEach { continueWatching.add(HomeContentItem.MovieItem(it)) }
+        }
+        
+        // TODO: Add series continue watching logic when series playback positions are available
+        
+        return continueWatching
+    }
+
+    private suspend fun loadMixedRecentContent(): List<HomeContentItem> {
+        val recentContent = mutableListOf<HomeContentItem>()
+        
+        // Get recent movies
+        val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
+        val recentMovies = filteredMovies
+            .sortedByDescending { it.added }
+            .take(5)
+            .map { HomeContentItem.MovieItem(it) }
+        
+        // Get recent series
+        val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val filteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
+        val recentSeries = filteredSeries
+            .sortedByDescending { it.lastModified }
+            .take(5)
+            .map { HomeContentItem.SeriesItem(it) }
+        
+        // Combine and sort by date (most recent first)
+        recentContent.addAll(recentMovies)
+        recentContent.addAll(recentSeries)
+        
+        // Sort mixed content by recency
+        return recentContent.sortedByDescending { item ->
+            when (item) {
+                is HomeContentItem.MovieItem -> item.movie.added.toLongOrNull() ?: 0L
+                is HomeContentItem.SeriesItem -> item.series.lastModified?.toLongOrNull() ?: 0L
+                else -> 0L
+            }
+        }.take(10)
+    }
+
+    private suspend fun loadTrendingMoviesWeek(): List<HomeContentItem.MovieItem> {
+        val localMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val filteredMovies = parentalControlManager.filterContentByCategory(localMovies) { it.categoryId }
+        val localTmdbIds = filteredMovies.mapNotNull { it.tmdbId?.toIntOrNull() }.toSet()
+        
+        if (localTmdbIds.isEmpty()) return emptyList()
+        
+        try {
+            val response = externalApiService.getTrendingMoviesWeek(apiKey = BuildConfig.TMDB_API_KEY)
+            if (response.isSuccessful) {
+                val trendingTmdbMovies = response.body()?.results ?: emptyList()
+                return trendingTmdbMovies
+                    .filter { trendingMovie -> localTmdbIds.contains(trendingMovie.id) }
+                    .mapNotNull { trendingMovie ->
+                        filteredMovies.find { it.tmdbId == trendingMovie.id.toString() }
+                    }
+                    .take(10)
+                    .map { HomeContentItem.MovieItem(it) }
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "No se pudieron cargar las películas trending de la semana", e)
+        }
+        return emptyList()
+    }
+
+    private suspend fun loadTrendingSeriesWeek(): List<HomeContentItem.SeriesItem> {
+        val localSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val filteredSeries = parentalControlManager.filterContentByCategory(localSeries) { it.categoryId }
+        val localTmdbIds = filteredSeries.mapNotNull { it.tmdbId?.toIntOrNull() }.toSet()
+        
+        if (localTmdbIds.isEmpty()) return emptyList()
+        
+        try {
+            val response = externalApiService.getTrendingSeriesWeek(apiKey = BuildConfig.TMDB_API_KEY)
+            if (response.isSuccessful) {
+                val trendingTmdbSeries = response.body()?.results ?: emptyList()
+                return trendingTmdbSeries
+                    .filter { trendingSeries -> localTmdbIds.contains(trendingSeries.id) }
+                    .mapNotNull { trendingSeries ->
+                        filteredSeries.find { it.tmdbId == trendingSeries.id.toString() }
+                    }
+                    .take(10)
+                    .map { HomeContentItem.SeriesItem(it) }
+            }
+        } catch (e: Exception) {
+            Log.e("HomeViewModel", "No se pudieron cargar las series trending de la semana", e)
+        }
+        return emptyList()
     }
 
     private suspend fun loadBannerContent(): List<Pair<Movie, String?>> {

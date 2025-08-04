@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -554,26 +555,32 @@ fun RecommendationsSection(recommendations: List<Series>, onSeriesClick: (Series
                             }
                         }
                         
-                        // Series name at bottom
+                        // Series name at bottom - updated to match Movies/Series style
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .fillMaxWidth()
                                 .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.7f),
+                                            Color.Black.copy(alpha = 0.9f)
+                                        )
                                     )
                                 )
-                                .padding(horizontal = 6.dp, vertical = 8.dp)
+                                .padding(top = 16.dp, bottom = 8.dp, start = 6.dp, end = 6.dp)
                         ) {
                             Text(
                                 text = series.name,
                                 color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                style = TextStyle(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 12.sp,
+                                ),
                                 maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = 12.sp
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

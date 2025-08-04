@@ -73,7 +73,11 @@ fun SeriesScreen(
                 for (i in 0 until categoryIndex) {
                     targetIndex++ // Por la cabecera de la categoría
                     if (uiState.categories[i].isExpanded) {
-                        targetIndex += uiState.categories[i].series.chunked(3).size
+                        val columnsCount = when (uiState.displayMode) {
+                            ComponentDisplayMode.GRID -> 3
+                            ComponentDisplayMode.LIST -> 1
+                        }
+                        targetIndex += uiState.categories[i].series.chunked(columnsCount).size
                     }
                 }
                 lazyListState.animateScrollToItem(targetIndex)
@@ -138,7 +142,11 @@ fun SeriesScreen(
                             }
 
                             if (expandableCategory.isExpanded) {
-                                val seriesRows = expandableCategory.series.chunked(3)
+                                val columnsCount = when (uiState.displayMode) {
+                                    ComponentDisplayMode.GRID -> 3
+                                    ComponentDisplayMode.LIST -> 1
+                                }
+                                val seriesRows = expandableCategory.series.chunked(columnsCount)
                                 // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
                                 itemsIndexed(
                                     items = seriesRows,
@@ -160,7 +168,7 @@ fun SeriesScreen(
                                                 )
                                             }
                                         }
-                                        repeat(3 - rowSeries.size) {
+                                        repeat(columnsCount - rowSeries.size) {
                                             Spacer(Modifier.weight(1f))
                                         }
                                     }

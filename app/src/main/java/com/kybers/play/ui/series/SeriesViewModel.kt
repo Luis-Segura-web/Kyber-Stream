@@ -214,16 +214,34 @@ class SeriesViewModel(
 
         val specialCategories = mutableListOf<ExpandableSeriesCategory>()
 
+        // Always show favorites (even during search) as requested
+        val favoriteIds = _uiState.value.favoriteSeriesIds
+        if (favoriteIds.isNotEmpty()) {
+            val favoriteSeries = parentalFilteredSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
+            if (favoriteSeries.isNotEmpty()) {
+                specialCategories.add(
+                    ExpandableSeriesCategory(
+                        category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
+                        series = favoriteSeries,
+                        isExpanded = expansionState.getOrPut("favorites") { true }
+                    )
+                )
+            }
+        }
+
+        // Add continue watching category similar to movies
         if (lowercasedQuery.isBlank()) {
-            val favoriteIds = _uiState.value.favoriteSeriesIds
-            if (favoriteIds.isNotEmpty()) {
-                val favoriteSeries = parentalFilteredSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
-                if (favoriteSeries.isNotEmpty()) {
+            val playbackPositions = preferenceManager.getAllPlaybackPositions()
+            if (playbackPositions.isNotEmpty()) {
+                val resumeSeries = parentalFilteredSeries.filter { series ->
+                    (playbackPositions[series.seriesId.toString()] ?: 0L) > 10000
+                }.sortedByDescending { playbackPositions[it.seriesId.toString()] }
+                if (resumeSeries.isNotEmpty()) {
                     specialCategories.add(
                         ExpandableSeriesCategory(
-                            category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
-                            series = favoriteSeries,
-                            isExpanded = expansionState.getOrPut("favorites") { true }
+                            category = Category(categoryId = "continue_watching", categoryName = "Continuar Viendo", parentId = 0),
+                            series = resumeSeries,
+                            isExpanded = expansionState.getOrPut("continue_watching") { true }
                         )
                     )
                 }

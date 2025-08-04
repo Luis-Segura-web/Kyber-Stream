@@ -74,7 +74,11 @@ fun MoviesScreen(
                 for (i in 0 until categoryIndex) {
                     targetIndex++
                     if (uiState.categories[i].isExpanded) {
-                        targetIndex += uiState.categories[i].movies.chunked(3).size
+                        val columnsCount = when (uiState.displayMode) {
+                            ComponentDisplayMode.GRID -> 3
+                            ComponentDisplayMode.LIST -> 1
+                        }
+                        targetIndex += uiState.categories[i].movies.chunked(columnsCount).size
                     }
                 }
                 lazyListState.animateScrollToItem(targetIndex)
@@ -139,7 +143,11 @@ fun MoviesScreen(
                             }
 
                             if (expandableCategory.isExpanded) {
-                                val movieRows = expandableCategory.movies.chunked(3)
+                                val columnsCount = when (uiState.displayMode) {
+                                    ComponentDisplayMode.GRID -> 3
+                                    ComponentDisplayMode.LIST -> 1
+                                }
+                                val movieRows = expandableCategory.movies.chunked(columnsCount)
                                 itemsIndexed(
                                     items = movieRows,
                                     key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
@@ -161,7 +169,7 @@ fun MoviesScreen(
                                                 )
                                             }
                                         }
-                                        repeat(3 - rowMovies.size) {
+                                        repeat(columnsCount - rowMovies.size) {
                                             Spacer(Modifier.weight(1f))
                                         }
                                     }
