@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -529,10 +530,20 @@ fun CollectionCarousel(uiState: MovieDetailsUiState, onMovieClick: (Int) -> Unit
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(uiState.availableCollectionMovies, key = { it.streamId }) { movie ->
+                // Available collection movies
+                items(uiState.availableCollectionMovies, key = { "available_${it.streamId}" }) { movie ->
                     EnhancedMoviePosterItem(
                         movie = movie,
                         onClick = { onMovieClick(movie.streamId) }
+                    )
+                }
+                
+                // Unavailable collection movies with "No Disponible" label
+                items(uiState.unavailableCollectionMovies, key = { "unavailable_${it.id}" }) { tmdbMovie ->
+                    UnavailableMoviePosterItem(
+                        title = tmdbMovie.title,
+                        posterPath = tmdbMovie.posterPath,
+                        onClick = { /* Can't click on unavailable movies */ }
                     )
                 }
             }
@@ -645,26 +656,113 @@ fun EnhancedMoviePosterItem(
                 }
             }
             
-            // Movie name at bottom
+            // Movie name at bottom - updated to match Movies/Series style
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
                         )
                     )
-                    .padding(horizontal = 6.dp, vertical = 8.dp)
+                    .padding(top = 16.dp, bottom = 8.dp, start = 6.dp, end = 6.dp)
             ) {
                 Text(
                     text = movie.name,
                     color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 12.sp,
+                    ),
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 12.sp
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+// Component for unavailable movies in collections
+@Composable
+fun UnavailableMoviePosterItem(
+    title: String,
+    posterPath: String?,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(140.dp)
+            .aspectRatio(2f / 3f)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data("https://image.tmdb.org/t/p/w342${posterPath}")
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Overlay to indicate unavailable status
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+            )
+            
+            // "No Disponible" label at center
+            Card(
+                modifier = Modifier.align(Alignment.Center),
+                colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.9f)),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "No Disponible",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+            
+            // Movie name at bottom - matching style
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(top = 16.dp, bottom = 8.dp, start = 6.dp, end = 6.dp)
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 12.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
