@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -260,26 +261,32 @@ fun MoviePosterItem(movie: Movie, onClick: () -> Unit) {
                 }
             }
             
-            // Title overlay
+            // Title overlay - updated to match Movies/Series screen style
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
                         )
                     )
-                    .padding(8.dp)
+                    .padding(top = 16.dp, bottom = 8.dp, start = 8.dp, end = 8.dp)
             ) {
                 Text(
                     text = movie.name,
                     color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 14.sp
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 16.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -352,26 +359,32 @@ fun SeriesPosterItem(series: Series, onClick: () -> Unit) {
                 }
             }
             
-            // Title overlay
+            // Title overlay - updated to match Movies/Series screen style
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
                         )
                     )
-                    .padding(8.dp)
+                    .padding(top = 16.dp, bottom = 8.dp, start = 8.dp, end = 8.dp)
             ) {
                 Text(
                     text = series.name,
                     color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 14.sp
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 16.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
