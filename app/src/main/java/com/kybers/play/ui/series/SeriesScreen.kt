@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kybers.play.ui.components.DisplayModeToggle
 import com.kybers.play.ui.components.DisplayMode as ComponentDisplayMode
-import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.ui.player.SortOrder
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -170,12 +169,6 @@ fun SeriesScreen(
                         }
                     }
                 }
-
-                // Add scroll indicator for better navigation
-                ScrollIndicator(
-                    listState = lazyListState,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
             }
         }
     }

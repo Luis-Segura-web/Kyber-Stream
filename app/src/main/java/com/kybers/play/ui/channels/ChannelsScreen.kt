@@ -61,7 +61,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.ui.player.ChannelPlayerControls
@@ -474,7 +473,7 @@ private fun ChannelListSection(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Categorías ocultas",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.Center
                             )
