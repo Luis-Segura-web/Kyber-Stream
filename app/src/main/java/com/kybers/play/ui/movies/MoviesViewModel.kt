@@ -12,6 +12,7 @@ import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.DisplayMode
+import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder

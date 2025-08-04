@@ -1,8 +1,8 @@
 package com.kybers.play.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.GridOn
 
 /**
  * Enum que define los diferentes modos de visualización para el contenido.
@@ -38,7 +38,7 @@ fun DisplayMode.toLocalizedName(): String {
  */
 fun DisplayMode.getIcon(): androidx.compose.ui.graphics.vector.ImageVector {
     return when (this) {
-        DisplayMode.LIST -> Icons.Default.List
-        DisplayMode.GRID -> Icons.Default.GridView
+        DisplayMode.LIST -> Icons.Filled.ViewList
+        DisplayMode.GRID -> Icons.Filled.GridOn
     }
 }

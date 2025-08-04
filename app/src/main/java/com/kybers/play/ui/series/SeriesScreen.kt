@@ -28,8 +28,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kybers.play.ui.components.DisplayModeToggle
-import com.kybers.play.ui.components.ScrollIndicator
+import com.kybers.play.ui.components.DisplayMode as ComponentDisplayMode
+import com.kybers.play.ui.player.SortOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -86,7 +99,8 @@ fun SeriesScreen(
                     uiState = uiState,
                     onRefresh = { viewModel.refreshSeriesManually() },
                     onToggleCategoryVisibility = { showCategoryVisibilityScreen = true },
-                    onSortSeries = { viewModel.toggleSortMenu(true) }
+                    onSortSeries = { viewModel.toggleSortMenu(true) },
+                    onDisplayModeChanged = { mode -> viewModel.setDisplayMode(mode) }
                 )
             }
         ) { paddingValues ->
@@ -155,12 +169,6 @@ fun SeriesScreen(
                         }
                     }
                 }
-
-                // Add scroll indicator for better navigation
-                ScrollIndicator(
-                    listState = lazyListState,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
             }
         }
     }
@@ -288,6 +296,7 @@ fun ImprovedSeriesTopBar(
     onRefresh: () -> Unit,
     onToggleCategoryVisibility: () -> Unit,
     onSortSeries: () -> Unit,
+    onDisplayModeChanged: (ComponentDisplayMode) -> Unit,
 ) {
     val hasHiddenCategories = uiState.hiddenCategoryIds.isNotEmpty()
 
@@ -348,7 +357,7 @@ fun ImprovedSeriesTopBar(
                     // Display mode toggle button
                     DisplayModeToggle(
                         currentMode = uiState.displayMode,
-                        onModeChanged = { mode -> viewModel.setDisplayMode(mode) }
+                        onModeChanged = { mode -> onDisplayModeChanged(mode) }
                     )
 
                     // Refresh button
@@ -458,4 +467,73 @@ private fun formatTimestamp(timestamp: Long): String {
     if (timestamp == 0L) return "Nunca"
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
     return sdf.format(Date(timestamp))
+}
+
+@Composable
+fun SortOptionsDialog(
+    currentCategorySortOrder: SortOrder,
+    currentItemSortOrder: SortOrder,
+    onCategorySortOrderSelected: (SortOrder) -> Unit,
+    onItemSortOrderSelected: (SortOrder) -> Unit,
+    onDismiss: () -> Unit,
+    categorySortLabel: String,
+    itemSortLabel: String
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Opciones de Ordenación") },
+        text = {
+            Column {
+                Text(categorySortLabel, style = MaterialTheme.typography.titleSmall)
+                SortOrder.values().forEach { order ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onCategorySortOrderSelected(order) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (order == currentCategorySortOrder),
+                            onClick = { onCategorySortOrderSelected(order) }
+                        )
+                        Text(text = order.toLocalizedName())
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(itemSortLabel, style = MaterialTheme.typography.titleSmall)
+                SortOrder.values().forEach { order ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onItemSortOrderSelected(order) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (order == currentItemSortOrder),
+                            onClick = { onItemSortOrderSelected(order) }
+                        )
+                        Text(text = order.toLocalizedName())
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
+}
+
+@Composable
+fun SortOrder.toLocalizedName(): String {
+    return when (this) {
+        SortOrder.DEFAULT -> "Por Defecto"
+        SortOrder.AZ -> "Alfabético (A-Z)"
+        SortOrder.ZA -> "Alfabético (Z-A)"
+    }
 }

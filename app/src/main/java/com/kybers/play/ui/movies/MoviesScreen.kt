@@ -48,7 +48,7 @@ import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.CategoryVisibilityScreen
 import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
 import com.kybers.play.ui.components.DisplayModeToggle
-import com.kybers.play.ui.components.ScrollIndicator
+import com.kybers.play.ui.components.DisplayMode as ComponentDisplayMode
 import com.kybers.play.ui.player.SortOrder
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
@@ -100,7 +100,8 @@ fun MoviesScreen(
                     uiState = uiState,
                     onRefresh = { viewModel.refreshMoviesManually() },
                     onToggleCategoryVisibility = { showCategoryVisibilityScreen = true },
-                    onSortMovies = { viewModel.toggleSortMenu(true) }
+                    onSortMovies = { viewModel.toggleSortMenu(true) },
+                    onDisplayModeChanged = { mode -> viewModel.setDisplayMode(mode) }
                 )
             }
         ) { paddingValues ->
@@ -169,12 +170,6 @@ fun MoviesScreen(
                         }
                     }
                 }
-
-                // Add scroll indicator for better navigation
-                ScrollIndicator(
-                    listState = lazyListState,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
             }
         }
     }
@@ -375,6 +370,7 @@ fun ImprovedMovieTopBar(
     onRefresh: () -> Unit,
     onToggleCategoryVisibility: () -> Unit,
     onSortMovies: () -> Unit,
+    onDisplayModeChanged: (ComponentDisplayMode) -> Unit,
 ) {
     val hasHiddenCategories = uiState.hiddenCategoryIds.isNotEmpty()
 
@@ -435,7 +431,7 @@ fun ImprovedMovieTopBar(
                     // Display mode toggle button
                     DisplayModeToggle(
                         currentMode = uiState.displayMode,
-                        onModeChanged = { mode -> viewModel.setDisplayMode(mode) }
+                        onModeChanged = { mode -> onDisplayModeChanged(mode) }
                     )
 
                     // Refresh button
