@@ -15,6 +15,8 @@ import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.ui.components.ParentalControlManager
+import com.kybers.play.ui.components.DisplayMode
+import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
@@ -85,7 +87,8 @@ data class ChannelsUiState(
     val maxRetryAttempts: Int = 3,
     val retryMessage: String? = null,
     val areCategoriesHidden: Boolean = false,
-    val hiddenCategoryIds: Set<String> = emptySet()
+    val hiddenCategoryIds: Set<String> = emptySet(),
+    val displayMode: DisplayMode = DisplayMode.LIST
 )
 
 open class ChannelsViewModel(
@@ -125,6 +128,7 @@ open class ChannelsViewModel(
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
         val lastSyncTime = syncManager.getLastSyncTimestamp(currentUser.id, SyncManager.ContentType.LIVE_TV)
         val savedHiddenCategories = preferenceManager.getHiddenLiveCategories()
+        val savedDisplayMode = preferenceManager.getDisplayModeChannels().toDisplayMode()
 
         _uiState.update {
             it.copy(
@@ -132,7 +136,8 @@ open class ChannelsViewModel(
                 channelSortOrder = savedChannelSortOrder,
                 currentAspectRatioMode = savedAspectRatioMode,
                 lastUpdatedTimestamp = lastSyncTime,
-                hiddenCategoryIds = savedHiddenCategories
+                hiddenCategoryIds = savedHiddenCategories,
+                displayMode = savedDisplayMode
             )
         }
         loadInitialChannelsAndPreloadEpg()
@@ -767,5 +772,13 @@ open class ChannelsViewModel(
         _uiState.update { it.copy(hiddenCategoryIds = ids) }
         preferenceManager.saveHiddenLiveCategories(ids)
         filterAndSortCategories()
+    }
+
+    /**
+     * Cambia el modo de visualización entre lista y cuadrícula para canales
+     */
+    fun setDisplayMode(mode: DisplayMode) {
+        _uiState.update { it.copy(displayMode = mode) }
+        preferenceManager.saveDisplayModeChannels(mode.name)
     }
 }

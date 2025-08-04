@@ -76,6 +76,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.kybers.play.ui.components.DisplayModeToggle
 
 /**
  * The main screen for browsing and watching live TV channels.
@@ -982,6 +983,12 @@ fun ImprovedChannelTopBar(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // Display mode toggle button
+                    DisplayModeToggle(
+                        currentMode = uiState.displayMode,
+                        onModeChanged = { mode ->  }
+                    )
+
                     // Refresh button
                     IconButton(
                         onClick = onRefresh,

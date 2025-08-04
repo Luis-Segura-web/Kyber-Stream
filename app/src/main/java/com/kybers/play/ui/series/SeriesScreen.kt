@@ -28,30 +28,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.kybers.play.ui.components.DisplayModeToggle
+import com.kybers.play.ui.components.ScrollIndicator
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.CategoryVisibilityScreen
 import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
-import com.kybers.play.ui.components.ScrollIndicator
-import com.kybers.play.ui.movies.SortOptionsDialog
 import kotlinx.coroutines.flow.collectLatest
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -357,6 +345,12 @@ fun ImprovedSeriesTopBar(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // Display mode toggle button
+                    DisplayModeToggle(
+                        currentMode = uiState.displayMode,
+                        onModeChanged = { mode -> viewModel.setDisplayMode(mode) }
+                    )
+
                     // Refresh button
                     IconButton(
                         onClick = onRefresh,

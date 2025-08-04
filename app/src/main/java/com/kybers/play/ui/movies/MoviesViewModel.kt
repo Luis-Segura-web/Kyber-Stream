@@ -11,6 +11,7 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
@@ -48,7 +49,8 @@ data class MoviesUiState(
     val favoriteMovieIds: Set<String> = emptySet(),
     val enrichedPosters: Map<Int, String?> = emptyMap(),
     val hiddenCategoryIds: Set<String> = emptySet(),
-    val masterCategoryList: List<ExpandableMovieCategory> = emptyList()
+    val masterCategoryList: List<ExpandableMovieCategory> = emptyList(),
+    val displayMode: DisplayMode = DisplayMode.GRID
 )
 
 class MoviesViewModel(
@@ -76,17 +78,19 @@ class MoviesViewModel(
         val savedMovieSortOrder = preferenceManager.getSortOrder("movie_item").toSortOrder()
         val favoriteIds = preferenceManager.getFavoriteMovieIds()
         val hiddenCategories = preferenceManager.getHiddenMovieCategories()
+        val savedDisplayMode = preferenceManager.getDisplayModeMovies().toDisplayMode()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 movieSortOrder = savedMovieSortOrder,
                 favoriteMovieIds = favoriteIds,
-                hiddenCategoryIds = hiddenCategories
+                hiddenCategoryIds = hiddenCategories,
+                displayMode = savedDisplayMode
             )
         }
         loadInitialData()
-        
+
         // React to parental control changes
         viewModelScope.launch {
             parentalControlManager.blockedCategoriesState.collect { _ ->
@@ -346,5 +350,13 @@ class MoviesViewModel(
         _uiState.update { it.copy(hiddenCategoryIds = ids) }
         preferenceManager.saveHiddenMovieCategories(ids)
         updateUiWithFilteredData()
+    }
+
+    /**
+     * Cambia el modo de visualización entre lista y cuadrícula para películas
+     */
+    fun setDisplayMode(mode: DisplayMode) {
+        _uiState.update { it.copy(displayMode = mode) }
+        preferenceManager.saveDisplayModeMovies(mode.name)
     }
 }

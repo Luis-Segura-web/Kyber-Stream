@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,7 @@ import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.CategoryVisibilityScreen
 import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
+import com.kybers.play.ui.components.DisplayModeToggle
 import com.kybers.play.ui.components.ScrollIndicator
 import com.kybers.play.ui.player.SortOrder
 import kotlinx.coroutines.flow.collectLatest
@@ -430,6 +432,12 @@ fun ImprovedMovieTopBar(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    // Display mode toggle button
+                    DisplayModeToggle(
+                        currentMode = uiState.displayMode,
+                        onModeChanged = { mode -> viewModel.setDisplayMode(mode) }
+                    )
+
                     // Refresh button
                     IconButton(
                         onClick = onRefresh,

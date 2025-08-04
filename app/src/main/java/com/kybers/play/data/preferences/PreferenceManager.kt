@@ -43,6 +43,11 @@ class PreferenceManager(context: Context) {
         // --- NUEVAS CLAVES PARA CATEGORÍAS OCULTAS EN PELÍCULAS Y SERIES ---
         private const val KEY_HIDDEN_MOVIE_CATEGORIES = "hidden_movie_categories"
         private const val KEY_HIDDEN_SERIES_CATEGORIES = "hidden_series_categories"
+
+        // --- NUEVAS CLAVES PARA MODOS DE VISUALIZACIÓN ---
+        private const val KEY_DISPLAY_MODE_CHANNELS = "display_mode_channels"
+        private const val KEY_DISPLAY_MODE_MOVIES = "display_mode_movies"
+        private const val KEY_DISPLAY_MODE_SERIES = "display_mode_series"
     }
 
     // --- Métodos existentes (sin cambios) ---
@@ -158,7 +163,7 @@ class PreferenceManager(context: Context) {
      */
     fun getVLCOptions(): ArrayList<String> {
         val options = arrayListOf<String>()
-        
+
         // Apply network buffer setting
         val networkBuffer = getNetworkBuffer()
         val bufferValue = when (networkBuffer) {
@@ -177,7 +182,7 @@ class PreferenceManager(context: Context) {
         } else {
             options.add("--avcodec-hw=none")
         }
-        
+
         // Apply stream format specific configurations
         val streamFormat = getStreamFormat()
         when (streamFormat) {
@@ -188,14 +193,25 @@ class PreferenceManager(context: Context) {
                 options.add("--ts-seek-percent")
             }
         }
-        
+
         // General performance configurations
         options.add("--audio-time-stretch")
-        
+
         // Log the options being applied for debugging
         android.util.Log.d("PlayerSettings", "Generated VLC options: ${options.joinToString(", ")}")
         android.util.Log.d("PlayerSettings", "Settings - Buffer: $networkBuffer, HW Accel: ${getHwAcceleration()}, Format: $streamFormat")
         
         return options
     }
+
+    // --- Métodos para gestionar modos de visualización ---
+
+    fun saveDisplayModeChannels(mode: String) = sharedPreferences.edit().putString(KEY_DISPLAY_MODE_CHANNELS, mode).apply()
+    fun getDisplayModeChannels(): String = sharedPreferences.getString(KEY_DISPLAY_MODE_CHANNELS, "GRID") ?: "GRID"
+
+    fun saveDisplayModeMovies(mode: String) = sharedPreferences.edit().putString(KEY_DISPLAY_MODE_MOVIES, mode).apply()
+    fun getDisplayModeMovies(): String = sharedPreferences.getString(KEY_DISPLAY_MODE_MOVIES, "GRID") ?: "GRID"
+
+    fun saveDisplayModeSeries(mode: String) = sharedPreferences.edit().putString(KEY_DISPLAY_MODE_SERIES, mode).apply()
+    fun getDisplayModeSeries(): String = sharedPreferences.getString(KEY_DISPLAY_MODE_SERIES, "GRID") ?: "GRID"
 }

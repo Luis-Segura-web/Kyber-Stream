@@ -8,6 +8,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
@@ -45,7 +46,8 @@ data class SeriesUiState(
     val showSortMenu: Boolean = false,
     val favoriteSeriesIds: Set<String> = emptySet(),
     val hiddenCategoryIds: Set<String> = emptySet(),
-    val masterCategoryList: List<ExpandableSeriesCategory> = emptyList()
+    val masterCategoryList: List<ExpandableSeriesCategory> = emptyList(),
+    val displayMode: DisplayMode = DisplayMode.GRID
 )
 
 class SeriesViewModel(
@@ -71,17 +73,19 @@ class SeriesViewModel(
         val savedSeriesSortOrder = preferenceManager.getSortOrder("series_item").toSortOrder()
         val favoriteIds = preferenceManager.getFavoriteSeriesIds()
         val hiddenCategories = preferenceManager.getHiddenSeriesCategories()
+        val savedDisplayMode = preferenceManager.getDisplayModeSeries().toDisplayMode()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 seriesSortOrder = savedSeriesSortOrder,
                 favoriteSeriesIds = favoriteIds,
-                hiddenCategoryIds = hiddenCategories
+                hiddenCategoryIds = hiddenCategories,
+                displayMode = savedDisplayMode
             )
         }
         loadInitialData()
-        
+
         // React to parental control changes
         viewModelScope.launch {
             parentalControlManager.blockedCategoriesState.collect { _ ->
@@ -278,5 +282,13 @@ class SeriesViewModel(
         _uiState.update { it.copy(hiddenCategoryIds = ids) }
         preferenceManager.saveHiddenSeriesCategories(ids)
         updateUiWithFilteredData()
+    }
+
+    /**
+     * Cambia el modo de visualización entre lista y cuadrícula para series
+     */
+    fun setDisplayMode(mode: DisplayMode) {
+        _uiState.update { it.copy(displayMode = mode) }
+        preferenceManager.saveDisplayModeSeries(mode.name)
     }
 }
