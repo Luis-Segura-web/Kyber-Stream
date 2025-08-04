@@ -43,7 +43,9 @@ data class SeriesUiState(
     val categorySortOrder: SortOrder = SortOrder.DEFAULT,
     val seriesSortOrder: SortOrder = SortOrder.DEFAULT,
     val showSortMenu: Boolean = false,
-    val favoriteSeriesIds: Set<String> = emptySet()
+    val favoriteSeriesIds: Set<String> = emptySet(),
+    val hiddenCategoryIds: Set<String> = emptySet(),
+    val masterCategoryList: List<ExpandableSeriesCategory> = emptyList()
 )
 
 class SeriesViewModel(
@@ -68,12 +70,14 @@ class SeriesViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("series_category").toSortOrder()
         val savedSeriesSortOrder = preferenceManager.getSortOrder("series_item").toSortOrder()
         val favoriteIds = preferenceManager.getFavoriteSeriesIds()
+        val hiddenCategories = preferenceManager.getHiddenSeriesCategories()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 seriesSortOrder = savedSeriesSortOrder,
-                favoriteSeriesIds = favoriteIds
+                favoriteSeriesIds = favoriteIds,
+                hiddenCategoryIds = hiddenCategories
             )
         }
         loadInitialData()
@@ -96,12 +100,23 @@ class SeriesViewModel(
             val categoriesJob = async { officialCategories = vodRepository.getSeriesCategories(currentUser.username, currentUser.password, currentUser.id) }
             awaitAll(seriesJob, categoriesJob)
 
+            // Crear la lista maestra de categorías
+            val seriesByCategory = allSeries.groupBy { it.categoryId }
+            val masterCategoryList = officialCategories.map { category ->
+                val seriesInCategory = seriesByCategory[category.categoryId] ?: emptyList()
+                ExpandableSeriesCategory(
+                    category = category,
+                    series = seriesInCategory
+                )
+            }
+
             updateUiWithFilteredData()
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     lastUpdatedTimestamp = lastSyncTime,
-                    totalSeriesCount = allSeries.size
+                    totalSeriesCount = allSeries.size,
+                    masterCategoryList = masterCategoryList
                 )
             }
         }
@@ -179,10 +194,9 @@ class SeriesViewModel(
         categorySortOrder: SortOrder,
         seriesSortOrder: SortOrder
     ): List<ExpandableSeriesCategory> {
-        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
         // Use ParentalControlManager for filtering
         val categoriesToDisplay = parentalControlManager.filterCategories(officialCategories) { it.categoryId }
-        // --- FIN DE LA LÓGICA ---
+            .filter { it.categoryId !in _uiState.value.hiddenCategoryIds } // Aplicar categorías ocultas
 
         val lowercasedQuery = query.lowercase().trim()
 
@@ -255,5 +269,14 @@ class SeriesViewModel(
         if (timestamp == 0L) return "Nunca"
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         return sdf.format(Date(timestamp))
+    }
+
+    /**
+     * Guarda el conjunto de categorías de series a ocultar.
+     */
+    fun setHiddenCategories(ids: Set<String>) {
+        _uiState.update { it.copy(hiddenCategoryIds = ids) }
+        preferenceManager.saveHiddenSeriesCategories(ids)
+        updateUiWithFilteredData()
     }
 }

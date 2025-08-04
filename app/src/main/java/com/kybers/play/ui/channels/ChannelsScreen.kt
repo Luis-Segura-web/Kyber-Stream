@@ -68,6 +68,8 @@ import com.kybers.play.ui.player.ChannelPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
+import com.kybers.play.ui.movies.ExpandableMovieCategory
+import com.kybers.play.ui.series.ExpandableSeriesCategory
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -1051,7 +1053,7 @@ fun ImprovedChannelTopBar(
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = "{Ult. Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
+                                text = "Ult. Act: ${formatTimestamp(uiState.lastUpdatedTimestamp)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                                 maxLines = 1
@@ -1096,15 +1098,17 @@ private fun formatTimestamp(timestamp: Long): String {
  * @param hiddenCategoryIds A set of IDs for the categories that are currently hidden.
  * @param onBack A callback that is invoked when the back button is clicked.
  * @param onSave A callback that is invoked when the save button is clicked with the new set of hidden IDs.
+ * @param contentType The type of content being managed (e.g., "canales", "películas", "series").
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoryVisibilityScreen(
-    allCategories: List<ExpandableCategory>,
+fun <T> CategoryVisibilityScreen(
+    allCategories: List<T>,
     hiddenCategoryIds: Set<String>,
     onBack: () -> Unit,
-    onSave: (Set<String>) -> Unit
-) {
+    onSave: (Set<String>) -> Unit,
+    contentType: String = "categorías"
+) where T : Any {
     var selectedHidden by remember { mutableStateOf(hiddenCategoryIds) }
 
     Scaffold(
@@ -1170,7 +1174,7 @@ fun CategoryVisibilityScreen(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Text(
-                        text = "Seleccione las categorías a ocultar",
+                        text = "Seleccione las categorías de $contentType a ocultar",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -1194,17 +1198,45 @@ fun CategoryVisibilityScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(allCategories, key = { it.category.categoryId }) { cat ->
-                    val isChecked = selectedHidden.contains(cat.category.categoryId)
+                items(allCategories, key = {
+                    when (it) {
+                        is ExpandableCategory -> it.category.categoryId
+                        is ExpandableMovieCategory -> it.category.categoryId
+                        is ExpandableSeriesCategory -> it.category.categoryId
+                        else -> it.hashCode().toString()
+                    }
+                }) { cat ->
+                    val categoryId = when (cat) {
+                        is ExpandableCategory -> cat.category.categoryId
+                        is ExpandableMovieCategory -> cat.category.categoryId
+                        is ExpandableSeriesCategory -> cat.category.categoryId
+                        else -> ""
+                    }
+
+                    val categoryName = when (cat) {
+                        is ExpandableCategory -> cat.category.categoryName
+                        is ExpandableMovieCategory -> cat.category.categoryName
+                        is ExpandableSeriesCategory -> cat.category.categoryName
+                        else -> "Categoría desconocida"
+                    }
+
+                    val itemCount = when (cat) {
+                        is ExpandableCategory -> cat.channels.size
+                        is ExpandableMovieCategory -> cat.movies.size
+                        is ExpandableSeriesCategory -> cat.series.size
+                        else -> 0
+                    }
+
+                    val isChecked = selectedHidden.contains(categoryId)
 
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
                                 selectedHidden = if (isChecked) {
-                                    selectedHidden - cat.category.categoryId
+                                    selectedHidden - categoryId
                                 } else {
-                                    selectedHidden + cat.category.categoryId
+                                    selectedHidden + categoryId
                                 }
                             },
                         colors = CardDefaults.cardColors(
@@ -1230,9 +1262,9 @@ fun CategoryVisibilityScreen(
                                 checked = isChecked,
                                 onCheckedChange = { checked ->
                                     selectedHidden = if (checked) {
-                                        selectedHidden + cat.category.categoryId
+                                        selectedHidden + categoryId
                                     } else {
-                                        selectedHidden - cat.category.categoryId
+                                        selectedHidden - categoryId
                                     }
                                 },
                                 colors = CheckboxDefaults.colors(
@@ -1246,7 +1278,7 @@ fun CategoryVisibilityScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = cat.category.categoryName,
+                                    text = categoryName,
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Medium
                                     ),
@@ -1256,8 +1288,14 @@ fun CategoryVisibilityScreen(
                                         MaterialTheme.colorScheme.onSurface
                                 )
 
+                                val itemLabel = when (contentType) {
+                                    "películas" -> if (itemCount != 1) "películas" else "película"
+                                    "series" -> if (itemCount != 1) "series" else "serie"
+                                    else -> if (itemCount != 1) "canales" else "canal"
+                                }
+
                                 Text(
-                                    text = "${cat.channels.size} canal${if (cat.channels.size != 1) "es" else ""}",
+                                    text = "$itemCount $itemLabel",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

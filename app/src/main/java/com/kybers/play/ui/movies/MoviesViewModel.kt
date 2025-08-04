@@ -46,7 +46,9 @@ data class MoviesUiState(
     val movieSortOrder: SortOrder = SortOrder.DEFAULT,
     val showSortMenu: Boolean = false,
     val favoriteMovieIds: Set<String> = emptySet(),
-    val enrichedPosters: Map<Int, String?> = emptyMap()
+    val enrichedPosters: Map<Int, String?> = emptyMap(),
+    val hiddenCategoryIds: Set<String> = emptySet(),
+    val masterCategoryList: List<ExpandableMovieCategory> = emptyList()
 )
 
 class MoviesViewModel(
@@ -73,12 +75,14 @@ class MoviesViewModel(
         val savedCategorySortOrder = preferenceManager.getSortOrder("movie_category").toSortOrder()
         val savedMovieSortOrder = preferenceManager.getSortOrder("movie_item").toSortOrder()
         val favoriteIds = preferenceManager.getFavoriteMovieIds()
+        val hiddenCategories = preferenceManager.getHiddenMovieCategories()
 
         _uiState.update {
             it.copy(
                 categorySortOrder = savedCategorySortOrder,
                 movieSortOrder = savedMovieSortOrder,
-                favoriteMovieIds = favoriteIds
+                favoriteMovieIds = favoriteIds,
+                hiddenCategoryIds = hiddenCategories
             )
         }
         loadInitialData()
@@ -226,10 +230,9 @@ class MoviesViewModel(
         categorySortOrder: SortOrder,
         movieSortOrder: SortOrder
     ): List<ExpandableMovieCategory> {
-        // --- ¡LÓGICA DE CONTROL PARENTAL APLICADA! ---
         // Use ParentalControlManager for filtering
         val categoriesToDisplay = parentalControlManager.filterCategories(officialCategories) { it.categoryId }
-        // --- FIN DE LA LÓGICA ---
+            .filter { it.categoryId !in _uiState.value.hiddenCategoryIds } // Aplicar categorías ocultas
 
         val lowercasedQuery = query.lowercase().trim()
 
@@ -276,7 +279,7 @@ class MoviesViewModel(
         }
         val moviesByCategoryId = moviesToDisplay.groupBy { it.categoryId.takeIf { !it.isNullOrBlank() } ?: "misc" }
 
-        // Usamos la lista de categorías ya filtrada
+        // Usar la lista de categorías ya filtrada (incluyendo categorías ocultas)
         categoriesToDisplay.forEach { category ->
             moviesByCategoryId[category.categoryId]?.let {
                 regularCategories.add(
@@ -334,5 +337,14 @@ class MoviesViewModel(
         if (timestamp == 0L) return "Nunca"
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.forLanguageTag("es-MX"))
         return sdf.format(Date(timestamp))
+    }
+
+    /**
+     * Guarda el conjunto de categorías de películas a ocultar.
+     */
+    fun setHiddenCategories(ids: Set<String>) {
+        _uiState.update { it.copy(hiddenCategoryIds = ids) }
+        preferenceManager.saveHiddenMovieCategories(ids)
+        updateUiWithFilteredData()
     }
 }

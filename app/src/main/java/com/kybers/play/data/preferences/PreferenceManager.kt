@@ -39,6 +39,10 @@ class PreferenceManager(context: Context) {
 
         // --- NUEVA CLAVE PARA CATEGORÍAS OCULTAS EN TV EN VIVO ---
         private const val KEY_HIDDEN_LIVE_CATEGORIES = "hidden_live_categories"
+
+        // --- NUEVAS CLAVES PARA CATEGORÍAS OCULTAS EN PELÍCULAS Y SERIES ---
+        private const val KEY_HIDDEN_MOVIE_CATEGORIES = "hidden_movie_categories"
+        private const val KEY_HIDDEN_SERIES_CATEGORIES = "hidden_series_categories"
     }
 
     // --- Métodos existentes (sin cambios) ---
@@ -139,6 +143,14 @@ class PreferenceManager(context: Context) {
     // --- Preferencias de categorías ocultas en TV en Vivo ---
     fun saveHiddenLiveCategories(ids: Set<String>) = sharedPreferences.edit().putStringSet(KEY_HIDDEN_LIVE_CATEGORIES, ids).apply()
     fun getHiddenLiveCategories(): Set<String> = sharedPreferences.getStringSet(KEY_HIDDEN_LIVE_CATEGORIES, emptySet()) ?: emptySet()
+
+    // --- Preferencias de categorías ocultas en Películas ---
+    fun saveHiddenMovieCategories(ids: Set<String>) = sharedPreferences.edit().putStringSet(KEY_HIDDEN_MOVIE_CATEGORIES, ids).apply()
+    fun getHiddenMovieCategories(): Set<String> = sharedPreferences.getStringSet(KEY_HIDDEN_MOVIE_CATEGORIES, emptySet()) ?: emptySet()
+
+    // --- Preferencias de categorías ocultas en Series ---
+    fun saveHiddenSeriesCategories(ids: Set<String>) = sharedPreferences.edit().putStringSet(KEY_HIDDEN_SERIES_CATEGORIES, ids).apply()
+    fun getHiddenSeriesCategories(): Set<String> = sharedPreferences.getStringSet(KEY_HIDDEN_SERIES_CATEGORIES, emptySet()) ?: emptySet()
 
     /**
      * Generates VLC options based on current user preferences.
