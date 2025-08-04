@@ -77,6 +77,7 @@ import java.util.Locale
 import java.util.TimeZone
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.kybers.play.ui.components.DisplayModeToggle
+import com.kybers.play.ui.components.DisplayMode as ComponentDisplayMode
 
 /**
  * The main screen for browsing and watching live TV channels.
@@ -219,7 +220,8 @@ fun ChannelsScreen(
                     uiState = uiState,
                     onRefresh = { viewModel.refreshChannelsManually() },
                     onToggleCategoryVisibility = { showCategoryVisibilityScreen = true },
-                    onSortCategories = { viewModel.toggleSortMenu(true) }
+                    onSortCategories = { viewModel.toggleSortMenu(true) },
+                    onDisplayModeChanged = { mode -> viewModel.setDisplayMode(mode) }
                 )
             }
         }
@@ -927,6 +929,7 @@ fun ImprovedChannelTopBar(
     onRefresh: () -> Unit,
     onToggleCategoryVisibility: () -> Unit,
     onSortCategories: () -> Unit,
+    onDisplayModeChanged: (ComponentDisplayMode) -> Unit,
 ) {
     val hasHiddenCategories = uiState.hiddenCategoryIds.isNotEmpty()
     Surface(
@@ -986,7 +989,7 @@ fun ImprovedChannelTopBar(
                     // Display mode toggle button
                     DisplayModeToggle(
                         currentMode = uiState.displayMode,
-                        onModeChanged = { mode ->  }
+                        onModeChanged = { mode -> onDisplayModeChanged(mode) }
                     )
 
                     // Refresh button

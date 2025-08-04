@@ -178,7 +178,7 @@ private fun SeriesListCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    if (series.plot.isNotBlank()) {
+                    if (series.plot?.isNotBlank() == true) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = series.plot,
@@ -197,14 +197,14 @@ private fun SeriesListCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        if (series.releaseDate.isNotBlank()) {
+                        if (series.releaseDate?.isNotBlank() == true) {
                             Text(
                                 text = series.releaseDate,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (series.genre.isNotBlank()) {
+                        if (series.genre?.isNotBlank() == true) {
                             Text(
                                 text = series.genre,
                                 style = MaterialTheme.typography.labelSmall,
