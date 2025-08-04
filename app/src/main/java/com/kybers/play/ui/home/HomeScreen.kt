@@ -203,17 +203,86 @@ fun MoviePosterItem(movie: Movie, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(movie.streamIcon)
-                .crossfade(true)
-                .fallback(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
-                .build(),
-            contentDescription = movie.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(movie.streamIcon)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = movie.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Movie badge
+            Card(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "Movie",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            
+            // Rating badge
+            if (movie.rating5Based > 0) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "⭐",
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = String.format("%.1f", movie.rating5Based),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            
+            // Title overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = movie.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 14.sp
+                )
+            }
+        }
     }
 }
 
@@ -226,17 +295,86 @@ fun SeriesPosterItem(series: Series, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(series.cover)
-                .crossfade(true)
-                .fallback(R.drawable.ic_launcher_background)
-                .error(R.drawable.ic_launcher_background)
-                .build(),
-            contentDescription = series.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(series.cover)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = series.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Series badge
+            Card(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "Serie",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            
+            // Rating badge
+            if (series.rating5Based > 0) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "⭐",
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = String.format("%.1f", series.rating5Based),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            
+            // Title overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = series.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 14.sp
+                )
+            }
+        }
     }
 }
 

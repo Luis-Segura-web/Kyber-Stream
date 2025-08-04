@@ -23,6 +23,20 @@ interface ExternalApiService {
         @Query("page") page: Int = 1
     ): Response<TMDbSearchResponse>
 
+    @GET("trending/movie/week")
+    suspend fun getTrendingMoviesWeek(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-MX",
+        @Query("page") page: Int = 1
+    ): Response<TMDbSearchResponse>
+
+    @GET("trending/tv/week")
+    suspend fun getTrendingSeriesWeek(
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String = "es-MX",
+        @Query("page") page: Int = 1
+    ): Response<com.kybers.play.data.remote.model.TMDbTvSearchResponse>
+
     @GET("movie/{movie_id}")
     suspend fun getMovieDetailsTMDb(
         @Path("movie_id") movieId: Int,
