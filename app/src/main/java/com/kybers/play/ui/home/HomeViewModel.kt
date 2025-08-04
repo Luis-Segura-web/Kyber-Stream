@@ -97,21 +97,21 @@ class HomeViewModel(
         val carousels = mutableListOf<HomeCarousel>()
 
         val continueMoviesJob = async { loadContinueMovies() }
-        val liveNowJob = async { loadLiveNow() }
+        // val liveNowJob = async { loadLiveNow() } // Carousel "En Directo Ahora" eliminado
         val recentMoviesJob = async { loadRecentlyAddedMovies() }
         val recentSeriesJob = async { loadRecentlyAddedSeries() }
         val favMoviesJob = async { loadFavoriteMovies() }
         val favSeriesJob = async { loadFavoriteSeries() }
 
         val continueMovies = continueMoviesJob.await()
-        val liveNow = liveNowJob.await()
+        // val liveNow = liveNowJob.await() // Carousel "En Directo Ahora" eliminado
         val recentMovies = recentMoviesJob.await()
         val recentSeries = recentSeriesJob.await()
         val favMovies = favMoviesJob.await()
         val favSeries = favSeriesJob.await()
 
         if (continueMovies.isNotEmpty()) carousels.add(HomeCarousel("Continuar Viendo Películas", continueMovies))
-        if (liveNow.isNotEmpty()) carousels.add(HomeCarousel("En Directo Ahora", liveNow))
+        // if (liveNow.isNotEmpty()) carousels.add(HomeCarousel("En Directo Ahora", liveNow)) // Carousel "En Directo Ahora" eliminado
         if (recentMovies.isNotEmpty()) carousels.add(HomeCarousel("Películas Recientes", recentMovies))
         if (recentSeries.isNotEmpty()) carousels.add(HomeCarousel("Series Recientes", recentSeries))
         if (favMovies.isNotEmpty()) carousels.add(HomeCarousel("Mis Películas Favoritas", favMovies))
