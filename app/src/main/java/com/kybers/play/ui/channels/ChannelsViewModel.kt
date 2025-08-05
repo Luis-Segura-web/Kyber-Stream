@@ -17,6 +17,9 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
+import com.kybers.play.ui.components.categories.GlobalCategoryStateManager
+import com.kybers.play.ui.components.categories.CategoryEvent
+import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
@@ -578,6 +581,11 @@ open class ChannelsViewModel(
                 _uiState.update { it.copy(masterCategoryList = currentOriginals) }
                 filterAndSortCategories()
 
+                // Update the global category state manager
+                GlobalCategoryStateManager.instance.handleEvent(
+                    CategoryEvent.ToggleCategory(categoryId, ScreenType.CHANNELS)
+                )
+
                 _scrollToItemEvent.emit(categoryId)
             }
         }
@@ -601,6 +609,11 @@ open class ChannelsViewModel(
                 _originalCategories.value = expandableCategories
                 // Actualizar la nueva lista maestra en el estado
                 _uiState.update { it.copy(masterCategoryList = expandableCategories) }
+                
+                // Initialize categories in the global state manager
+                val categoryList = expandableCategories.map { it.category.categoryId to it.category.categoryName }
+                GlobalCategoryStateManager.instance.initializeCategories(ScreenType.CHANNELS, categoryList)
+                
                 filterAndSortCategories()
                 _uiState.update { it.copy(isLoading = false, totalChannelCount = allChannels.size) }
 
@@ -713,6 +726,11 @@ open class ChannelsViewModel(
                 _originalCategories.value = originals
                 filterAndSortCategories()
             }
+
+            // Update the global category state manager for favorites
+            GlobalCategoryStateManager.instance.handleEvent(
+                CategoryEvent.ToggleCategory("favorites", ScreenType.CHANNELS)
+            )
 
             _scrollToItemEvent.emit("favorites")
         }

@@ -11,6 +11,9 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
+import com.kybers.play.ui.components.categories.GlobalCategoryStateManager
+import com.kybers.play.ui.components.categories.CategoryEvent
+import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
 import kotlinx.coroutines.async
@@ -115,6 +118,10 @@ class SeriesViewModel(
                 )
             }
 
+            // Initialize categories in the global state manager
+            val categoryList = officialCategories.map { it.categoryId to it.categoryName }
+            GlobalCategoryStateManager.instance.initializeCategories(ScreenType.SERIES, categoryList)
+
             updateUiWithFilteredData()
             _uiState.update {
                 it.copy(
@@ -177,6 +184,12 @@ class SeriesViewModel(
             }
             expansionState[categoryId] = isNowExpanding
             updateUiWithFilteredData()
+            
+            // Update the global category state manager
+            GlobalCategoryStateManager.instance.handleEvent(
+                CategoryEvent.ToggleCategory(categoryId, ScreenType.SERIES)
+            )
+            
             if (isNowExpanding) _scrollToItemEvent.emit(categoryId)
         }
     }
