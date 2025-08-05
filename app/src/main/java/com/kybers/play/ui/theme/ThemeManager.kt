@@ -12,21 +12,33 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Theme colors available to the user
+ * Colores de tema disponibles para el usuario
  */
 enum class ThemeColor {
-    BLUE,
-    PURPLE,
-    PINK
+    BLUE,    // Azul profesional
+    PURPLE,  // Púrpura elegante
+    PINK     // Rosa moderno
 }
 
 /**
- * Theme modes available to the user
+ * Modos de visualización disponibles para el usuario
  */
 enum class ThemeMode {
-    LIGHT,
-    DARK,
-    SYSTEM
+    LIGHT,   // Claro
+    DARK,    // Oscuro
+    SYSTEM   // Automático (sigue configuración del sistema)
+}
+
+/**
+ * Configuración completa del tema con color y modo independientes
+ */
+data class ThemeConfig(
+    val color: ThemeColor,
+    val mode: ThemeMode
+) {
+    companion object {
+        val DEFAULT = ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
+    }
 }
 
 /**
@@ -42,65 +54,34 @@ enum class LegacyThemeMode {
 }
 
 /**
- * Configuration for the new theme system with independent color and mode selection
- */
-data class ThemeConfig(
-    val color: ThemeColor,
-    val mode: ThemeMode
-) {
-    companion object {
-        val DEFAULT = ThemeConfig(
-            color = ThemeColor.BLUE,
-            mode = ThemeMode.SYSTEM
-        )
-    }
-}
-
-/**
  * Manages application theme state and provides theme information
- * Enhanced for independent color and mode selection with legacy support
+ * Enhanced for instant theme switching with independent color and mode selection
  */
 class ThemeManager(private val preferenceManager: PreferenceManager) {
     
-    // Inicializar con valores por defecto primero
-    private val _currentThemeConfig = MutableStateFlow(ThemeConfig.DEFAULT)
+    // Nuevo sistema con configuración independiente
+    private val _currentThemeConfig = MutableStateFlow(getCurrentThemeConfigFromPreferences())
     val currentThemeConfig: StateFlow<ThemeConfig> = _currentThemeConfig.asStateFlow()
-
+    
     // Legacy support para compatibilidad hacia atrás
-    private val _currentTheme = MutableStateFlow(LegacyThemeMode.SYSTEM)
+    private val _currentTheme = MutableStateFlow(legacyThemeModeFromConfig(_currentThemeConfig.value))
     val currentTheme: StateFlow<LegacyThemeMode> = _currentTheme.asStateFlow()
-
-    // Bloque init para cargar configuración real
-    init {
-        val actualConfig = getCurrentThemeConfigFromPreferences()
-        _currentThemeConfig.value = actualConfig
-        _currentTheme.value = legacyThemeModeFromConfig(actualConfig)
-    }
     
     private fun getCurrentThemeConfigFromPreferences(): ThemeConfig {
-        // Check if new system preferences exist
-        val themeColor = preferenceManager.getThemeColor()
-        val themeMode = preferenceManager.getThemeMode()
+        // Intentar leer el nuevo formato primero
+        val savedColor = preferenceManager.getThemeColor()
+        val savedMode = preferenceManager.getThemeMode()
         
-        // If new preferences don't exist, migrate from legacy
-        return if (themeColor == "BLUE" && themeMode == "SYSTEM" && !hasNewThemePreferences()) {
-            migrateFromLegacyTheme()
-        } else {
-            ThemeConfig(
-                color = parseThemeColor(themeColor),
-                mode = parseThemeMode(themeMode)
+        if (savedColor != null && savedMode != null) {
+            // Formato nuevo disponible
+            return ThemeConfig(
+                color = parseThemeColor(savedColor) ?: ThemeColor.BLUE,
+                mode = parseThemeMode(savedMode) ?: ThemeMode.SYSTEM
             )
         }
-    }
-    
-    private fun hasNewThemePreferences(): Boolean {
-        // Check if the user has explicitly set new theme preferences
-        val legacyTheme = preferenceManager.getAppTheme()
-        val newColor = preferenceManager.getThemeColor()
-        val newMode = preferenceManager.getThemeMode()
         
-        // If legacy is not default and new are default, then we haven't migrated yet
-        return !(legacyTheme != "SYSTEM" && newColor == "BLUE" && newMode == "SYSTEM")
+        // Migrar desde formato anterior
+        return migrateFromLegacyTheme()
     }
     
     private fun migrateFromLegacyTheme(): ThemeConfig {
@@ -115,76 +96,84 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
             else -> ThemeConfig.DEFAULT
         }
         
-        // Guardar directamente sin llamar setThemeConfig durante inicialización
-        preferenceManager.saveThemeColor(config.color.name)
-        preferenceManager.saveThemeMode(config.mode.name)
+        // Guardar en nuevo formato
+        setThemeConfig(config)
         return config
     }
     
-    private fun parseThemeColor(colorString: String): ThemeColor {
-        return when (colorString) {
-            "BLUE" -> ThemeColor.BLUE
-            "PURPLE" -> ThemeColor.PURPLE
-            "PINK" -> ThemeColor.PINK
-            else -> ThemeColor.BLUE
+    private fun parseThemeColor(colorString: String): ThemeColor? {
+        return try {
+            ThemeColor.valueOf(colorString)
+        } catch (e: IllegalArgumentException) {
+            null
         }
     }
     
-    private fun parseThemeMode(modeString: String): ThemeMode {
-        return when (modeString) {
-            "LIGHT" -> ThemeMode.LIGHT
-            "DARK" -> ThemeMode.DARK
-            "SYSTEM" -> ThemeMode.SYSTEM
-            else -> ThemeMode.SYSTEM
+    private fun parseThemeMode(modeString: String): ThemeMode? {
+        return try {
+            ThemeMode.valueOf(modeString)
+        } catch (e: IllegalArgumentException) {
+            null
         }
     }
     
     private fun legacyThemeModeFromConfig(config: ThemeConfig): LegacyThemeMode {
-        return when {
-            config.mode == ThemeMode.LIGHT -> LegacyThemeMode.LIGHT
-            config.mode == ThemeMode.DARK && config.color == ThemeColor.BLUE -> LegacyThemeMode.BLUE
-            config.mode == ThemeMode.DARK && config.color == ThemeColor.PURPLE -> LegacyThemeMode.PURPLE
-            config.mode == ThemeMode.DARK && config.color == ThemeColor.PINK -> LegacyThemeMode.PINK
-            config.mode == ThemeMode.DARK -> LegacyThemeMode.DARK
-            config.mode == ThemeMode.SYSTEM -> LegacyThemeMode.SYSTEM
-            else -> LegacyThemeMode.SYSTEM
+        return if (config.mode == ThemeMode.SYSTEM) {
+            LegacyThemeMode.SYSTEM
+        } else if (config.mode == ThemeMode.LIGHT && config.color == ThemeColor.BLUE) {
+            LegacyThemeMode.LIGHT
+        } else if (config.mode == ThemeMode.DARK && config.color == ThemeColor.BLUE) {
+            LegacyThemeMode.DARK
+        } else {
+            when (config.color) {
+                ThemeColor.BLUE -> LegacyThemeMode.BLUE
+                ThemeColor.PURPLE -> LegacyThemeMode.PURPLE
+                ThemeColor.PINK -> LegacyThemeMode.PINK
+            }
         }
     }
     
+    
     /**
-     * Sets the theme configuration (color and mode independently)
+     * Actualiza la configuración completa del tema
      */
     fun setThemeConfig(config: ThemeConfig) {
         preferenceManager.saveThemeColor(config.color.name)
         preferenceManager.saveThemeMode(config.mode.name)
         _currentThemeConfig.value = config
         _currentTheme.value = legacyThemeModeFromConfig(config)
+        
+        // Mantener compatibilidad con el sistema anterior
+        val legacyThemeString = when {
+            config.mode == ThemeMode.SYSTEM -> "SYSTEM"
+            config.mode == ThemeMode.LIGHT && config.color == ThemeColor.BLUE -> "LIGHT"
+            config.mode == ThemeMode.DARK && config.color == ThemeColor.BLUE -> "DARK"
+            else -> config.color.name
+        }
+        preferenceManager.saveAppTheme(legacyThemeString)
     }
     
     /**
-     * Sets only the theme color, keeping the current mode
+     * Actualiza solo el color del tema
      */
     fun setThemeColor(color: ThemeColor) {
-        val newConfig = _currentThemeConfig.value.copy(color = color)
-        setThemeConfig(newConfig)
+        val currentConfig = _currentThemeConfig.value
+        setThemeConfig(currentConfig.copy(color = color))
     }
     
     /**
-     * Sets only the theme mode, keeping the current color
+     * Actualiza solo el modo del tema
      */
     fun setThemeMode(mode: ThemeMode) {
-        val newConfig = _currentThemeConfig.value.copy(mode = mode)
-        setThemeConfig(newConfig)
-    }
-    
-    // Legacy methods for backward compatibility
-    private fun getCurrentThemeFromPreferences(): LegacyThemeMode {
-        return legacyThemeModeFromConfig(_currentThemeConfig.value)
+        val currentConfig = _currentThemeConfig.value
+        setThemeConfig(currentConfig.copy(mode = mode))
     }
     
     /**
-     * Legacy method: Updates the theme preference and notifies observers
+     * Legacy: Updates the theme preference and notifies observers
+     * @deprecated Usar setThemeConfig() en su lugar
      */
+    @Deprecated("Usar setThemeConfig() para el nuevo sistema")
     fun setTheme(themeMode: LegacyThemeMode) {
         val config = when (themeMode) {
             LegacyThemeMode.LIGHT -> ThemeConfig(ThemeColor.BLUE, ThemeMode.LIGHT)
@@ -195,34 +184,25 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
             LegacyThemeMode.SYSTEM -> ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
         }
         setThemeConfig(config)
-        
-        // Also update legacy preference for full compatibility
-        val themeString = when (themeMode) {
-            LegacyThemeMode.LIGHT -> "LIGHT"
-            LegacyThemeMode.DARK -> "DARK"
-            LegacyThemeMode.BLUE -> "BLUE"
-            LegacyThemeMode.PURPLE -> "PURPLE"
-            LegacyThemeMode.PINK -> "PINK"
-            LegacyThemeMode.SYSTEM -> "SYSTEM"
-        }
-        preferenceManager.saveAppTheme(themeString)
     }
     
     /**
-     * Legacy method: Updates theme from string and applies immediately
+     * Legacy: Updates theme from string and applies immediately
      * Used by settings to ensure instant theme switching
+     * @deprecated Usar setThemeConfig() en su lugar
      */
+    @Deprecated("Usar setThemeConfig() para el nuevo sistema")
     fun updateThemeFromString(themeString: String) {
-        val themeMode = when (themeString) {
-            "LIGHT" -> LegacyThemeMode.LIGHT
-            "DARK" -> LegacyThemeMode.DARK
-            "BLUE" -> LegacyThemeMode.BLUE
-            "PURPLE" -> LegacyThemeMode.PURPLE
-            "PINK" -> LegacyThemeMode.PINK
-            "SYSTEM" -> LegacyThemeMode.SYSTEM
-            else -> LegacyThemeMode.SYSTEM
+        val config = when (themeString) {
+            "LIGHT" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.LIGHT)
+            "DARK" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
+            "BLUE" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
+            "PURPLE" -> ThemeConfig(ThemeColor.PURPLE, ThemeMode.DARK)
+            "PINK" -> ThemeConfig(ThemeColor.PINK, ThemeMode.DARK)
+            "SYSTEM" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
+            else -> ThemeConfig.DEFAULT
         }
-        setTheme(themeMode)
+        setThemeConfig(config)
     }
     
     /**
@@ -230,13 +210,12 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
      * Useful when preferences might have changed externally
      */
     fun refreshThemeFromPreferences() {
-        val actualConfig = getCurrentThemeConfigFromPreferences()
-        _currentThemeConfig.value = actualConfig
-        _currentTheme.value = legacyThemeModeFromConfig(actualConfig)
+        _currentThemeConfig.value = getCurrentThemeConfigFromPreferences()
+        _currentTheme.value = legacyThemeModeFromConfig(_currentThemeConfig.value)
     }
     
     /**
-     * Determines if dark theme should be used based on current theme mode
+     * Determines if dark theme should be used based on current theme configuration
      */
     @Composable
     fun shouldUseDarkTheme(): Boolean {
@@ -249,8 +228,40 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
     }
     
     /**
-     * Gets the display name for a legacy theme mode
+     * Gets complete display name for current theme config
      */
+    fun getCurrentThemeDisplayName(): String {
+        val config = _currentThemeConfig.value
+        return "${getThemeColorDisplayName(config.color)} • ${getThemeModeDisplayName(config.mode)}"
+    }
+    
+    /**
+     * Gets the display name for a theme color
+     */
+    fun getThemeColorDisplayName(themeColor: ThemeColor): String {
+        return when (themeColor) {
+            ThemeColor.BLUE -> "Azul"
+            ThemeColor.PURPLE -> "Púrpura"
+            ThemeColor.PINK -> "Rosa"
+        }
+    }
+    
+    /**
+     * Gets the display name for a theme mode
+     */
+    fun getThemeModeDisplayName(themeMode: ThemeMode): String {
+        return when (themeMode) {
+            ThemeMode.LIGHT -> "Claro"
+            ThemeMode.DARK -> "Oscuro"
+            ThemeMode.SYSTEM -> "Sistema"
+        }
+    }
+    
+    /**
+     * Legacy: Gets the display name for a theme mode
+     * @deprecated Usar getThemeColorDisplayName() y getThemeModeDisplayName()
+     */
+    @Deprecated("Usar getThemeColorDisplayName() y getThemeModeDisplayName()")
     fun getThemeDisplayName(themeMode: LegacyThemeMode): String {
         return when (themeMode) {
             LegacyThemeMode.LIGHT -> "Claro"
@@ -263,46 +274,26 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
     }
     
     /**
-     * Gets the display name for a theme color
-     */
-    fun getColorDisplayName(color: ThemeColor): String {
-        return when (color) {
-            ThemeColor.BLUE -> "Azul"
-            ThemeColor.PURPLE -> "Morado"
-            ThemeColor.PINK -> "Rosa"
-        }
-    }
-    
-    /**
-     * Gets the display name for a theme mode
-     */
-    fun getModeDisplayName(mode: ThemeMode): String {
-        return when (mode) {
-            ThemeMode.LIGHT -> "Claro"
-            ThemeMode.DARK -> "Oscuro"
-            ThemeMode.SYSTEM -> "Sistema"
-        }
-    }
-    
-    /**
-     * Gets all available legacy theme options
-     */
-    fun getAvailableThemes(): List<LegacyThemeMode> {
-        return listOf(LegacyThemeMode.DARK, LegacyThemeMode.LIGHT, LegacyThemeMode.BLUE, LegacyThemeMode.PURPLE, LegacyThemeMode.PINK, LegacyThemeMode.SYSTEM)
-    }
-    
-    /**
      * Gets all available theme colors
      */
-    fun getAvailableColors(): List<ThemeColor> {
+    fun getAvailableThemeColors(): List<ThemeColor> {
         return listOf(ThemeColor.BLUE, ThemeColor.PURPLE, ThemeColor.PINK)
     }
     
     /**
      * Gets all available theme modes
      */
-    fun getAvailableModes(): List<ThemeMode> {
+    fun getAvailableThemeModes(): List<ThemeMode> {
         return listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM)
+    }
+    
+    /**
+     * Legacy: Gets all available theme options
+     * @deprecated Usar getAvailableThemeColors() y getAvailableThemeModes()
+     */
+    @Deprecated("Usar getAvailableThemeColors() y getAvailableThemeModes()")
+    fun getAvailableThemes(): List<LegacyThemeMode> {
+        return listOf(LegacyThemeMode.DARK, LegacyThemeMode.LIGHT, LegacyThemeMode.BLUE, LegacyThemeMode.PURPLE, LegacyThemeMode.PINK, LegacyThemeMode.SYSTEM)
     }
 }
 

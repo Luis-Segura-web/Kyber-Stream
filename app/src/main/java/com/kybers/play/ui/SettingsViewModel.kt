@@ -16,6 +16,9 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.theme.ThemeManager
+import com.kybers.play.ui.theme.ThemeConfig
+import com.kybers.play.ui.theme.ThemeColor
+import com.kybers.play.ui.theme.ThemeMode
 import com.kybers.play.work.CacheWorker
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -274,6 +277,29 @@ class SettingsViewModel(
         // Immediately apply theme change through ThemeManager if available
         // This ensures instant theme switching without app restart
         themeManager?.updateThemeFromString(theme)
+    }
+    
+    /**
+     * Maneja cambios en la configuración del tema usando el nuevo sistema
+     */
+    fun onThemeConfigChanged(config: ThemeConfig) {
+        // Guardar en nuevo formato
+        preferenceManager.saveThemeColor(config.color.name)
+        preferenceManager.saveThemeMode(config.mode.name)
+        
+        // Mantener compatibilidad con el sistema anterior
+        val legacyThemeString = when {
+            config.mode == ThemeMode.SYSTEM -> "SYSTEM"
+            config.mode == ThemeMode.LIGHT && config.color == ThemeColor.BLUE -> "LIGHT"
+            config.mode == ThemeMode.DARK && config.color == ThemeColor.BLUE -> "DARK"
+            else -> config.color.name
+        }
+        
+        preferenceManager.saveAppTheme(legacyThemeString)
+        _uiState.update { it.copy(appTheme = legacyThemeString) }
+        
+        // Aplicar inmediatamente a través del ThemeManager
+        themeManager?.setThemeConfig(config)
     }
 
     fun onRecentlyWatchedLimitChanged(limit: Int) {

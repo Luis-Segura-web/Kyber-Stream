@@ -31,10 +31,6 @@ class PreferenceManager(context: Context) {
         private const val KEY_NETWORK_BUFFER = "network_buffer"
         private const val KEY_APP_THEME = "app_theme"
         
-        // --- NUEVAS CLAVES PARA SISTEMA DE TEMAS AVANZADO ---
-        private const val KEY_THEME_COLOR = "theme_color"
-        private const val KEY_THEME_MODE = "theme_mode"
-
         // --- ¡NUEVAS CLAVES AÑADIDAS! ---
         private const val KEY_RECENTLY_WATCHED_LIMIT = "recently_watched_limit"
         private const val KEY_PARENTAL_CONTROL_ENABLED = "parental_control_enabled"
@@ -48,6 +44,10 @@ class PreferenceManager(context: Context) {
         private const val KEY_HIDDEN_MOVIE_CATEGORIES = "hidden_movie_categories"
         private const val KEY_HIDDEN_SERIES_CATEGORIES = "hidden_series_categories"
 
+        // --- NUEVAS CLAVES PARA SISTEMA DE TEMAS SEPARADO ---
+        private const val KEY_THEME_COLOR = "theme_color"
+        private const val KEY_THEME_MODE = "theme_mode"
+        
         // --- NUEVAS CLAVES PARA MODOS DE VISUALIZACIÓN ---
         private const val KEY_DISPLAY_MODE_CHANNELS = "display_mode_channels"
         private const val KEY_DISPLAY_MODE_MOVIES = "display_mode_movies"
@@ -122,13 +122,13 @@ class PreferenceManager(context: Context) {
     fun saveAppTheme(theme: String) = sharedPreferences.edit().putString(KEY_APP_THEME, theme).apply()
     fun getAppTheme(): String = sharedPreferences.getString(KEY_APP_THEME, "SYSTEM") ?: "SYSTEM"
 
-    // --- MÉTODOS PARA SISTEMA DE TEMAS AVANZADO ---
+    // --- NUEVOS MÉTODOS PARA SISTEMA DE TEMAS SEPARADO ---
     
     fun saveThemeColor(color: String) = sharedPreferences.edit().putString(KEY_THEME_COLOR, color).apply()
-    fun getThemeColor(): String = sharedPreferences.getString(KEY_THEME_COLOR, "BLUE") ?: "BLUE"
+    fun getThemeColor(): String? = sharedPreferences.getString(KEY_THEME_COLOR, null)
     
     fun saveThemeMode(mode: String) = sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
-    fun getThemeMode(): String = sharedPreferences.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM"
+    fun getThemeMode(): String? = sharedPreferences.getString(KEY_THEME_MODE, null)
 
     // --- ¡NUEVOS MÉTODOS AÑADIDOS! ---
 
