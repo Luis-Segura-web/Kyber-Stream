@@ -29,7 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.remote.model.Category
-import com.kybers.play.ui.theme.ThemeSelectionDialog
+import com.kybers.play.ui.theme.ColorModeSelectionDialog
+import com.kybers.play.ui.theme.LegacyThemeMode
+import com.kybers.play.ui.theme.ThemeConfig
+import com.kybers.play.ui.theme.ThemeColor
 import com.kybers.play.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,7 +50,7 @@ fun SettingsScreen(
     var showCategoryBlockDialog by remember { mutableStateOf(false) }
     var showPinVerificationForCategories by remember { mutableStateOf(false) }
     var showPinVerificationForDisabling by remember { mutableStateOf(false) }
-    var showThemeSelectionDialog by remember { mutableStateOf(false) }
+    var showColorModeSelectionDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -225,7 +228,7 @@ fun SettingsScreen(
                             icon = Icons.Default.Palette,
                             title = "Tema de la aplicación",
                             subtitle = getThemeDisplayName(uiState.appTheme),
-                            onClick = { showThemeSelectionDialog = true }
+                            onClick = { showColorModeSelectionDialog = true }
                         )
                     }
                 }
@@ -301,13 +304,13 @@ fun SettingsScreen(
         )
     }
     
-    if (showThemeSelectionDialog) {
-        ThemeSelectionDialog(
-            currentTheme = stringToThemeMode(uiState.appTheme),
-            onThemeSelected = { themeMode ->
-                viewModel.onAppThemeChanged(themeModeToString(themeMode))
+    if (showColorModeSelectionDialog) {
+        ColorModeSelectionDialog(
+            currentConfig = stringToThemeConfig(uiState.appTheme),
+            onConfigSelected = { themeConfig ->
+                viewModel.onThemeConfigChanged(themeConfig)
             },
-            onDismiss = { showThemeSelectionDialog = false }
+            onDismiss = { showColorModeSelectionDialog = false }
         )
     }
 }
@@ -992,30 +995,36 @@ private fun getNetworkDisplayName(networkType: String): String {
 }
 
 private fun getThemeDisplayName(appTheme: String): String {
-    return when (appTheme) {
-        "LIGHT" -> "Claro"
-        "DARK" -> "Oscuro"
-        "SYSTEM" -> "Automático (Sistema)"
-        else -> appTheme
+    // Temporal: usar el mapeo del nuevo sistema
+    val config = stringToThemeConfig(appTheme)
+    return "${getThemeColorDisplayName(config.color)} • ${getThemeModeDisplayName(config.mode)}"
+}
+
+private fun getThemeColorDisplayName(color: ThemeColor): String {
+    return when (color) {
+        ThemeColor.BLUE -> "Azul"
+        ThemeColor.PURPLE -> "Púrpura"
+        ThemeColor.PINK -> "Rosa"
     }
 }
 
-private fun stringToThemeMode(themeString: String): ThemeMode {
+private fun getThemeModeDisplayName(mode: ThemeMode): String {
+    return when (mode) {
+        ThemeMode.LIGHT -> "Claro"
+        ThemeMode.DARK -> "Oscuro"
+        ThemeMode.SYSTEM -> "Sistema"
+    }
+}
+
+private fun stringToThemeConfig(themeString: String): ThemeConfig {
     return when (themeString) {
-        "LIGHT" -> ThemeMode.LIGHT
-        "DARK" -> ThemeMode.DARK
-        "SYSTEM" -> ThemeMode.SYSTEM
-        else -> ThemeMode.SYSTEM
+        "LIGHT" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.LIGHT)
+        "DARK" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
+        "BLUE" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
+        "PURPLE" -> ThemeConfig(ThemeColor.PURPLE, ThemeMode.DARK)
+        "PINK" -> ThemeConfig(ThemeColor.PINK, ThemeMode.DARK)
+        "SYSTEM" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
+        else -> ThemeConfig.DEFAULT
     }
 }
 
-private fun themeModeToString(themeMode: ThemeMode): String {
-    return when (themeMode) {
-        ThemeMode.LIGHT -> "LIGHT"
-        ThemeMode.DARK -> "DARK"
-        ThemeMode.BLUE -> "BLUE"
-        ThemeMode.PURPLE -> "PURPLE"
-        ThemeMode.PINK -> "PINK"
-        ThemeMode.SYSTEM -> "SYSTEM"
-    }
-}

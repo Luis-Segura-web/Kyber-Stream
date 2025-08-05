@@ -38,8 +38,8 @@ val AppShapes = Shapes(
 )
 
 /**
- * Tema principal mejorado para Kyber Stream con 5 temas elegantes
- * Soporta temas: Oscuro, Claro, Azul, Púrpura, Rosa y Sistema
+ * Tema principal mejorado para Kyber Stream con sistema de colores y modos independientes
+ * Soporta 3 colores (Azul, Púrpura, Rosa) × 3 modos (Claro, Oscuro, Sistema) = 9 combinaciones
  */
 @Composable
 fun KyberStreamTheme(
@@ -50,7 +50,7 @@ fun KyberStreamTheme(
     val context = LocalContext.current
     val currentThemeManager = themeManager ?: rememberThemeManager(context)
     
-    val currentThemeMode = currentThemeManager.currentTheme.collectAsState().value
+    val currentThemeConfig = currentThemeManager.currentThemeConfig.collectAsState().value
     val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
     
     // Adaptar tipografía según el tamaño del dispositivo
@@ -60,15 +60,8 @@ fun KyberStreamTheme(
         DeviceSize.EXPANDED -> ExpandedTypography
     }
     
-    // === ESQUEMAS DE COLOR DINÁMICOS SEGÚN TEMA ===
-    val colors = when (currentThemeMode) {
-        ThemeMode.LIGHT -> createLightColorScheme()
-        ThemeMode.DARK -> createDarkColorScheme()
-        ThemeMode.BLUE -> createBlueColorScheme(isDarkTheme)
-        ThemeMode.PURPLE -> createPurpleColorScheme(isDarkTheme)
-        ThemeMode.PINK -> createPinkColorScheme(isDarkTheme)
-        ThemeMode.SYSTEM -> if (isDarkTheme) createDarkColorScheme() else createLightColorScheme()
-    }
+    // === ESQUEMAS DE COLOR DINÁMICOS SEGÚN CONFIGURACIÓN ===
+    val colors = createColorScheme(currentThemeConfig.color, isDarkTheme)
 
     // === CONFIGURACIÓN DE BARRAS DEL SISTEMA ===
     val view = LocalView.current
@@ -108,7 +101,7 @@ fun KyberStreamTheme(
                             .systemBarsPadding() // Aplica padding para no solaparse con las barras
                             .background( // Fondo del contenido principal de la app
                                 brush = Brush.verticalGradient(
-                                    colors = getBackgroundGradient(currentThemeMode, isDarkTheme)
+                                    colors = getBackgroundGradient(currentThemeConfig.color, isDarkTheme)
                                 )
                             )
                     ) {
@@ -149,6 +142,15 @@ fun IPTVAppTheme(
 }
 
 // === FUNCIONES DE ESQUEMAS DE COLOR ===
+
+/**
+ * Crea un esquema de color basado en el color y modo seleccionados
+ */
+private fun createColorScheme(color: ThemeColor, isDark: Boolean) = when (color) {
+    ThemeColor.BLUE -> createBlueColorScheme(isDark)
+    ThemeColor.PURPLE -> createPurpleColorScheme(isDark)
+    ThemeColor.PINK -> createPinkColorScheme(isDark)
+}
 
 /**
  * Crea un esquema de color claro
@@ -356,15 +358,28 @@ private fun createPinkColorScheme(isDark: Boolean) = if (isDark) {
 }
 
 /**
- * Obtiene el gradiente de fondo según el tema
+ * Obtiene el gradiente de fondo según el color del tema
  */
-private fun getBackgroundGradient(themeMode: ThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
+private fun getBackgroundGradient(themeColor: ThemeColor, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
+    return when (themeColor) {
+        ThemeColor.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
+        ThemeColor.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
+        ThemeColor.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
+    }
+}
+
+/**
+ * Legacy: Obtiene el gradiente de fondo según el tema
+ * @deprecated Usar getBackgroundGradient(ThemeColor, Boolean)
+ */
+@Deprecated("Usar getBackgroundGradient(ThemeColor, Boolean)")
+private fun getBackgroundGradient(themeMode: LegacyThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
     return when (themeMode) {
-        ThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
-        ThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
-        ThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
-        ThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
-        ThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
-        ThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
+        LegacyThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
+        LegacyThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
+        LegacyThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
+        LegacyThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
+        LegacyThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
+        LegacyThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
     }
 }
