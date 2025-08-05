@@ -160,13 +160,26 @@ fun MoviesScreen(
                                     ) {
                                         rowMovies.forEach { movie ->
                                             Box(modifier = Modifier.weight(1f)) {
-                                                MoviePosterItem(
-                                                    viewModel = viewModel,
-                                                    movie = movie,
-                                                    isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
-                                                    onPosterClick = { onNavigateToDetails(movie.streamId) },
-                                                    onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
-                                                )
+                                                when (uiState.displayMode) {
+                                                    ComponentDisplayMode.GRID -> {
+                                                        MoviePosterItem(
+                                                            viewModel = viewModel,
+                                                            movie = movie,
+                                                            isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
+                                                            onPosterClick = { onNavigateToDetails(movie.streamId) },
+                                                            onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
+                                                        )
+                                                    }
+                                                    ComponentDisplayMode.LIST -> {
+                                                        MovieListItem(
+                                                            viewModel = viewModel,
+                                                            movie = movie,
+                                                            isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
+                                                            onMovieClick = { onNavigateToDetails(movie.streamId) },
+                                                            onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                         repeat(columnsCount - rowMovies.size) {
@@ -293,6 +306,165 @@ fun MoviePosterItem(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Enhanced movie list item with expandable description for LIST mode
+ * Shows: mini image + title + favorite + year + expandable description
+ */
+@Composable
+fun MovieListItem(
+    viewModel: MoviesViewModel,
+    movie: Movie,
+    isFavorite: Boolean,
+    onMovieClick: () -> Unit,
+    onFavoriteClick: () -> Unit
+) {
+    var isDescriptionExpanded by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onMovieClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // Mini poster image
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(viewModel.getFinalPosterUrl(movie))
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = movie.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(60.dp)
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(6.dp))
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Movie information
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // Title and year row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = movie.name,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        
+                        // Year and rating
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            // Show added date as fallback for year
+                            movie.added?.let { addedDate ->
+                                if (addedDate.isNotBlank() && addedDate.length >= 4) {
+                                    val year = addedDate.substring(0, 4) // Extract year from added date
+                                    Text(
+                                        text = year,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "N/A",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                            
+                            if (movie.rating5Based > 0) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Filled.Star,
+                                    contentDescription = "Calificación",
+                                    tint = Color(0xFFFFC107),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "%.1f".format(movie.rating5Based),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Favorite button
+                    IconButton(
+                        onClick = onFavoriteClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                            tint = if (isFavorite) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                // Expandable description (placeholder for now)
+                // In the future, this could be enhanced to show plot from MovieDetailsCache
+                val description = "Haz clic para ver más detalles de esta película." // Placeholder description
+                
+                if (description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2
+                    val shouldShowToggle = description.length > 50
+                    
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                    
+                    if (shouldShowToggle) {
+                        Text(
+                            text = if (isDescriptionExpanded) "Leer menos" else "Leer más",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                        )
+                    }
+                }
             }
         }
     }

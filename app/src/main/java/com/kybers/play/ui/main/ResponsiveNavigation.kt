@@ -23,9 +23,9 @@ enum class KyberDestination(
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     HOME("home", "Inicio", Icons.Outlined.Home),
-    CHANNELS("channels", "TV en Vivo", Icons.Outlined.LiveTv),
-    MOVIES("movies", "Películas", Icons.Outlined.Movie),
-    SERIES("series", "Series", Icons.Outlined.Slideshow)
+    CHANNELS("channels", "TV", Icons.Outlined.Tv),
+    MOVIES("movies", "Películas", Icons.Outlined.LocalMovies),
+    SERIES("series", "Series", Icons.Outlined.VideoLibrary)
 }
 
 @Composable

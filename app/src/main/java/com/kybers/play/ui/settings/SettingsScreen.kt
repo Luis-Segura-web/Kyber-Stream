@@ -1013,6 +1013,9 @@ private fun themeModeToString(themeMode: ThemeMode): String {
     return when (themeMode) {
         ThemeMode.LIGHT -> "LIGHT"
         ThemeMode.DARK -> "DARK"
+        ThemeMode.BLUE -> "BLUE"
+        ThemeMode.PURPLE -> "PURPLE"
+        ThemeMode.PINK -> "PINK"
         ThemeMode.SYSTEM -> "SYSTEM"
     }
 }

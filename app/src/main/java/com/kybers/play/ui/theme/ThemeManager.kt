@@ -13,10 +13,14 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Theme options available to the user
+ * Expanded to include 5 beautiful themes
  */
 enum class ThemeMode {
     LIGHT,
     DARK,
+    BLUE,
+    PURPLE,
+    PINK,
     SYSTEM
 }
 
@@ -33,6 +37,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         return when (preferenceManager.getAppTheme()) {
             "LIGHT" -> ThemeMode.LIGHT
             "DARK" -> ThemeMode.DARK
+            "BLUE" -> ThemeMode.BLUE
+            "PURPLE" -> ThemeMode.PURPLE
+            "PINK" -> ThemeMode.PINK
             "SYSTEM" -> ThemeMode.SYSTEM
             else -> ThemeMode.SYSTEM // Default fallback
         }
@@ -45,6 +52,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         val themeString = when (themeMode) {
             ThemeMode.LIGHT -> "LIGHT"
             ThemeMode.DARK -> "DARK"
+            ThemeMode.BLUE -> "BLUE"
+            ThemeMode.PURPLE -> "PURPLE"
+            ThemeMode.PINK -> "PINK"
             ThemeMode.SYSTEM -> "SYSTEM"
         }
         preferenceManager.saveAppTheme(themeString)
@@ -59,6 +69,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         val themeMode = when (themeString) {
             "LIGHT" -> ThemeMode.LIGHT
             "DARK" -> ThemeMode.DARK
+            "BLUE" -> ThemeMode.BLUE
+            "PURPLE" -> ThemeMode.PURPLE
+            "PINK" -> ThemeMode.PINK
             "SYSTEM" -> ThemeMode.SYSTEM
             else -> ThemeMode.SYSTEM
         }
@@ -82,6 +95,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         return when (currentThemeMode) {
             ThemeMode.LIGHT -> false
             ThemeMode.DARK -> true
+            ThemeMode.BLUE -> true // Blue theme uses dark variant by default
+            ThemeMode.PURPLE -> true // Purple theme uses dark variant by default
+            ThemeMode.PINK -> true // Pink theme uses dark variant by default
             ThemeMode.SYSTEM -> isSystemInDarkTheme()
         }
     }
@@ -93,6 +109,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
         return when (themeMode) {
             ThemeMode.LIGHT -> "Claro"
             ThemeMode.DARK -> "Oscuro"
+            ThemeMode.BLUE -> "Azul"
+            ThemeMode.PURPLE -> "Morado"
+            ThemeMode.PINK -> "Rosa"
             ThemeMode.SYSTEM -> "Sistema"
         }
     }
@@ -101,7 +120,7 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
      * Gets all available theme options
      */
     fun getAvailableThemes(): List<ThemeMode> {
-        return listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM)
+        return listOf(ThemeMode.DARK, ThemeMode.LIGHT, ThemeMode.BLUE, ThemeMode.PURPLE, ThemeMode.PINK, ThemeMode.SYSTEM)
     }
 }
 

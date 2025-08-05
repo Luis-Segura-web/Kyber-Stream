@@ -34,8 +34,8 @@ fun SplashScreen(
 ) {
     // This effect will run once when the composable enters the composition.
     LaunchedEffect(Unit) {
-        // Wait for 2 seconds to show the splash screen.
-        delay(2000)
+        // Wait for 3 seconds to show the splash screen (improved UX timing).
+        delay(3000)
         // Navigate to login and clear the splash from back stack
         navController.navigate("login") {
             popUpTo("splash") { inclusive = true }

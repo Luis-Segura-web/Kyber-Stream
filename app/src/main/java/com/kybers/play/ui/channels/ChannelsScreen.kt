@@ -58,6 +58,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.kybers.play.ui.components.categories.EnhancedCategoryHeader
+import com.kybers.play.ui.components.categories.ScreenType
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
@@ -387,13 +389,17 @@ private fun ChannelListSection(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            // Siempre mostrar categoría de favoritos
+            // Siempre mostrar categoría de favoritos con enhanced header
             stickyHeader(key = "favorites") {
-                CategoryHeader(
+                EnhancedCategoryHeader(
                     categoryName = "Favoritos",
-                    isExpanded = uiState.isFavoritesCategoryExpanded,
+                    categoryId = "favorites",
+                    itemCount = favoriteChannels.size,
+                    screenType = ScreenType.CHANNELS,
                     onHeaderClick = { viewModel.onFavoritesCategoryToggled() },
-                    itemCount = favoriteChannels.size
+                    hasActiveContent = false, // Could be enhanced to detect active content
+                    isLegacyMode = true, // Use legacy mode for now
+                    legacyIsExpanded = uiState.isFavoritesCategoryExpanded
                 )
             }
             if (uiState.isFavoritesCategoryExpanded) {
@@ -428,11 +434,15 @@ private fun ChannelListSection(
             if (!uiState.areCategoriesHidden) {
                 uiState.categories.forEach { expandableCategory ->
                     stickyHeader(key = expandableCategory.category.categoryId) {
-                        CategoryHeader(
+                        EnhancedCategoryHeader(
                             categoryName = expandableCategory.category.categoryName,
-                            isExpanded = expandableCategory.isExpanded,
+                            categoryId = expandableCategory.category.categoryId,
+                            itemCount = expandableCategory.channels.size,
+                            screenType = ScreenType.CHANNELS,
                             onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
-                            itemCount = expandableCategory.channels.size
+                            hasActiveContent = false, // Could be enhanced to detect active content
+                            isLegacyMode = true, // Use legacy mode for now
+                            legacyIsExpanded = expandableCategory.isExpanded
                         )
                     }
                     if (expandableCategory.isExpanded) {
