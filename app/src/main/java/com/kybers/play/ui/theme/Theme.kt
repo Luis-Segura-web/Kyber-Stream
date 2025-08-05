@@ -82,10 +82,9 @@ fun KyberStreamTheme(
             // Configurar apariencia de las barras usando la nueva API
             windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
             windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
-
-            // Hacer las barras transparentes usando WindowInsetsController
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            
+            // Las barras son automáticamente transparentes en modo edge-to-edge
+            // No necesitamos usar las APIs deprecadas statusBarColor/navigationBarColor
         }
     }
 
