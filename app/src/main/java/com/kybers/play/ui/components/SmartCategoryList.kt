@@ -53,24 +53,28 @@ fun <T> SmartCategoryList(
         if (DEBUG) Log.d(TAG, "Recalculating categories with state for $screenType")
         
         categories.map { categoryData ->
-            val categoryStateData = categoryState.getCategoriesForScreen(screenType)[categoryData.categoryId]
-                ?: CategoryState(
-                    id = categoryData.categoryId,
-                    name = categoryData.categoryName,
-                    itemCount = categoryData.items.size,
-                    hasActiveContent = categoryData.items.any { item ->
-                        activeContentId != null && getItemId(item).toString() == activeContentId
-                    }
-                )
+            // Use the expansion state from the CategoryData (which comes from the ViewModel)
+            // but enrich it with additional state from the global manager
+            val globalCategoryState = categoryState.getCategoriesForScreen(screenType)[categoryData.categoryId]
+            val categoryStateData = CategoryState(
+                id = categoryData.categoryId,
+                name = categoryData.categoryName,
+                isExpanded = categoryData.isExpanded, // Use the actual expansion state from ViewModel
+                itemCount = categoryData.items.size,
+                hasActiveContent = categoryData.items.any { item ->
+                    activeContentId != null && getItemId(item).toString() == activeContentId
+                },
+                iconType = globalCategoryState?.iconType ?: CategoryIconType.FOLDER
+            )
             categoryData to categoryStateData
         }
     }
 
     // Auto-scroll when categories are toggled with debouncing
-    LaunchedEffect(categoryState.getExpandedCategoryId(screenType)) {
-        val expandedCategoryId = categoryState.getExpandedCategoryId(screenType)
-        if (expandedCategoryId != null) {
-            val categoryIndex = categories.indexOfFirst { it.categoryId == expandedCategoryId }
+    LaunchedEffect(categories.map { "${it.categoryId}:${it.isExpanded}" }.joinToString()) {
+        val expandedCategory = categories.firstOrNull { it.isExpanded }
+        if (expandedCategory != null) {
+            val categoryIndex = categories.indexOfFirst { it.categoryId == expandedCategory.categoryId }
             if (categoryIndex != -1) {
                 if (DEBUG) Log.d(TAG, "Auto-scrolling to category index: $categoryIndex")
                 lazyListState.animateScrollToItem(categoryIndex)
