@@ -1,7 +1,6 @@
 package com.kybers.play.ui.theme
 
 import android.app.Activity
-import android.graphics.Color // Necesario para Color.TRANSPARENT
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -19,7 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-// import androidx.compose.ui.graphics.toArgb // Ya no es necesario para statusBar/navBar color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -39,7 +38,8 @@ val AppShapes = Shapes(
 )
 
 /**
- * Tema azul elegante para Kyber Stream con alto contraste y diseño responsivo
+ * Tema principal mejorado para Kyber Stream con 5 temas elegantes
+ * Soporta temas: Oscuro, Claro, Azul, Púrpura, Rosa y Sistema
  */
 @Composable
 fun KyberStreamTheme(
@@ -50,6 +50,7 @@ fun KyberStreamTheme(
     val context = LocalContext.current
     val currentThemeManager = themeManager ?: rememberThemeManager(context)
     
+    val currentThemeMode = currentThemeManager.currentTheme.collectAsState().value
     val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
     
     // Adaptar tipografía según el tamaño del dispositivo
@@ -59,111 +60,15 @@ fun KyberStreamTheme(
         DeviceSize.EXPANDED -> ExpandedTypography
     }
     
-    // === ESQUEMAS DE COLOR OPTIMIZADOS ===
-    val darkColors = darkColorScheme(
-        // Primarios
-        primary = BlueTheme.Primary,
-        onPrimary = BlueTheme.OnPrimary,
-        primaryContainer = BlueTheme.PrimaryVariant,
-        onPrimaryContainer = BlueTheme.OnPrimary,
-        
-        // Secundarios
-        secondary = BlueTheme.Secondary,
-        onSecondary = BlueTheme.OnSecondary,
-        secondaryContainer = BlueTheme.SecondaryVariant,
-        onSecondaryContainer = BlueTheme.OnSecondary,
-        
-        // Terciarios (usando acentos)
-        tertiary = BlueTheme.Accent,
-        onTertiary = BlueTheme.OnPrimary,
-        tertiaryContainer = BlueTheme.AccentDark,
-        onTertiaryContainer = BlueTheme.OnPrimary,
-        
-        // Superficies
-        background = BlueTheme.BackgroundDark,
-        onBackground = BlueTheme.OnBackgroundDark,
-        surface = BlueTheme.SurfaceDark,
-        onSurface = BlueTheme.OnSurfaceDark,
-        surfaceVariant = BlueTheme.SurfaceVariantDark,
-        onSurfaceVariant = BlueTheme.OnSurfaceDark,
-        
-        // Otros
-        outline = BlueTheme.OutlineDark,
-        outlineVariant = BlueTheme.OutlineDark.copy(alpha = 0.5f),
-        error = BlueTheme.Error,
-        onError = BlueTheme.OnError,
-        errorContainer = BlueTheme.ErrorDark,
-        onErrorContainer = BlueTheme.OnError,
-        
-        // Superficies especiales
-        surfaceTint = BlueTheme.Primary,
-        inverseSurface = BlueTheme.OnSurfaceDark,
-        inverseOnSurface = BlueTheme.SurfaceDark,
-        inversePrimary = BlueTheme.PrimaryLight,
-        
-        // Containers especiales
-        surfaceContainer = BlueTheme.SurfaceDark,
-        surfaceContainerHigh = BlueTheme.SurfaceVariantDark,
-        surfaceContainerHighest = BlueTheme.SurfaceVariantDark.copy(alpha = 0.9f),
-        surfaceContainerLow = BlueTheme.SurfaceDark.copy(alpha = 0.8f),
-        surfaceContainerLowest = BlueTheme.BackgroundDark,
-        
-        // Bordes y sombras
-        scrim = BlueUIColors.CardOverlay
-    )
-    
-    val lightColors = lightColorScheme(
-        // Primarios
-        primary = BlueTheme.Primary,
-        onPrimary = BlueTheme.OnPrimary,
-        primaryContainer = BlueTheme.PrimaryLight,
-        onPrimaryContainer = BlueTheme.PrimaryVariant,
-        
-        // Secundarios
-        secondary = BlueTheme.Secondary,
-        onSecondary = BlueTheme.OnSecondary,
-        secondaryContainer = BlueTheme.SecondaryLight,
-        onSecondaryContainer = BlueTheme.SecondaryVariant,
-        
-        // Terciarios
-        tertiary = BlueTheme.Accent,
-        onTertiary = BlueTheme.OnPrimary,
-        tertiaryContainer = BlueTheme.AccentLight,
-        onTertiaryContainer = BlueTheme.AccentDark,
-        
-        // Superficies
-        background = BlueTheme.BackgroundLight,
-        onBackground = BlueTheme.OnBackgroundLight,
-        surface = BlueTheme.SurfaceLight,
-        onSurface = BlueTheme.OnSurfaceLight,
-        surfaceVariant = BlueTheme.SurfaceVariantLight,
-        onSurfaceVariant = BlueTheme.OnSurfaceLight,
-        
-        // Otros
-        outline = BlueTheme.OutlineLight,
-        outlineVariant = BlueTheme.OutlineLight.copy(alpha = 0.5f),
-        error = BlueTheme.ErrorDark,
-        onError = BlueTheme.OnError,
-        errorContainer = BlueTheme.Error.copy(alpha = 0.1f),
-        onErrorContainer = BlueTheme.ErrorDark,
-        
-        // Superficies especiales
-        surfaceTint = BlueTheme.Primary,
-        inverseSurface = BlueTheme.OnSurfaceLight,
-        inverseOnSurface = BlueTheme.SurfaceLight,
-        inversePrimary = BlueTheme.Primary,
-        
-        // Containers
-        surfaceContainer = BlueTheme.SurfaceLight,
-        surfaceContainerHigh = BlueTheme.SurfaceVariantLight,
-        surfaceContainerHighest = BlueTheme.SurfaceVariantLight.copy(alpha = 0.9f),
-        surfaceContainerLow = BlueTheme.SurfaceLight.copy(alpha = 0.8f),
-        surfaceContainerLowest = BlueTheme.BackgroundLight,
-        
-        scrim = BlueUIColors.CardOverlay.copy(alpha = 0.3f)
-    )
-
-    val colors = if (isDarkTheme) darkColors else lightColors
+    // === ESQUEMAS DE COLOR DINÁMICOS SEGÚN TEMA ===
+    val colors = when (currentThemeMode) {
+        ThemeMode.LIGHT -> createLightColorScheme()
+        ThemeMode.DARK -> createDarkColorScheme()
+        ThemeMode.BLUE -> createBlueColorScheme(isDarkTheme)
+        ThemeMode.PURPLE -> createPurpleColorScheme(isDarkTheme)
+        ThemeMode.PINK -> createPinkColorScheme(isDarkTheme)
+        ThemeMode.SYSTEM -> if (isDarkTheme) createDarkColorScheme() else createLightColorScheme()
+    }
 
     // === CONFIGURACIÓN DE BARRAS DEL SISTEMA ===
     val view = LocalView.current
@@ -204,12 +109,7 @@ fun KyberStreamTheme(
                             .systemBarsPadding() // Aplica padding para no solaparse con las barras
                             .background( // Fondo del contenido principal de la app
                                 brush = Brush.verticalGradient(
-                                    colors = if (isDarkTheme) {
-                                        BlueUIColors.BackgroundGradient
-                                    } else {
-                                        // En tema claro, usamos colors.background como estaba
-                                        listOf(colors.background, colors.background)
-                                    }
+                                    colors = getBackgroundGradient(currentThemeMode, isDarkTheme)
                                 )
                             )
                     ) {
@@ -247,4 +147,225 @@ fun IPTVAppTheme(
         themeManager = themeManager,
         content = content
     )
+}
+
+// === FUNCIONES DE ESQUEMAS DE COLOR ===
+
+/**
+ * Crea un esquema de color claro
+ */
+private fun createLightColorScheme() = lightColorScheme(
+    primary = DarkTheme.Primary,
+    onPrimary = DarkTheme.OnPrimary,
+    primaryContainer = LightTheme.Primary,
+    onPrimaryContainer = LightTheme.PrimaryVariant,
+    
+    secondary = LightTheme.Secondary,
+    onSecondary = LightTheme.OnSecondary,
+    secondaryContainer = LightTheme.SecondaryVariant,
+    onSecondaryContainer = LightTheme.OnSecondary,
+    
+    background = LightTheme.Background,
+    onBackground = LightTheme.OnBackground,
+    surface = LightTheme.Surface,
+    onSurface = LightTheme.OnSurface,
+    surfaceVariant = LightTheme.SurfaceVariant,
+    onSurfaceVariant = LightTheme.OnSurface,
+    
+    outline = LightTheme.Outline,
+    error = LightTheme.Error,
+    onError = LightTheme.OnError
+)
+
+/**
+ * Crea un esquema de color oscuro
+ */
+private fun createDarkColorScheme() = darkColorScheme(
+    primary = DarkTheme.Primary,
+    onPrimary = DarkTheme.OnPrimary,
+    primaryContainer = DarkTheme.PrimaryVariant,
+    onPrimaryContainer = DarkTheme.OnPrimary,
+    
+    secondary = DarkTheme.Secondary,
+    onSecondary = DarkTheme.OnSecondary,
+    secondaryContainer = DarkTheme.SecondaryVariant,
+    onSecondaryContainer = DarkTheme.OnSecondary,
+    
+    background = DarkTheme.Background,
+    onBackground = DarkTheme.OnBackground,
+    surface = DarkTheme.Surface,
+    onSurface = DarkTheme.OnSurface,
+    surfaceVariant = DarkTheme.SurfaceVariant,
+    onSurfaceVariant = DarkTheme.OnSurface,
+    
+    outline = DarkTheme.Outline,
+    error = DarkTheme.Error,
+    onError = DarkTheme.OnError
+)
+
+/**
+ * Crea un esquema de color azul
+ */
+private fun createBlueColorScheme(isDark: Boolean) = if (isDark) {
+    darkColorScheme(
+        primary = BlueTheme.Primary,
+        onPrimary = BlueTheme.OnPrimary,
+        primaryContainer = BlueTheme.PrimaryVariant,
+        onPrimaryContainer = BlueTheme.OnPrimary,
+        
+        secondary = BlueTheme.Secondary,
+        onSecondary = BlueTheme.OnSecondary,
+        secondaryContainer = BlueTheme.SecondaryVariant,
+        onSecondaryContainer = BlueTheme.OnSecondary,
+        
+        background = BlueTheme.BackgroundDark,
+        onBackground = BlueTheme.OnBackgroundDark,
+        surface = BlueTheme.SurfaceDark,
+        onSurface = BlueTheme.OnSurfaceDark,
+        surfaceVariant = BlueTheme.SurfaceVariantDark,
+        onSurfaceVariant = BlueTheme.OnSurfaceDark,
+        
+        outline = BlueTheme.OutlineDark,
+        error = BlueTheme.Error,
+        onError = BlueTheme.OnError
+    )
+} else {
+    lightColorScheme(
+        primary = BlueTheme.Primary,
+        onPrimary = BlueTheme.OnPrimary,
+        primaryContainer = BlueTheme.PrimaryLight,
+        onPrimaryContainer = BlueTheme.PrimaryVariant,
+        
+        secondary = BlueTheme.Secondary,
+        onSecondary = BlueTheme.OnSecondary,
+        secondaryContainer = BlueTheme.SecondaryLight,
+        onSecondaryContainer = BlueTheme.SecondaryVariant,
+        
+        background = BlueTheme.BackgroundLight,
+        onBackground = BlueTheme.OnBackgroundLight,
+        surface = BlueTheme.SurfaceLight,
+        onSurface = BlueTheme.OnSurfaceLight,
+        surfaceVariant = BlueTheme.SurfaceVariantLight,
+        onSurfaceVariant = BlueTheme.OnSurfaceLight,
+        
+        outline = BlueTheme.OutlineLight,
+        error = BlueTheme.ErrorDark,
+        onError = BlueTheme.OnError
+    )
+}
+
+/**
+ * Crea un esquema de color púrpura
+ */
+private fun createPurpleColorScheme(isDark: Boolean) = if (isDark) {
+    darkColorScheme(
+        primary = PurpleTheme.Primary,
+        onPrimary = PurpleTheme.OnPrimary,
+        primaryContainer = PurpleTheme.PrimaryVariant,
+        onPrimaryContainer = PurpleTheme.OnPrimary,
+        
+        secondary = PurpleTheme.Secondary,
+        onSecondary = PurpleTheme.OnSecondary,
+        secondaryContainer = PurpleTheme.SecondaryVariant,
+        onSecondaryContainer = PurpleTheme.OnSecondary,
+        
+        background = PurpleTheme.BackgroundDark,
+        onBackground = PurpleTheme.OnBackgroundDark,
+        surface = PurpleTheme.SurfaceDark,
+        onSurface = PurpleTheme.OnSurfaceDark,
+        surfaceVariant = PurpleTheme.SurfaceVariantDark,
+        onSurfaceVariant = PurpleTheme.OnSurfaceDark,
+        
+        outline = PurpleTheme.OutlineDark,
+        error = PurpleTheme.Error,
+        onError = PurpleTheme.OnError
+    )
+} else {
+    lightColorScheme(
+        primary = PurpleTheme.Primary,
+        onPrimary = PurpleTheme.OnPrimary,
+        primaryContainer = PurpleTheme.PrimaryLight,
+        onPrimaryContainer = PurpleTheme.PrimaryVariant,
+        
+        secondary = PurpleTheme.Secondary,
+        onSecondary = PurpleTheme.OnSecondary,
+        secondaryContainer = PurpleTheme.SecondaryLight,
+        onSecondaryContainer = PurpleTheme.SecondaryVariant,
+        
+        background = PurpleTheme.BackgroundLight,
+        onBackground = PurpleTheme.OnBackgroundLight,
+        surface = PurpleTheme.SurfaceLight,
+        onSurface = PurpleTheme.OnSurfaceLight,
+        surfaceVariant = PurpleTheme.SurfaceVariantLight,
+        onSurfaceVariant = PurpleTheme.OnSurfaceLight,
+        
+        outline = PurpleTheme.OutlineLight,
+        error = PurpleTheme.ErrorDark,
+        onError = PurpleTheme.OnError
+    )
+}
+
+/**
+ * Crea un esquema de color rosa
+ */
+private fun createPinkColorScheme(isDark: Boolean) = if (isDark) {
+    darkColorScheme(
+        primary = PinkTheme.Primary,
+        onPrimary = PinkTheme.OnPrimary,
+        primaryContainer = PinkTheme.PrimaryVariant,
+        onPrimaryContainer = PinkTheme.OnPrimary,
+        
+        secondary = PinkTheme.Secondary,
+        onSecondary = PinkTheme.OnSecondary,
+        secondaryContainer = PinkTheme.SecondaryVariant,
+        onSecondaryContainer = PinkTheme.OnSecondary,
+        
+        background = PinkTheme.BackgroundDark,
+        onBackground = PinkTheme.OnBackgroundDark,
+        surface = PinkTheme.SurfaceDark,
+        onSurface = PinkTheme.OnSurfaceDark,
+        surfaceVariant = PinkTheme.SurfaceVariantDark,
+        onSurfaceVariant = PinkTheme.OnSurfaceDark,
+        
+        outline = PinkTheme.OutlineDark,
+        error = PinkTheme.Error,
+        onError = PinkTheme.OnError
+    )
+} else {
+    lightColorScheme(
+        primary = PinkTheme.Primary,
+        onPrimary = PinkTheme.OnPrimary,
+        primaryContainer = PinkTheme.PrimaryLight,
+        onPrimaryContainer = PinkTheme.PrimaryVariant,
+        
+        secondary = PinkTheme.Secondary,
+        onSecondary = PinkTheme.OnSecondary,
+        secondaryContainer = PinkTheme.SecondaryLight,
+        onSecondaryContainer = PinkTheme.SecondaryVariant,
+        
+        background = PinkTheme.BackgroundLight,
+        onBackground = PinkTheme.OnBackgroundLight,
+        surface = PinkTheme.SurfaceLight,
+        onSurface = PinkTheme.OnSurfaceLight,
+        surfaceVariant = PinkTheme.SurfaceVariantLight,
+        onSurfaceVariant = PinkTheme.OnSurfaceLight,
+        
+        outline = PinkTheme.OutlineLight,
+        error = PinkTheme.ErrorDark,
+        onError = PinkTheme.OnError
+    )
+}
+
+/**
+ * Obtiene el gradiente de fondo según el tema
+ */
+private fun getBackgroundGradient(themeMode: ThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
+    return when (themeMode) {
+        ThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
+        ThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
+        ThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
+        ThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
+        ThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
+        ThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
+    }
 }
