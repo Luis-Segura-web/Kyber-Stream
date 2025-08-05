@@ -276,7 +276,7 @@ class SettingsViewModel(
         _uiState.update { it.copy(appTheme = theme) }
         // Immediately apply theme change through ThemeManager if available
         // This ensures instant theme switching without app restart
-        themeManager?.updateThemeFromString(theme)
+        themeManager?.refreshThemeFromPreferences()
     }
     
     /**

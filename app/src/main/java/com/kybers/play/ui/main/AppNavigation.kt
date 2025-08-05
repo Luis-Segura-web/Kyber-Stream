@@ -208,7 +208,8 @@ fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     appContainer: com.kybers.play.AppContainer,
-    application: android.app.Application
+    application: android.app.Application,
+    themeManager: com.kybers.play.ui.theme.ThemeManager
 ) {
     NavHost(navController, startDestination = Screen.Splash.route, modifier) {
         composable(Screen.Splash.route) {
@@ -311,8 +312,6 @@ fun AppNavHost(
                             )
                         }
                     }
-
-                    val themeManager = rememberThemeManager(application as android.content.Context)
 
                     val settingsViewModelFactoryProvider = @Composable {
                         remember {

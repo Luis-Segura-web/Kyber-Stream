@@ -170,48 +170,39 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
     }
     
     /**
-     * Legacy: Updates the theme preference and notifies observers
-     * @deprecated Usar setThemeConfig() en su lugar
+     * Gets the display name for a theme color
      */
-    @Deprecated("Usar setThemeConfig() para el nuevo sistema")
-    fun setTheme(themeMode: LegacyThemeMode) {
-        val config = when (themeMode) {
-            LegacyThemeMode.LIGHT -> ThemeConfig(ThemeColor.BLUE, ThemeMode.LIGHT)
-            LegacyThemeMode.DARK -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
-            LegacyThemeMode.BLUE -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
-            LegacyThemeMode.PURPLE -> ThemeConfig(ThemeColor.PURPLE, ThemeMode.DARK)
-            LegacyThemeMode.PINK -> ThemeConfig(ThemeColor.PINK, ThemeMode.DARK)
-            LegacyThemeMode.SYSTEM -> ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
+    fun getThemeColorDisplayName(themeColor: ThemeColor): String {
+        return when (themeColor) {
+            ThemeColor.BLUE -> "Azul"
+            ThemeColor.PURPLE -> "Púrpura"
+            ThemeColor.PINK -> "Rosa"
         }
-        setThemeConfig(config)
     }
     
     /**
-     * Legacy: Updates theme from string and applies immediately
-     * Used by settings to ensure instant theme switching
-     * @deprecated Usar setThemeConfig() en su lugar
+     * Gets the display name for a theme mode
      */
-    @Deprecated("Usar setThemeConfig() para el nuevo sistema")
-    fun updateThemeFromString(themeString: String) {
-        val config = when (themeString) {
-            "LIGHT" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.LIGHT)
-            "DARK" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
-            "BLUE" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK)
-            "PURPLE" -> ThemeConfig(ThemeColor.PURPLE, ThemeMode.DARK)
-            "PINK" -> ThemeConfig(ThemeColor.PINK, ThemeMode.DARK)
-            "SYSTEM" -> ThemeConfig(ThemeColor.BLUE, ThemeMode.SYSTEM)
-            else -> ThemeConfig.DEFAULT
+    fun getThemeModeDisplayName(themeMode: ThemeMode): String {
+        return when (themeMode) {
+            ThemeMode.LIGHT -> "Claro"
+            ThemeMode.DARK -> "Oscuro"
+            ThemeMode.SYSTEM -> "Sistema"
         }
-        setThemeConfig(config)
     }
     
     /**
-     * Legacy method: Refreshes theme from preferences
-     * Useful when preferences might have changed externally
+     * Gets all available theme colors
      */
-    fun refreshThemeFromPreferences() {
-        _currentThemeConfig.value = getCurrentThemeConfigFromPreferences()
-        _currentTheme.value = legacyThemeModeFromConfig(_currentThemeConfig.value)
+    fun getAvailableThemeColors(): List<ThemeColor> {
+        return listOf(ThemeColor.BLUE, ThemeColor.PURPLE, ThemeColor.PINK)
+    }
+    
+    /**
+     * Gets all available theme modes
+     */
+    fun getAvailableThemeModes(): List<ThemeMode> {
+        return listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM)
     }
     
     /**
@@ -236,64 +227,12 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
     }
     
     /**
-     * Gets the display name for a theme color
+     * Legacy method: Refreshes theme from preferences
+     * Useful when preferences might have changed externally
      */
-    fun getThemeColorDisplayName(themeColor: ThemeColor): String {
-        return when (themeColor) {
-            ThemeColor.BLUE -> "Azul"
-            ThemeColor.PURPLE -> "Púrpura"
-            ThemeColor.PINK -> "Rosa"
-        }
-    }
-    
-    /**
-     * Gets the display name for a theme mode
-     */
-    fun getThemeModeDisplayName(themeMode: ThemeMode): String {
-        return when (themeMode) {
-            ThemeMode.LIGHT -> "Claro"
-            ThemeMode.DARK -> "Oscuro"
-            ThemeMode.SYSTEM -> "Sistema"
-        }
-    }
-    
-    /**
-     * Legacy: Gets the display name for a theme mode
-     * @deprecated Usar getThemeColorDisplayName() y getThemeModeDisplayName()
-     */
-    @Deprecated("Usar getThemeColorDisplayName() y getThemeModeDisplayName()")
-    fun getThemeDisplayName(themeMode: LegacyThemeMode): String {
-        return when (themeMode) {
-            LegacyThemeMode.LIGHT -> "Claro"
-            LegacyThemeMode.DARK -> "Oscuro"
-            LegacyThemeMode.BLUE -> "Azul"
-            LegacyThemeMode.PURPLE -> "Morado"
-            LegacyThemeMode.PINK -> "Rosa"
-            LegacyThemeMode.SYSTEM -> "Sistema"
-        }
-    }
-    
-    /**
-     * Gets all available theme colors
-     */
-    fun getAvailableThemeColors(): List<ThemeColor> {
-        return listOf(ThemeColor.BLUE, ThemeColor.PURPLE, ThemeColor.PINK)
-    }
-    
-    /**
-     * Gets all available theme modes
-     */
-    fun getAvailableThemeModes(): List<ThemeMode> {
-        return listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM)
-    }
-    
-    /**
-     * Legacy: Gets all available theme options
-     * @deprecated Usar getAvailableThemeColors() y getAvailableThemeModes()
-     */
-    @Deprecated("Usar getAvailableThemeColors() y getAvailableThemeModes()")
-    fun getAvailableThemes(): List<LegacyThemeMode> {
-        return listOf(LegacyThemeMode.DARK, LegacyThemeMode.LIGHT, LegacyThemeMode.BLUE, LegacyThemeMode.PURPLE, LegacyThemeMode.PINK, LegacyThemeMode.SYSTEM)
+    fun refreshThemeFromPreferences() {
+        _currentThemeConfig.value = getCurrentThemeConfigFromPreferences()
+        _currentTheme.value = legacyThemeModeFromConfig(_currentThemeConfig.value)
     }
 }
 

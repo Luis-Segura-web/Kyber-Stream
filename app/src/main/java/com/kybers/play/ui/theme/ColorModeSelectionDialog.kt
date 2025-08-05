@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -64,32 +66,29 @@ fun ColorModeSelectionDialog(
                 ColorSelectionSection(
                     availableColors = listOf(ThemeColor.BLUE, ThemeColor.PURPLE, ThemeColor.PINK),
                     selectedColor = selectedColor,
-                    onColorSelected = { selectedColor = it }
+                    onColorSelected = { 
+                        selectedColor = it
+                        onConfigSelected(ThemeConfig(it, selectedMode))
+                    }
                 )
                 
                 // Sección de selección de modo
                 ModeSelectionSection(
                     availableModes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM),
                     selectedMode = selectedMode,
-                    onModeSelected = { selectedMode = it }
+                    onModeSelected = { 
+                        selectedMode = it
+                        onConfigSelected(ThemeConfig(selectedColor, it))
+                    }
                 )
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    onConfigSelected(previewConfig)
-                    onDismiss()
-                }
-            ) {
-                Text("Aplicar")
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
+        dismissButton = null
     )
 }
 
@@ -369,10 +368,11 @@ fun ModeSelectionSection(
             fontWeight = FontWeight.SemiBold
         )
         
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.heightIn(max = 200.dp)
         ) {
-            availableModes.forEach { mode ->
+            items(availableModes) { mode ->
                 ModeOption(
                     mode = mode,
                     isSelected = mode == selectedMode,

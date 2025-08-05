@@ -22,7 +22,8 @@ class MainActivity : ComponentActivity() {
                 AppNavHost(
                     navController = navController,
                     appContainer = appContainer,
-                    application = application
+                    application = application,
+                    themeManager = themeManager
                 )
             }
         }

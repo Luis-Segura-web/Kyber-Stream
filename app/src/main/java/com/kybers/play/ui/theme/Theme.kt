@@ -364,19 +364,3 @@ private fun getBackgroundGradient(themeColor: ThemeColor, isDark: Boolean): List
         ThemeColor.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
     }
 }
-
-/**
- * Legacy: Obtiene el gradiente de fondo según el tema
- * @deprecated Usar getBackgroundGradient(ThemeColor, Boolean)
- */
-@Deprecated("Usar getBackgroundGradient(ThemeColor, Boolean)")
-private fun getBackgroundGradient(themeMode: LegacyThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
-    return when (themeMode) {
-        LegacyThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
-        LegacyThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
-        LegacyThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
-        LegacyThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
-        LegacyThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
-        LegacyThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
-    }
-}
