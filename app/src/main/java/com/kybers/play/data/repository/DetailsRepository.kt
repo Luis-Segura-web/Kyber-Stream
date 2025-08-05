@@ -26,6 +26,7 @@ import com.squareup.moshi.adapters.PolymorphicJsonAdapterFactory
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import okhttp3.ResponseBody.Companion.toResponseBody
 import java.util.concurrent.TimeUnit
 
 data class ActorFilmography(
@@ -135,11 +136,11 @@ class DetailsRepository(
                 retrofit2.Response.success(imageUrl)
             } else {
                 // Devolvemos la respuesta original para manejar códigos de error y encabezados
-                retrofit2.Response.error(response.code(), response.errorBody() ?: okhttp3.ResponseBody.create(null, ""))
+                retrofit2.Response.error(response.code(), response.errorBody() ?: "".toResponseBody(null))
             }
         } catch (e: Exception) {
             // En caso de error de red, devolvemos un error 500
-            retrofit2.Response.error(500, okhttp3.ResponseBody.create(null, e.message ?: "Error"))
+            retrofit2.Response.error(500, (e.message ?: "Error").toResponseBody(null))
         }
     }
 

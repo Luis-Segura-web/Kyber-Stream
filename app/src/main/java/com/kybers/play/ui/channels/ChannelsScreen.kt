@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -1125,9 +1126,12 @@ fun <T> CategoryVisibilityScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        "Gestión de Categorías",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        "Seleccionar Categorías a Ocultar",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
                     )
                 },
                 navigationIcon = {
@@ -1145,10 +1149,10 @@ fun <T> CategoryVisibilityScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                modifier = Modifier.shadow(4.dp)
+                modifier = Modifier.shadow(2.dp)
             )
         }
     ) { padding ->
@@ -1157,47 +1161,31 @@ fun <T> CategoryVisibilityScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            // Header reducido
+            // Header simplificado y más pequeño
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Outlined.VisibilityOff,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
                     Text(
-                        text = "Seleccione las categorías de $contentType a ocultar",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        text = "Seleccione las categorías a ocultar",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        ),
                         color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                        textAlign = TextAlign.Center
                     )
-
-                    if (selectedHidden.isNotEmpty()) {
-                        Text(
-                            text = "${selectedHidden.size}",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
 
@@ -1205,7 +1193,7 @@ fun <T> CategoryVisibilityScreen(
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(allCategories, key = {
                     when (it) {
@@ -1250,21 +1238,21 @@ fun <T> CategoryVisibilityScreen(
                             },
                         colors = CardDefaults.cardColors(
                             containerColor = if (isChecked)
-                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
                             else
                                 MaterialTheme.colorScheme.surface
                         ),
                         elevation = CardDefaults.cardElevation(
-                            defaultElevation = if (isChecked) 4.dp else 1.dp
+                            defaultElevation = if (isChecked) 3.dp else 1.dp
                         ),
                         border = if (isChecked)
-                            BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                            BorderStroke(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                         else null
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
@@ -1289,24 +1277,14 @@ fun <T> CategoryVisibilityScreen(
                                 Text(
                                     text = categoryName,
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Medium
+                                        fontWeight = if (isChecked) FontWeight.Bold else FontWeight.Medium
                                     ),
                                     color = if (isChecked)
                                         MaterialTheme.colorScheme.error
                                     else
-                                        MaterialTheme.colorScheme.onSurface
-                                )
-
-                                val itemLabel = when (contentType) {
-                                    "películas" -> if (itemCount != 1) "películas" else "película"
-                                    "series" -> if (itemCount != 1) "series" else "serie"
-                                    else -> if (itemCount != 1) "canales" else "canal"
-                                }
-
-                                Text(
-                                    text = "$itemCount $itemLabel",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
@@ -1323,16 +1301,17 @@ fun <T> CategoryVisibilityScreen(
                 }
             }
 
-            // Botones en la parte inferior
+            // Botones en la parte inferior reorganizados
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Botones principales
+                // Botones principales Cancelar y Aceptar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedButton(
                         onClick = { onBack() },
@@ -1341,10 +1320,8 @@ fun <T> CategoryVisibilityScreen(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
-                        Text("Cancelar")
+                        Text("Cancelar", style = MaterialTheme.typography.titleMedium)
                     }
-
-                    Spacer(modifier = Modifier.width(12.dp))
 
                     Button(
                         onClick = { onSave(selectedHidden) },
@@ -1353,18 +1330,19 @@ fun <T> CategoryVisibilityScreen(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text("Aceptar")
+                        Text("Aceptar", style = MaterialTheme.typography.titleMedium)
                     }
                 }
 
-                // Botón de deseleccionar todo
+                // Botón de deseleccionar todo más pequeño y en una línea
                 TextButton(
                     onClick = { selectedHidden = emptySet() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         "Deseleccionar todo",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1
                     )
                 }
             }

@@ -1,7 +1,7 @@
 package com.kybers.play.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GridOn
 
 /**
@@ -38,7 +38,7 @@ fun DisplayMode.toLocalizedName(): String {
  */
 fun DisplayMode.getIcon(): androidx.compose.ui.graphics.vector.ImageVector {
     return when (this) {
-        DisplayMode.LIST -> Icons.Filled.ViewList
+        DisplayMode.LIST -> Icons.AutoMirrored.Filled.ViewList
         DisplayMode.GRID -> Icons.Filled.GridOn
     }
 }

@@ -1,9 +1,11 @@
 package com.kybers.play.ui.theme
 
 import android.app.Activity
+import android.graphics.Color // Necesario para Color.TRANSPARENT
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize // Necesario para fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -17,7 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.toArgb
+// import androidx.compose.ui.graphics.toArgb // Ya no es necesario para statusBar/navBar color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -170,13 +172,15 @@ fun KyberStreamTheme(
             val window = (view.context as Activity).window
             WindowCompat.setDecorFitsSystemWindows(window, false)
             
-            // Color de la barra de estado
-            window.statusBarColor = colors.surface.toArgb()
-            window.navigationBarColor = colors.surface.toArgb()
-            
             val windowInsetsController = WindowInsetsControllerCompat(window, view)
+
+            // Configurar apariencia de las barras usando la nueva API
             windowInsetsController.isAppearanceLightStatusBars = !isDarkTheme
             windowInsetsController.isAppearanceLightNavigationBars = !isDarkTheme
+
+            // Hacer las barras transparentes usando WindowInsetsController
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
         }
     }
 
@@ -187,20 +191,30 @@ fun KyberStreamTheme(
             typography = typography,
             shapes = AppShapes,
             content = {
+                // Box raíz para colorear el fondo detrás de las barras del sistema
                 Box(
                     modifier = Modifier
-                        .systemBarsPadding()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = if (isDarkTheme) {
-                                    BlueUIColors.BackgroundGradient
-                                } else {
-                                    listOf(colors.background, colors.background)
-                                }
-                            )
-                        )
+                        .fillMaxSize() // Ocupa toda la pantalla
+                        .background(colors.surface) // Color de fondo para las áreas de las barras del sistema
                 ) {
-                    content()
+                    // Box para el contenido principal de la aplicación
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize() // Asegura que el contenido (y su fondo) llene el espacio disponible
+                            .systemBarsPadding() // Aplica padding para no solaparse con las barras
+                            .background( // Fondo del contenido principal de la app
+                                brush = Brush.verticalGradient(
+                                    colors = if (isDarkTheme) {
+                                        BlueUIColors.BackgroundGradient
+                                    } else {
+                                        // En tema claro, usamos colors.background como estaba
+                                        listOf(colors.background, colors.background)
+                                    }
+                                )
+                            )
+                    ) {
+                        content() // El contenido de la UI del usuario
+                    }
                 }
             }
         )
