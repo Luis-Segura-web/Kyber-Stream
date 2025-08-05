@@ -58,7 +58,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.kybers.play.ui.components.categories.EnhancedCategoryHeader
+import com.kybers.play.ui.components.SmartCategoryList
+import com.kybers.play.ui.components.CategoryData
+import com.kybers.play.ui.components.CategoryManager
+import com.kybers.play.ui.components.GlobalCategoryManager
 import com.kybers.play.ui.components.categories.ScreenType
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -376,6 +379,21 @@ private fun ChannelListSection(
     favoriteChannels: List<LiveStream>
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val categoryManager = GlobalCategoryManager.instance
+
+    // Track active playback for smart category indicators
+    LaunchedEffect(uiState.currentlyPlaying) {
+        val currentChannel = uiState.currentlyPlaying
+        if (currentChannel != null) {
+            categoryManager.setActiveContent(
+                contentId = currentChannel.streamId.toString(),
+                categoryId = currentChannel.categoryId,
+                screenType = ScreenType.CHANNELS
+            )
+        } else {
+            categoryManager.setActiveContent(null, null, ScreenType.CHANNELS)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         SearchBar(
@@ -384,120 +402,106 @@ private fun ChannelListSection(
             onClear = { viewModel.onSearchQueryChanged("") }
         )
 
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            // Siempre mostrar categoría de favoritos con enhanced header
-            stickyHeader(key = "favorites") {
-                EnhancedCategoryHeader(
-                    categoryName = "Favoritos",
-                    categoryId = "favorites",
-                    itemCount = favoriteChannels.size,
-                    screenType = ScreenType.CHANNELS,
-                    onHeaderClick = { viewModel.onFavoritesCategoryToggled() },
-                    hasActiveContent = false, // Could be enhanced to detect active content
-                    isLegacyMode = true, // Use legacy mode for now
-                    legacyIsExpanded = uiState.isFavoritesCategoryExpanded
-                )
-            }
-            if (uiState.isFavoritesCategoryExpanded) {
-                if (favoriteChannels.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Aún no tienes canales favoritos.",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    items(
-                        items = favoriteChannels,
-                        key = { channel -> "fav-${channel.num}-${channel.categoryId}-${channel.streamId}" }
-                    ) { channel ->
-                        ChannelListItem(
-                            channel = channel,
-                            isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                            onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel.copy(categoryId = "favorites")) },
-                            isFavorite = true,
-                            onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
-                        )
-                    }
-                }
-            }
-
-            // Solo mostrar categorías si no están ocultas
+        // Convert categories to smart category format
+        val smartCategoryData = buildList<CategoryData<LiveStream>> {
+            // Always add favorites category
+            add(CategoryData(
+                categoryId = "favorites",
+                categoryName = "Favoritos",
+                items = favoriteChannels,
+                isExpanded = uiState.isFavoritesCategoryExpanded
+            ))
+            
+            // Add regular categories if not hidden
             if (!uiState.areCategoriesHidden) {
-                uiState.categories.forEach { expandableCategory ->
-                    stickyHeader(key = expandableCategory.category.categoryId) {
-                        EnhancedCategoryHeader(
-                            categoryName = expandableCategory.category.categoryName,
-                            categoryId = expandableCategory.category.categoryId,
-                            itemCount = expandableCategory.channels.size,
-                            screenType = ScreenType.CHANNELS,
-                            onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
-                            hasActiveContent = false, // Could be enhanced to detect active content
-                            isLegacyMode = true, // Use legacy mode for now
-                            legacyIsExpanded = expandableCategory.isExpanded
-                        )
-                    }
-                    if (expandableCategory.isExpanded) {
-                        items(
-                            items = expandableCategory.channels,
-                            key = { channel -> "channel-${channel.num}-${channel.categoryId}-${channel.streamId}" }
-                        ) { channel ->
-                            ChannelListItem(
-                                channel = channel,
-                                isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
-                                onChannelClick = { selectedChannel: LiveStream -> viewModel.onChannelSelected(selectedChannel) },
-                                isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
-                                onToggleFavorite = { favoriteChannel: LiveStream -> viewModel.toggleFavorite(favoriteChannel.streamId.toString()) }
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Cuando las categorías están ocultas, mostrar mensaje informativo
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Categorías ocultas",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                text = "Solo se muestran los canales favoritos. Usa el botón de visibilidad para mostrar todas las categorías.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
+                addAll(uiState.categories.map { expandableCategory ->
+                    CategoryData(
+                        categoryId = expandableCategory.category.categoryId,
+                        categoryName = expandableCategory.category.categoryName,
+                        items = expandableCategory.channels,
+                        isExpanded = expandableCategory.isExpanded
+                    )
+                })
+            }
+        }
+
+        if (smartCategoryData.isEmpty() || (smartCategoryData.size == 1 && favoriteChannels.isEmpty())) {
+            // Show message when no content is available
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (uiState.areCategoriesHidden) "Categorías ocultas" else "Sin contenido",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = if (uiState.areCategoriesHidden) 
+                            "Solo se muestran los canales favoritos. Usa el botón de visibilidad para mostrar todas las categorías."
+                        else
+                            "No hay canales disponibles en este momento.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
+        } else {
+            SmartCategoryList(
+                categories = smartCategoryData,
+                screenType = ScreenType.CHANNELS,
+                lazyListState = lazyListState,
+                onCategoryToggled = { categoryId ->
+                    if (categoryId == "favorites") {
+                        viewModel.onFavoritesCategoryToggled()
+                    } else {
+                        viewModel.onCategoryToggled(categoryId)
+                    }
+                },
+                onItemClick = { channel -> viewModel.onChannelSelected(channel) },
+                onItemFavoriteToggle = { channel -> viewModel.toggleFavorite(channel.streamId.toString()) },
+                isItemFavorite = { channel -> channel.streamId.toString() in uiState.favoriteChannelIds },
+                isItemSelected = { channel -> channel.streamId == uiState.currentlyPlaying?.streamId },
+                itemContent = { channel ->
+                    ChannelListItem(
+                        channel = channel,
+                        isSelected = channel.streamId == uiState.currentlyPlaying?.streamId,
+                        onChannelClick = { selectedChannel: LiveStream -> 
+                            viewModel.onChannelSelected(
+                                if (selectedChannel.categoryId == "favorites") {
+                                    selectedChannel.copy(categoryId = "favorites")
+                                } else {
+                                    selectedChannel
+                                }
+                            )
+                        },
+                        isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
+                        onToggleFavorite = { favoriteChannel: LiveStream -> 
+                            viewModel.toggleFavorite(favoriteChannel.streamId.toString()) 
+                        }
+                    )
+                },
+                searchQuery = uiState.searchQuery,
+                activeContentId = uiState.currentlyPlaying?.streamId?.toString(),
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -564,84 +568,6 @@ fun SearchBar(
 }
 
 
-/**
- * A composable that displays a category header.
- *
- * The header displays the category name and an expand/collapse icon.
- *
- * @param categoryName The name of the category.
- * @param isExpanded Whether the category is currently expanded.
- * @param onHeaderClick A callback that is invoked when the header is clicked.
- * @param itemCount The number of items in the category.
- */
-@Composable
-fun CategoryHeader(
-    categoryName: String,
-    isExpanded: Boolean,
-    onHeaderClick: () -> Unit,
-    itemCount: Int? = null
-) {
-    val rotationAngle by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ), label = "rotation"
-    )
-
-    // Categoría pegajosa con fondo opaco que no permite ver contenido detrás
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 6.dp,
-        shape = RoundedCornerShape(8.dp),
-        shadowElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .clickable(onClick = onHeaderClick)
-                .padding(vertical = 14.dp, horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icono minimalista
-            Icon(
-                imageVector = if (categoryName.contains("favoritos", ignoreCase = true))
-                    Icons.Default.Star
-                else
-                    Icons.Default.Folder,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Título con soporte para 2 líneas
-            Text(
-                text = if (itemCount != null) "$categoryName ($itemCount)" else categoryName,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-
-            // Flecha minimalista
-            Icon(
-                imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = if (isExpanded) "Contraer" else "Expandir",
-                modifier = Modifier
-                    .size(28.dp)
-                    .rotate(rotationAngle),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
 
 /**
  * A composable that displays a single channel in the list.

@@ -43,8 +43,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.R
+import com.kybers.play.ui.components.SmartCategoryList
+import com.kybers.play.ui.components.CategoryData
+import com.kybers.play.ui.components.CategoryManager
+import com.kybers.play.ui.components.GlobalCategoryManager
+import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.data.remote.model.Movie
-import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.CategoryVisibilityScreen
 import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
 import com.kybers.play.ui.components.DisplayModeToggle
@@ -125,71 +129,53 @@ fun MoviesScreen(
                         CircularProgressIndicator()
                     }
                 } else {
-                    LazyColumn(
-                        state = lazyListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        uiState.categories.forEach { expandableCategory ->
-                            stickyHeader(key = expandableCategory.category.categoryId) {
-                                Surface(modifier = Modifier.fillParentMaxWidth()) {
-                                    CategoryHeader(
-                                        categoryName = expandableCategory.category.categoryName,
-                                        isExpanded = expandableCategory.isExpanded,
-                                        onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId ?: "") },
-                                        itemCount = expandableCategory.movies.size
+                    // Convert categories to smart category format
+                    val smartCategoryData = uiState.categories.map { expandableCategory ->
+                        CategoryData(
+                            categoryId = expandableCategory.category.categoryId ?: "",
+                            categoryName = expandableCategory.category.categoryName,
+                            items = expandableCategory.movies,
+                            isExpanded = expandableCategory.isExpanded
+                        )
+                    }
+
+                    SmartCategoryList(
+                        categories = smartCategoryData,
+                        screenType = ScreenType.MOVIES,
+                        lazyListState = lazyListState,
+                        displayMode = uiState.displayMode,
+                        gridColumns = 3,
+                        onCategoryToggled = { categoryId ->
+                            viewModel.onCategoryToggled(categoryId)
+                        },
+                        onItemClick = { movie -> onNavigateToDetails(movie.streamId) },
+                        onItemFavoriteToggle = { movie -> viewModel.toggleFavoriteStatus(movie.streamId) },
+                        isItemFavorite = { movie -> uiState.favoriteMovieIds.contains(movie.streamId.toString()) },
+                        itemContent = { movie ->
+                            when (uiState.displayMode) {
+                                ComponentDisplayMode.GRID -> {
+                                    MoviePosterItem(
+                                        viewModel = viewModel,
+                                        movie = movie,
+                                        isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
+                                        onPosterClick = { onNavigateToDetails(movie.streamId) },
+                                        onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
+                                    )
+                                }
+                                ComponentDisplayMode.LIST -> {
+                                    MovieListItem(
+                                        viewModel = viewModel,
+                                        movie = movie,
+                                        isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
+                                        onMovieClick = { onNavigateToDetails(movie.streamId) },
+                                        onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
                                     )
                                 }
                             }
-
-                            if (expandableCategory.isExpanded) {
-                                val columnsCount = when (uiState.displayMode) {
-                                    ComponentDisplayMode.GRID -> 3
-                                    ComponentDisplayMode.LIST -> 1
-                                }
-                                val movieRows = expandableCategory.movies.chunked(columnsCount)
-                                itemsIndexed(
-                                    items = movieRows,
-                                    key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
-                                ) { _, rowMovies ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        rowMovies.forEach { movie ->
-                                            Box(modifier = Modifier.weight(1f)) {
-                                                when (uiState.displayMode) {
-                                                    ComponentDisplayMode.GRID -> {
-                                                        MoviePosterItem(
-                                                            viewModel = viewModel,
-                                                            movie = movie,
-                                                            isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
-                                                            onPosterClick = { onNavigateToDetails(movie.streamId) },
-                                                            onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
-                                                        )
-                                                    }
-                                                    ComponentDisplayMode.LIST -> {
-                                                        MovieListItem(
-                                                            viewModel = viewModel,
-                                                            movie = movie,
-                                                            isFavorite = uiState.favoriteMovieIds.contains(movie.streamId.toString()),
-                                                            onMovieClick = { onNavigateToDetails(movie.streamId) },
-                                                            onFavoriteClick = { viewModel.toggleFavoriteStatus(movie.streamId) }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        repeat(columnsCount - rowMovies.size) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                        },
+                        searchQuery = uiState.searchQuery,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }

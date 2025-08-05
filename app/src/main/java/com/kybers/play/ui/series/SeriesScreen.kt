@@ -46,10 +46,14 @@ import com.kybers.play.ui.player.SortOrder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.kybers.play.ui.components.SmartCategoryList
+import com.kybers.play.ui.components.CategoryData
+import com.kybers.play.ui.components.CategoryManager
+import com.kybers.play.ui.components.GlobalCategoryManager
+import com.kybers.play.ui.components.categories.ScreenType
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.Series
-import com.kybers.play.ui.channels.CategoryHeader
 import com.kybers.play.ui.channels.CategoryVisibilityScreen
 import com.kybers.play.ui.channels.SearchBar as CustomSearchBar
 import kotlinx.coroutines.flow.collectLatest
@@ -124,58 +128,39 @@ fun SeriesScreen(
                         CircularProgressIndicator()
                     }
                 } else {
-                    LazyColumn(
-                        state = lazyListState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        uiState.categories.forEach { expandableCategory ->
-                            stickyHeader(key = expandableCategory.category.categoryId) {
-                                Surface(modifier = Modifier.fillParentMaxWidth()) {
-                                    CategoryHeader(
-                                        categoryName = expandableCategory.category.categoryName,
-                                        isExpanded = expandableCategory.isExpanded,
-                                        onHeaderClick = { viewModel.onCategoryToggled(expandableCategory.category.categoryId) },
-                                        itemCount = expandableCategory.series.size
-                                    )
-                                }
-                            }
-
-                            if (expandableCategory.isExpanded) {
-                                val columnsCount = when (uiState.displayMode) {
-                                    ComponentDisplayMode.GRID -> 3
-                                    ComponentDisplayMode.LIST -> 1
-                                }
-                                val seriesRows = expandableCategory.series.chunked(columnsCount)
-                                // --- ¡CORRECCIÓN! Usamos itemsIndexed para una clave única ---
-                                itemsIndexed(
-                                    items = seriesRows,
-                                    key = { index, _ -> "${expandableCategory.category.categoryId}-row-$index" }
-                                ) { _, rowSeries ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        rowSeries.forEach { series ->
-                                            Box(modifier = Modifier.weight(1f)) {
-                                                SeriesPosterItem(
-                                                    series = series,
-                                                    isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
-                                                    onPosterClick = { onNavigateToDetails(series.seriesId) },
-                                                    onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
-                                                )
-                                            }
-                                        }
-                                        repeat(columnsCount - rowSeries.size) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    // Convert categories to smart category format
+                    val smartCategoryData = uiState.categories.map { expandableCategory ->
+                        CategoryData(
+                            categoryId = expandableCategory.category.categoryId,
+                            categoryName = expandableCategory.category.categoryName,
+                            items = expandableCategory.series,
+                            isExpanded = expandableCategory.isExpanded
+                        )
                     }
+
+                    SmartCategoryList(
+                        categories = smartCategoryData,
+                        screenType = ScreenType.SERIES,
+                        lazyListState = lazyListState,
+                        displayMode = uiState.displayMode,
+                        gridColumns = 3,
+                        onCategoryToggled = { categoryId ->
+                            viewModel.onCategoryToggled(categoryId)
+                        },
+                        onItemClick = { series -> onNavigateToDetails(series.seriesId) },
+                        onItemFavoriteToggle = { series -> viewModel.toggleFavoriteStatus(series.seriesId) },
+                        isItemFavorite = { series -> uiState.favoriteSeriesIds.contains(series.seriesId.toString()) },
+                        itemContent = { series ->
+                            SeriesPosterItem(
+                                series = series,
+                                isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
+                                onPosterClick = { onNavigateToDetails(series.seriesId) },
+                                onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
+                            )
+                        },
+                        searchQuery = uiState.searchQuery,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
