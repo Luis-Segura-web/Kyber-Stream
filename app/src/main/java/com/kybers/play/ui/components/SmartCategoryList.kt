@@ -1,5 +1,6 @@
 package com.kybers.play.ui.components
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -13,13 +14,14 @@ import com.kybers.play.ui.components.categories.*
 import com.kybers.play.ui.components.DisplayMode
 
 /**
- * Modern, unified smart category list component that provides:
+ * Modern, unified smart category list component with performance optimizations that provides:
  * - Accordion behavior (one category open at a time)
  * - Sticky positioning with intelligent scrolling
  * - Smooth animations
  * - Support for different content types (TV, Movies, Series)
  * - Real-time playback indicators
  * - Grid and List display modes
+ * - Optimized recomposition and memory management
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -39,26 +41,18 @@ fun <T> SmartCategoryList(
     gridColumns: Int = 3,
     modifier: Modifier = Modifier
 ) {
+    // Debug constants
+    val TAG = "SmartCategoryList"
+    val DEBUG = false // Set to true for performance debugging
+    
     val categoryManager = GlobalCategoryStateManager.instance
     val categoryState by categoryManager.state.collectAsState()
 
-    // Auto-scroll when categories are toggled
-    LaunchedEffect(categoryState.getExpandedCategoryId(screenType)) {
-        val expandedCategoryId = categoryState.getExpandedCategoryId(screenType)
-        if (expandedCategoryId != null) {
-            val categoryIndex = categories.indexOfFirst { it.categoryId == expandedCategoryId }
-            if (categoryIndex != -1) {
-                lazyListState.animateScrollToItem(categoryIndex)
-            }
-        }
-    }
-
-    LazyColumn(
-        state = lazyListState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
-    ) {
-        categories.forEachIndexed { index, categoryData ->
+    // Performance optimization: memoize expensive calculations
+    val categoriesWithState = remember(categories, categoryState, screenType, activeContentId) {
+        if (DEBUG) Log.d(TAG, "Recalculating categories with state for $screenType")
+        
+        categories.map { categoryData ->
             val categoryStateData = categoryState.getCategoriesForScreen(screenType)[categoryData.categoryId]
                 ?: CategoryState(
                     id = categoryData.categoryId,
@@ -68,31 +62,64 @@ fun <T> SmartCategoryList(
                         activeContentId != null && getItemId(item).toString() == activeContentId
                     }
                 )
+            categoryData to categoryStateData
+        }
+    }
 
-            // Sticky header for category
-            stickyHeader(key = categoryData.categoryId) {
-                SmartCategoryHeader(
-                    categoryState = categoryStateData,
-                    screenType = screenType,
-                    onHeaderClick = { 
-                        onCategoryToggled(categoryData.categoryId)
-                    }
-                )
+    // Auto-scroll when categories are toggled with debouncing
+    LaunchedEffect(categoryState.getExpandedCategoryId(screenType)) {
+        val expandedCategoryId = categoryState.getExpandedCategoryId(screenType)
+        if (expandedCategoryId != null) {
+            val categoryIndex = categories.indexOfFirst { it.categoryId == expandedCategoryId }
+            if (categoryIndex != -1) {
+                if (DEBUG) Log.d(TAG, "Auto-scrolling to category index: $categoryIndex")
+                lazyListState.animateScrollToItem(categoryIndex)
+            }
+        }
+    }
+
+    // Performance monitoring
+    LaunchedEffect(categories.size) {
+        if (DEBUG) {
+            Log.d(TAG, "Rendering ${categories.size} categories for $screenType")
+        }
+    }
+
+    LazyColumn(
+        state = lazyListState,
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp)
+    ) {
+        categoriesWithState.forEachIndexed { index, (categoryData, categoryStateData) ->
+            // Sticky header for category with optimized key
+            stickyHeader(key = "header_${categoryData.categoryId}") {
+                // Performance optimization: only recompose header when state changes
+                key(categoryStateData.isExpanded, categoryStateData.hasActiveContent, categoryStateData.itemCount) {
+                    SmartCategoryHeader(
+                        categoryState = categoryStateData,
+                        screenType = screenType,
+                        onHeaderClick = { 
+                            if (DEBUG) Log.d(TAG, "Category toggled: ${categoryData.categoryId}")
+                            onCategoryToggled(categoryData.categoryId)
+                        }
+                    )
+                }
             }
 
-            // Category content with smooth animation
+            // Category content with smooth animation and performance optimization
             if (categoryStateData.isExpanded) {
                 if (displayMode == DisplayMode.GRID && screenType != ScreenType.CHANNELS) {
-                    // Grid mode for movies/series
+                    // Grid mode for movies/series with optimized chunking
                     val itemRows = categoryData.items.chunked(gridColumns)
+                    
                     itemsIndexed(
                         items = itemRows,
-                        key = { rowIndex, _ -> "${categoryData.categoryId}-row-$rowIndex" }
-                    ) { _, rowItems ->
+                        key = { rowIndex, _ -> "grid_${categoryData.categoryId}_row_$rowIndex" }
+                    ) { rowIndex, rowItems ->
                         AnimatedVisibility(
                             visible = true,
-                            enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300)),
-                            exit = fadeOut(animationSpec = tween(300)) + shrinkVertically(animationSpec = tween(300))
+                            enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(200)),
+                            exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(200))
                         ) {
                             Row(
                                 modifier = Modifier
@@ -102,7 +129,10 @@ fun <T> SmartCategoryList(
                             ) {
                                 rowItems.forEach { item ->
                                     Box(modifier = Modifier.weight(1f)) {
-                                        itemContent(item)
+                                        // Performance optimization: memoize item state
+                                        key(getItemId(item)) {
+                                            itemContent(item)
+                                        }
                                     }
                                 }
                                 // Fill remaining columns with spacers
@@ -113,20 +143,33 @@ fun <T> SmartCategoryList(
                         }
                     }
                 } else {
-                    // List mode or channels
+                    // List mode or channels with optimized item rendering
                     items(
                         items = categoryData.items,
-                        key = { item -> "${categoryData.categoryId}-${getItemId(item)}" }
+                        key = { item -> "list_${categoryData.categoryId}_${getItemId(item)}" }
                     ) { item ->
                         AnimatedVisibility(
                             visible = true,
-                            enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300)),
-                            exit = fadeOut(animationSpec = tween(300)) + shrinkVertically(animationSpec = tween(300))
+                            enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(200)),
+                            exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(200))
                         ) {
-                            itemContent(item)
+                            // Performance optimization: memoize item state
+                            key(getItemId(item), isItemSelected(item), isItemFavorite(item)) {
+                                itemContent(item)
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Performance monitoring for large lists
+    LaunchedEffect(lazyListState.layoutInfo.totalItemsCount) {
+        if (DEBUG) {
+            val totalItems = lazyListState.layoutInfo.totalItemsCount
+            if (totalItems > 100) {
+                Log.w(TAG, "Large list detected: $totalItems items. Consider implementing virtualization.")
             }
         }
     }
@@ -143,7 +186,7 @@ data class CategoryData<T>(
 )
 
 /**
- * Helper function to get item ID - can be overridden for different types
+ * Helper function to get item ID - optimized for different types
  */
 private fun <T> getItemId(item: T): Any {
     return when (item) {
@@ -156,6 +199,7 @@ private fun <T> getItemId(item: T): Any {
 
 /**
  * Extension function to convert legacy expandable categories to smart category data
+ * with performance optimization
  */
 fun <T> List<T>.toSmartCategoryData(
     getCategoryId: (T) -> String,

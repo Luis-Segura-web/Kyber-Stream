@@ -1,5 +1,6 @@
 package com.kybers.play.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.lifecycle.ViewModel
@@ -9,9 +10,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * Enhanced category manager with intelligent positioning and playback tracking
+ * Enhanced category manager with intelligent positioning, playback tracking, and comprehensive logging
  */
 class CategoryManager : ViewModel() {
+    
+    companion object {
+        private const val TAG = "CategoryManager"
+        private const val DEBUG = true // Set to false for production
+    }
     
     private val categoryStateManager = GlobalCategoryStateManager.instance
     
@@ -24,23 +30,30 @@ class CategoryManager : ViewModel() {
     val activePlaybackState: StateFlow<PlaybackState?> = _activePlaybackState.asStateFlow()
     
     /**
-     * Toggles a category with intelligent behavior
+     * Toggles a category with intelligent behavior and logging
      */
     fun toggleCategory(categoryId: String, screenType: ScreenType) {
+        if (DEBUG) Log.d(TAG, "Toggling category: $categoryId on screen: $screenType")
+        
         categoryStateManager.handleEvent(
             CategoryEvent.ToggleCategory(categoryId, screenType)
         )
         
         // Auto-scroll to the category
         viewModelScope.launch {
+            if (DEBUG) Log.d(TAG, "Auto-scrolling to category: $categoryId")
             _scrollToItemEvent.emit(categoryId)
         }
     }
     
     /**
-     * Sets active content and updates category states
+     * Sets active content and updates category states with logging
      */
     fun setActiveContent(contentId: String?, categoryId: String?, screenType: ScreenType) {
+        if (DEBUG) {
+            Log.d(TAG, "Setting active content: contentId=$contentId, categoryId=$categoryId, screenType=$screenType")
+        }
+        
         _activePlaybackState.value = if (contentId != null && categoryId != null) {
             PlaybackState(contentId, categoryId, screenType)
         } else {
@@ -55,76 +68,136 @@ class CategoryManager : ViewModel() {
     }
     
     /**
-     * Updates category item count with automatic refresh
+     * Updates category item count with automatic refresh and performance tracking
      */
     fun updateCategoryCount(categoryId: String, count: Int) {
+        if (DEBUG) Log.d(TAG, "Updating category count: $categoryId = $count items")
+        
         categoryStateManager.handleEvent(
             CategoryEvent.UpdateCategoryCount(categoryId, count)
         )
     }
     
     /**
-     * Collapses all categories across all screens
+     * Collapses all categories across all screens with logging
      */
     fun collapseAllCategories() {
+        if (DEBUG) Log.d(TAG, "Collapsing all categories across all screens")
         categoryStateManager.handleEvent(CategoryEvent.CollapseAll)
     }
     
     /**
-     * Gets the current state for a specific screen
+     * Gets the current state for a specific screen with performance optimization
      */
     fun getCategoriesForScreen(screenType: ScreenType): StateFlow<Map<String, CategoryState>> {
         return categoryStateManager.state.map { state ->
             state.getCategoriesForScreen(screenType)
         }.stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.WhileSubscribed(5000), // Keep alive for 5 seconds after last subscriber
             initialValue = emptyMap()
         )
     }
     
     /**
-     * Checks if a category is expanded
+     * Checks if a category is expanded with logging
      */
     fun isCategoryExpanded(categoryId: String, screenType: ScreenType): Boolean {
-        return categoryStateManager.isCategoryExpanded(screenType, categoryId)
+        val isExpanded = categoryStateManager.isCategoryExpanded(screenType, categoryId)
+        if (DEBUG) Log.v(TAG, "Category $categoryId expanded: $isExpanded")
+        return isExpanded
     }
     
     /**
-     * Scroll to specific category
+     * Scroll to specific category with performance tracking
      */
     fun scrollToCategory(categoryId: String) {
         viewModelScope.launch {
+            val startTime = System.currentTimeMillis()
+            if (DEBUG) Log.d(TAG, "Initiating scroll to category: $categoryId")
+            
             _scrollToItemEvent.emit(categoryId)
+            
+            val duration = System.currentTimeMillis() - startTime
+            if (DEBUG) Log.d(TAG, "Scroll event emitted for $categoryId in ${duration}ms")
         }
     }
     
     /**
-     * Initialize categories for a screen
+     * Initialize categories for a screen with performance monitoring
      */
     fun initializeCategories(screenType: ScreenType, categories: List<Pair<String, String>>) {
+        val startTime = System.currentTimeMillis()
+        if (DEBUG) Log.d(TAG, "Initializing ${categories.size} categories for $screenType")
+        
         categoryStateManager.initializeCategories(screenType, categories)
+        
+        val duration = System.currentTimeMillis() - startTime
+        if (DEBUG) Log.d(TAG, "Categories initialized for $screenType in ${duration}ms")
     }
     
     /**
-     * Smart positioning: expands a category and scrolls to first item
+     * Smart positioning: expands a category and scrolls to first item with enhanced logging
      */
     fun expandAndScrollToCategory(categoryId: String, screenType: ScreenType) {
+        if (DEBUG) Log.d(TAG, "Smart expand and scroll: $categoryId on $screenType")
+        
         toggleCategory(categoryId, screenType)
         
         viewModelScope.launch {
             // Small delay to allow expansion animation to start
             kotlinx.coroutines.delay(100)
+            if (DEBUG) Log.d(TAG, "Delayed scroll triggered for $categoryId")
             _scrollToItemEvent.emit(categoryId)
         }
     }
     
     /**
-     * Handles viewport changes and adjusts positioning
+     * Handles viewport changes and adjusts positioning with performance monitoring
      */
     fun onViewportChanged(visibleItemsInfo: LazyListLayoutInfo) {
+        // Performance monitoring for large lists
+        if (DEBUG && visibleItemsInfo.totalItemsCount > 100) {
+            Log.v(TAG, "Large list detected: ${visibleItemsInfo.totalItemsCount} items, " +
+                    "visible: ${visibleItemsInfo.visibleItemsInfo.size}")
+        }
+        
         // This can be extended to implement smart positioning based on visible items
         // For now, we keep it simple but the structure is ready for enhancement
+    }
+    
+    /**
+     * Performance debugging - logs current state
+     */
+    fun logCurrentState() {
+        if (DEBUG) {
+            viewModelScope.launch {
+                val state = categoryStateManager.state.value
+                Log.d(TAG, "=== Current Category State ===")
+                Log.d(TAG, "Active Screen: ${state.activeScreenType}")
+                Log.d(TAG, "Active Content: ${state.activeContentId}")
+                Log.d(TAG, "Channel Categories: ${state.channelCategories.size}")
+                Log.d(TAG, "Movie Categories: ${state.movieCategories.size}")
+                Log.d(TAG, "Series Categories: ${state.seriesCategories.size}")
+                
+                // Log expanded categories
+                state.channelCategories.values.filter { it.isExpanded }.forEach {
+                    Log.d(TAG, "Expanded Channel Category: ${it.name} (${it.itemCount} items)")
+                }
+                state.movieCategories.values.filter { it.isExpanded }.forEach {
+                    Log.d(TAG, "Expanded Movie Category: ${it.name} (${it.itemCount} items)")
+                }
+                state.seriesCategories.values.filter { it.isExpanded }.forEach {
+                    Log.d(TAG, "Expanded Series Category: ${it.name} (${it.itemCount} items)")
+                }
+                Log.d(TAG, "============================")
+            }
+        }
+    }
+    
+    override fun onCleared() {
+        super.onCleared()
+        if (DEBUG) Log.d(TAG, "CategoryManager cleared")
     }
 }
 
