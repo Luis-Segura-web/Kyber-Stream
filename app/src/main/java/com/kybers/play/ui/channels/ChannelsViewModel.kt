@@ -554,13 +554,6 @@ open class ChannelsViewModel(
                 val category = currentOriginals[categoryIndex]
                 val isNowExpanding = !category.isExpanded
 
-                if (isNowExpanding) {
-                    for (i in currentOriginals.indices) {
-                        currentOriginals[i] = currentOriginals[i].copy(isExpanded = false)
-                    }
-                    _uiState.update { it.copy(isFavoritesCategoryExpanded = false) }
-                }
-
                 val updatedCategory = if (isNowExpanding && !category.epgLoaded) {
                     val enrichedChannels = liveRepository.enrichChannelsWithEpg(category.channels, epgCacheMap)
                     category.copy(
@@ -687,11 +680,6 @@ open class ChannelsViewModel(
     open fun onFavoritesCategoryToggled() {
         viewModelScope.launch {
             val isNowExpanding = !_uiState.value.isFavoritesCategoryExpanded
-
-            if (isNowExpanding) {
-                val collapsedCategories = _originalCategories.value.map { it.copy(isExpanded = false) }
-                _originalCategories.value = collapsedCategories
-            }
 
             _uiState.update { it.copy(isFavoritesCategoryExpanded = isNowExpanding) }
 

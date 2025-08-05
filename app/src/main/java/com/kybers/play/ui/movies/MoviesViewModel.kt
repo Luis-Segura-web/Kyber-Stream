@@ -203,9 +203,6 @@ class MoviesViewModel(
     fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
             val isNowExpanding = !(expansionState[categoryId] ?: false)
-            if (isNowExpanding) {
-                expansionState.keys.forEach { expansionState[it] = false }
-            }
             expansionState[categoryId] = isNowExpanding
             updateUiWithFilteredData()
 

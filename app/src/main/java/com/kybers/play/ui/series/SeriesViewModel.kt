@@ -170,11 +170,6 @@ class SeriesViewModel(
     fun onCategoryToggled(categoryId: String) {
         viewModelScope.launch {
             val isNowExpanding = !(expansionState[categoryId] ?: false)
-            if (isNowExpanding) {
-                if (categoryId != "favorites") {
-                    expansionState.keys.forEach { expansionState[it] = false }
-                }
-            }
             expansionState[categoryId] = isNowExpanding
             updateUiWithFilteredData()
             if (isNowExpanding) _scrollToItemEvent.emit(categoryId)
