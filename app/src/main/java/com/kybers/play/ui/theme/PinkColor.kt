@@ -8,9 +8,9 @@ import androidx.compose.ui.graphics.Color
  */
 object PinkTheme {
     // === COLORES PRINCIPALES ROSA ===
-    val Primary = Color(0xFFE91E63)           // Material Pink 500 - Rosa principal
-    val PrimaryVariant = Color(0xFFC2185B)    // Material Pink 700 - Rosa más oscuro
-    val PrimaryLight = Color(0xFFF48FB1)      // Material Pink 200 - Rosa claro
+    val Primary = Color(0xFFEC407A)           // Material Pink 400 - Rosa principal más suave
+    val PrimaryVariant = Color(0xFFAD1457)    // Material Pink 800 - Rosa más oscuro
+    val PrimaryLight = Color(0xFFF8BBD0)      // Material Pink 100 - Rosa claro
     val OnPrimary = Color(0xFFFFFFFF)         // Blanco en rosa
     
     // === COLORES SECUNDARIOS ===
