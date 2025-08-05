@@ -1,5 +1,6 @@
 package com.kybers.play.ui.components.categories
 
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -7,21 +8,38 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Centralized manager for the smart category system
  * Implements accordion-style behavior where only one category can be open at a time
+ * Enhanced with sticky header collapse detection and intelligent repositioning
  */
 class CategoryStateManager {
+    
+    companion object {
+        private const val TAG = "CategoryStateManager"
+        private const val DEBUG = true // Enable detailed logging for debugging
+    }
     
     private val _state = MutableStateFlow(SmartCategoryState())
     val state: StateFlow<SmartCategoryState> = _state.asStateFlow()
     
+    // Track previous states for collapse detection
+    private var previousStates: Map<ScreenType, Map<String, CategoryState>> = emptyMap()
+    
     /**
      * Handles category events and updates state accordingly
+     * Enhanced with collapse detection and intelligent repositioning
      */
     fun handleEvent(event: CategoryEvent) {
         val currentState = _state.value
         
+        // Store current state as previous before making changes
+        storePreviousStates(currentState)
+        
         when (event) {
             is CategoryEvent.ToggleCategory -> {
-                _state.value = handleToggleCategory(currentState, event.categoryId, event.screenType)
+                val newState = handleToggleCategory(currentState, event.categoryId, event.screenType)
+                _state.value = newState
+                
+                // Detect collapses and trigger repositioning if needed
+                detectAndHandleCollapses(event.screenType, event.categoryId)
             }
             
             is CategoryEvent.SetActiveContent -> {
@@ -85,6 +103,86 @@ class CategoryStateManager {
      */
     fun isCategoryExpanded(screenType: ScreenType, categoryId: String): Boolean {
         return getCategoryState(screenType, categoryId)?.isExpanded ?: false
+    }
+    
+    /**
+     * Gets the list of collapsed categories for intelligent repositioning
+     */
+    fun getCollapsedCategories(screenType: ScreenType): List<String> {
+        return _state.value.getCollapsedCategoriesForScreen(screenType)
+    }
+    
+    /**
+     * Clears the collapsed categories list after repositioning
+     */
+    fun clearCollapsedCategories(screenType: ScreenType) {
+        val currentState = _state.value
+        _state.value = when (screenType) {
+            ScreenType.CHANNELS -> currentState.copy(collapsedChannelCategories = emptyList())
+            ScreenType.MOVIES -> currentState.copy(collapsedMovieCategories = emptyList())
+            ScreenType.SERIES -> currentState.copy(collapsedSeriesCategories = emptyList())
+        }
+        
+        if (DEBUG) {
+            Log.d(TAG, "Cleared collapsed categories for $screenType")
+        }
+    }
+    
+    // Private helper methods
+    
+    /**
+     * Stores current state as previous state for collapse detection
+     */
+    private fun storePreviousStates(currentState: SmartCategoryState) {
+        previousStates = mapOf(
+            ScreenType.CHANNELS to currentState.channelCategories,
+            ScreenType.MOVIES to currentState.movieCategories,
+            ScreenType.SERIES to currentState.seriesCategories
+        )
+    }
+    
+    /**
+     * Detects category collapses and marks them for intelligent repositioning
+     */
+    private fun detectAndHandleCollapses(screenType: ScreenType, toggledCategoryId: String) {
+        val previousScreenStates = previousStates[screenType] ?: return
+        val currentScreenStates = _state.value.getCategoriesForScreen(screenType)
+        
+        val collapsedCategories = mutableListOf<String>()
+        
+        // Find categories that were expanded but are now collapsed
+        previousScreenStates.forEach { (categoryId, previousState) ->
+            val currentState = currentScreenStates[categoryId]
+            
+            if (previousState.isExpanded && currentState?.isExpanded == false) {
+                // This category just collapsed
+                collapsedCategories.add(categoryId)
+                
+                if (DEBUG) {
+                    Log.d(TAG, "Detected collapse of category: $categoryId in $screenType")
+                }
+            }
+        }
+        
+        // Store collapsed categories for intelligent repositioning
+        if (collapsedCategories.isNotEmpty()) {
+            val currentState = _state.value
+            _state.value = when (screenType) {
+                ScreenType.CHANNELS -> currentState.copy(
+                    collapsedChannelCategories = collapsedCategories
+                )
+                ScreenType.MOVIES -> currentState.copy(
+                    collapsedMovieCategories = collapsedCategories
+                )
+                ScreenType.SERIES -> currentState.copy(
+                    collapsedSeriesCategories = collapsedCategories
+                )
+            }
+            
+            if (DEBUG) {
+                Log.d(TAG, "Marked ${collapsedCategories.size} categories for repositioning in $screenType: $collapsedCategories")
+            }
+        }
     }
     
     // Private helper methods
