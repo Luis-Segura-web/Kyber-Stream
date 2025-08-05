@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 /**
@@ -470,5 +471,67 @@ fun ModeOption(
                 ) {}
             }
         }
+    }
+}
+
+// === PREVIEWS ===
+
+@Preview(showBackground = true, widthDp = 400, heightDp = 600)
+@Composable
+fun ColorModeSelectionDialogPreview() {
+    KyberStreamTheme {
+        ColorModeSelectionDialog(
+            currentConfig = ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK),
+            onConfigSelected = { },
+            onDismiss = { }
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+fun ThemePreviewCardPreview() {
+    KyberStreamTheme {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ThemePreviewCard(
+                config = ThemeConfig(ThemeColor.BLUE, ThemeMode.DARK),
+                modifier = Modifier.fillMaxWidth()
+            )
+            ThemePreviewCard(
+                config = ThemeConfig(ThemeColor.PURPLE, ThemeMode.LIGHT),
+                modifier = Modifier.fillMaxWidth()
+            )
+            ThemePreviewCard(
+                config = ThemeConfig(ThemeColor.PINK, ThemeMode.SYSTEM),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+fun ColorSelectionSectionPreview() {
+    KyberStreamTheme {
+        ColorSelectionSection(
+            availableColors = listOf(ThemeColor.BLUE, ThemeColor.PURPLE, ThemeColor.PINK),
+            selectedColor = ThemeColor.PURPLE,
+            onColorSelected = { }
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+fun ModeSelectionSectionPreview() {
+    KyberStreamTheme {
+        ModeSelectionSection(
+            availableModes = listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM),
+            selectedMode = ThemeMode.DARK,
+            onModeSelected = { }
+        )
     }
 }
