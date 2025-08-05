@@ -30,6 +30,10 @@ class PreferenceManager(context: Context) {
         private const val KEY_HW_ACCELERATION = "hw_acceleration"
         private const val KEY_NETWORK_BUFFER = "network_buffer"
         private const val KEY_APP_THEME = "app_theme"
+        
+        // --- NUEVAS CLAVES PARA SISTEMA DE TEMAS AVANZADO ---
+        private const val KEY_THEME_COLOR = "theme_color"
+        private const val KEY_THEME_MODE = "theme_mode"
 
         // --- ¡NUEVAS CLAVES AÑADIDAS! ---
         private const val KEY_RECENTLY_WATCHED_LIMIT = "recently_watched_limit"
@@ -117,6 +121,14 @@ class PreferenceManager(context: Context) {
 
     fun saveAppTheme(theme: String) = sharedPreferences.edit().putString(KEY_APP_THEME, theme).apply()
     fun getAppTheme(): String = sharedPreferences.getString(KEY_APP_THEME, "SYSTEM") ?: "SYSTEM"
+
+    // --- MÉTODOS PARA SISTEMA DE TEMAS AVANZADO ---
+    
+    fun saveThemeColor(color: String) = sharedPreferences.edit().putString(KEY_THEME_COLOR, color).apply()
+    fun getThemeColor(): String = sharedPreferences.getString(KEY_THEME_COLOR, "BLUE") ?: "BLUE"
+    
+    fun saveThemeMode(mode: String) = sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
+    fun getThemeMode(): String = sharedPreferences.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM"
 
     // --- ¡NUEVOS MÉTODOS AÑADIDOS! ---
 

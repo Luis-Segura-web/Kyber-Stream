@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.kybers.play.BuildConfig
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.ui.theme.ThemeSelectionDialog
-import com.kybers.play.ui.theme.ThemeMode
+import com.kybers.play.ui.theme.LegacyThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1000,22 +1000,25 @@ private fun getThemeDisplayName(appTheme: String): String {
     }
 }
 
-private fun stringToThemeMode(themeString: String): ThemeMode {
+private fun stringToThemeMode(themeString: String): LegacyThemeMode {
     return when (themeString) {
-        "LIGHT" -> ThemeMode.LIGHT
-        "DARK" -> ThemeMode.DARK
-        "SYSTEM" -> ThemeMode.SYSTEM
-        else -> ThemeMode.SYSTEM
+        "LIGHT" -> LegacyThemeMode.LIGHT
+        "DARK" -> LegacyThemeMode.DARK
+        "BLUE" -> LegacyThemeMode.BLUE
+        "PURPLE" -> LegacyThemeMode.PURPLE
+        "PINK" -> LegacyThemeMode.PINK
+        "SYSTEM" -> LegacyThemeMode.SYSTEM
+        else -> LegacyThemeMode.SYSTEM
     }
 }
 
-private fun themeModeToString(themeMode: ThemeMode): String {
+private fun themeModeToString(themeMode: LegacyThemeMode): String {
     return when (themeMode) {
-        ThemeMode.LIGHT -> "LIGHT"
-        ThemeMode.DARK -> "DARK"
-        ThemeMode.BLUE -> "BLUE"
-        ThemeMode.PURPLE -> "PURPLE"
-        ThemeMode.PINK -> "PINK"
-        ThemeMode.SYSTEM -> "SYSTEM"
+        LegacyThemeMode.LIGHT -> "LIGHT"
+        LegacyThemeMode.DARK -> "DARK"
+        LegacyThemeMode.BLUE -> "BLUE"
+        LegacyThemeMode.PURPLE -> "PURPLE"
+        LegacyThemeMode.PINK -> "PINK"
+        LegacyThemeMode.SYSTEM -> "SYSTEM"
     }
 }

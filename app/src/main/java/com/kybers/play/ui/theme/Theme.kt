@@ -50,7 +50,8 @@ fun KyberStreamTheme(
     val context = LocalContext.current
     val currentThemeManager = themeManager ?: rememberThemeManager(context)
     
-    val currentThemeMode = currentThemeManager.currentTheme.collectAsState().value
+    val currentThemeConfig = currentThemeManager.currentThemeConfig.collectAsState().value
+    val currentLegacyThemeMode = currentThemeManager.currentTheme.collectAsState().value
     val isDarkTheme = currentThemeManager.shouldUseDarkTheme()
     
     // Adaptar tipografía según el tamaño del dispositivo
@@ -61,13 +62,13 @@ fun KyberStreamTheme(
     }
     
     // === ESQUEMAS DE COLOR DINÁMICOS SEGÚN TEMA ===
-    val colors = when (currentThemeMode) {
-        ThemeMode.LIGHT -> createLightColorScheme()
-        ThemeMode.DARK -> createDarkColorScheme()
-        ThemeMode.BLUE -> createBlueColorScheme(isDarkTheme)
-        ThemeMode.PURPLE -> createPurpleColorScheme(isDarkTheme)
-        ThemeMode.PINK -> createPinkColorScheme(isDarkTheme)
-        ThemeMode.SYSTEM -> if (isDarkTheme) createDarkColorScheme() else createLightColorScheme()
+    val colors = when (currentLegacyThemeMode) {
+        LegacyThemeMode.LIGHT -> createLightColorScheme()
+        LegacyThemeMode.DARK -> createDarkColorScheme()
+        LegacyThemeMode.BLUE -> createBlueColorScheme(isDarkTheme)
+        LegacyThemeMode.PURPLE -> createPurpleColorScheme(isDarkTheme)
+        LegacyThemeMode.PINK -> createPinkColorScheme(isDarkTheme)
+        LegacyThemeMode.SYSTEM -> if (isDarkTheme) createDarkColorScheme() else createLightColorScheme()
     }
 
     // === CONFIGURACIÓN DE BARRAS DEL SISTEMA ===
@@ -108,7 +109,7 @@ fun KyberStreamTheme(
                             .systemBarsPadding() // Aplica padding para no solaparse con las barras
                             .background( // Fondo del contenido principal de la app
                                 brush = Brush.verticalGradient(
-                                    colors = getBackgroundGradient(currentThemeMode, isDarkTheme)
+                                    colors = getBackgroundGradient(currentLegacyThemeMode, isDarkTheme)
                                 )
                             )
                     ) {
@@ -358,13 +359,13 @@ private fun createPinkColorScheme(isDark: Boolean) = if (isDark) {
 /**
  * Obtiene el gradiente de fondo según el tema
  */
-private fun getBackgroundGradient(themeMode: ThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
+private fun getBackgroundGradient(themeMode: LegacyThemeMode, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
     return when (themeMode) {
-        ThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
-        ThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
-        ThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
-        ThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
-        ThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
-        ThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
+        LegacyThemeMode.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)
+        LegacyThemeMode.PURPLE -> if (isDark) PurpleUIColors.BackgroundGradient else listOf(PurpleTheme.BackgroundLight, PurpleTheme.BackgroundLight)
+        LegacyThemeMode.PINK -> if (isDark) PinkUIColors.BackgroundGradient else listOf(PinkTheme.BackgroundLight, PinkTheme.BackgroundLight)
+        LegacyThemeMode.DARK -> listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A))
+        LegacyThemeMode.LIGHT -> listOf(LightTheme.Background, LightTheme.Background)
+        LegacyThemeMode.SYSTEM -> if (isDark) listOf(DarkTheme.Background, androidx.compose.ui.graphics.Color(0xFF1A1A1A)) else listOf(LightTheme.Background, LightTheme.Background)
     }
 }
