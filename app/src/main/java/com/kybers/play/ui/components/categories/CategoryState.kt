@@ -47,6 +47,7 @@ sealed class CategoryEvent {
 
 /**
  * State holder for the smart category system
+ * Enhanced with collapse detection for intelligent repositioning
  */
 data class SmartCategoryState(
     val channelCategories: Map<String, CategoryState> = emptyMap(),
@@ -54,7 +55,11 @@ data class SmartCategoryState(
     val seriesCategories: Map<String, CategoryState> = emptyMap(),
     val activeContentId: String? = null,
     val activeCategoryId: String? = null,
-    val activeScreenType: ScreenType = ScreenType.CHANNELS
+    val activeScreenType: ScreenType = ScreenType.CHANNELS,
+    // Track collapsed categories for intelligent repositioning
+    val collapsedChannelCategories: List<String> = emptyList(),
+    val collapsedMovieCategories: List<String> = emptyList(),
+    val collapsedSeriesCategories: List<String> = emptyList()
 ) {
     
     /**
@@ -80,5 +85,16 @@ data class SmartCategoryState(
      */
     fun hasExpandedCategory(screenType: ScreenType): Boolean {
         return getCategoriesForScreen(screenType).values.any { it.isExpanded }
+    }
+    
+    /**
+     * Gets the list of collapsed categories for the specified screen (for intelligent repositioning)
+     */
+    fun getCollapsedCategoriesForScreen(screenType: ScreenType): List<String> {
+        return when (screenType) {
+            ScreenType.CHANNELS -> collapsedChannelCategories
+            ScreenType.MOVIES -> collapsedMovieCategories
+            ScreenType.SERIES -> collapsedSeriesCategories
+        }
     }
 }

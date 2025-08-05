@@ -12,16 +12,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.kybers.play.ui.components.categories.*
 import com.kybers.play.ui.components.DisplayMode
+import kotlinx.coroutines.delay
 
 /**
  * Modern, unified smart category list component with performance optimizations that provides:
  * - Accordion behavior (one category open at a time)
- * - Sticky positioning with intelligent scrolling
- * - Smooth animations
+ * - Sticky positioning with intelligent scrolling and collapse detection
+ * - Enhanced animations with optimized durations
  * - Support for different content types (TV, Movies, Series)
  * - Real-time playback indicators
  * - Grid and List display modes
  * - Optimized recomposition and memory management
+ * - Intelligent repositioning after category collapses
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -43,7 +45,7 @@ fun <T> SmartCategoryList(
 ) {
     // Debug constants
     val TAG = "SmartCategoryList"
-    val DEBUG = false // Set to true for performance debugging
+    val DEBUG = true // Enhanced debugging for expansion states and repositioning
     
     val categoryManager = GlobalCategoryStateManager.instance
     val categoryState by categoryManager.state.collectAsState()
@@ -70,22 +72,67 @@ fun <T> SmartCategoryList(
         }
     }
 
-    // Auto-scroll when categories are toggled with debouncing
+    // Enhanced auto-scroll with intelligent repositioning for collapsed categories
     LaunchedEffect(categories.map { "${it.categoryId}:${it.isExpanded}" }.joinToString()) {
         val expandedCategory = categories.firstOrNull { it.isExpanded }
         if (expandedCategory != null) {
             val categoryIndex = categories.indexOfFirst { it.categoryId == expandedCategory.categoryId }
             if (categoryIndex != -1) {
-                if (DEBUG) Log.d(TAG, "Auto-scrolling to category index: $categoryIndex")
+                if (DEBUG) Log.d(TAG, "Auto-scrolling to expanded category index: $categoryIndex (${expandedCategory.categoryName})")
                 lazyListState.animateScrollToItem(categoryIndex)
             }
         }
     }
+    
+    // Intelligent repositioning for collapsed sticky headers
+    LaunchedEffect(categoryState) {
+        val collapsedCategories = categoryState.getCollapsedCategoriesForScreen(screenType)
+        
+        if (collapsedCategories.isNotEmpty()) {
+            if (DEBUG) {
+                Log.d(TAG, "Detected ${collapsedCategories.size} collapsed categories for repositioning: $collapsedCategories")
+            }
+            
+            // Wait for collapse animation to complete before repositioning
+            delay(150) // 150ms delay as specified in requirements
+            
+            // Find the first collapsed category that exists in our current categories list
+            val repositionCategoryId = collapsedCategories.firstOrNull { collapsedId ->
+                categories.any { it.categoryId == collapsedId }
+            }
+            
+            if (repositionCategoryId != null) {
+                val repositionIndex = categories.indexOfFirst { it.categoryId == repositionCategoryId }
+                if (repositionIndex != -1) {
+                    if (DEBUG) {
+                        Log.d(TAG, "Intelligent repositioning to collapsed category index: $repositionIndex ($repositionCategoryId)")
+                    }
+                    
+                    // Animate to the original position of the collapsed category
+                    lazyListState.animateScrollToItem(repositionIndex)
+                    
+                    // Clear the collapsed categories list to prevent repeated repositioning
+                    categoryManager.clearCollapsedCategories(screenType)
+                }
+            }
+        }
+    }
 
-    // Performance monitoring
+    // Enhanced performance monitoring and logging
     LaunchedEffect(categories.size) {
         if (DEBUG) {
             Log.d(TAG, "Rendering ${categories.size} categories for $screenType")
+            Log.d(TAG, "Expanded categories: ${categories.filter { it.isExpanded }.map { "${it.categoryName}(${it.categoryId})" }}")
+        }
+    }
+    
+    // Log state changes for debugging
+    LaunchedEffect(categoryState) {
+        if (DEBUG) {
+            val expandedCategory = categoryState.getExpandedCategoryId(screenType)
+            val collapsedCategories = categoryState.getCollapsedCategoriesForScreen(screenType)
+            
+            Log.d(TAG, "State update for $screenType - Expanded: $expandedCategory, Collapsed for repositioning: $collapsedCategories")
         }
     }
 
@@ -103,7 +150,10 @@ fun <T> SmartCategoryList(
                         categoryState = categoryStateData,
                         screenType = screenType,
                         onHeaderClick = { 
-                            if (DEBUG) Log.d(TAG, "Category toggled: ${categoryData.categoryId}")
+                            if (DEBUG) {
+                                Log.d(TAG, "Category header clicked: ${categoryData.categoryName}(${categoryData.categoryId}) - Current state: ${if (categoryStateData.isExpanded) "expanded" else "collapsed"}")
+                                Log.d(TAG, "Will ${if (categoryStateData.isExpanded) "collapse" else "expand"} category")
+                            }
                             onCategoryToggled(categoryData.categoryId)
                         }
                     )
@@ -122,8 +172,12 @@ fun <T> SmartCategoryList(
                     ) { rowIndex, rowItems ->
                         AnimatedVisibility(
                             visible = true,
-                            enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(200)),
-                            exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(200))
+                            enter = fadeIn(animationSpec = tween(250)) + 
+                                   expandVertically(animationSpec = tween(250)) +
+                                   slideInVertically(animationSpec = tween(250)) { -it / 2 },
+                            exit = fadeOut(animationSpec = tween(200)) + 
+                                  shrinkVertically(animationSpec = tween(200)) +
+                                  slideOutVertically(animationSpec = tween(200)) { -it / 2 }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -154,8 +208,12 @@ fun <T> SmartCategoryList(
                     ) { item ->
                         AnimatedVisibility(
                             visible = true,
-                            enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(200)),
-                            exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(200))
+                            enter = fadeIn(animationSpec = tween(250)) + 
+                                   expandVertically(animationSpec = tween(250)) +
+                                   slideInVertically(animationSpec = tween(250)) { -it / 2 },
+                            exit = fadeOut(animationSpec = tween(200)) + 
+                                  shrinkVertically(animationSpec = tween(200)) +
+                                  slideOutVertically(animationSpec = tween(200)) { -it / 2 }
                         ) {
                             // Performance optimization: memoize item state
                             key(getItemId(item), isItemSelected(item), isItemFavorite(item)) {
