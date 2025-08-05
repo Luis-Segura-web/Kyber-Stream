@@ -88,8 +88,17 @@ fun EnhancedHomeTopBar(
                             color = MaterialTheme.colorScheme.onPrimary,
                             maxLines = 1
                         )
+                        
+                        // Smart greeting based on time of day
+                        val currentHour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+                        val greeting = when (currentHour) {
+                            in 5..11 -> "Buenos días"
+                            in 12..17 -> "Buenas tardes"
+                            else -> "Buenas noches"
+                        }
+                        
                         Text(
-                            text = "Bienvenido, $userName",
+                            text = "$greeting, $userName",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                             maxLines = 1
