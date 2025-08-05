@@ -42,10 +42,8 @@ data class ThemeConfig(
 }
 
 /**
- * Legacy theme options para compatibilidad hacia atrás
- * @deprecated Usar ThemeConfig en su lugar
+ * Legacy theme modes for backward compatibility
  */
-@Deprecated("Usar ThemeConfig con ThemeColor y ThemeMode separados")
 enum class LegacyThemeMode {
     LIGHT,
     DARK,
@@ -208,7 +206,7 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
     }
     
     /**
-     * Refreshes theme from preferences
+     * Legacy method: Refreshes theme from preferences
      * Useful when preferences might have changed externally
      */
     fun refreshThemeFromPreferences() {
@@ -227,6 +225,14 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
             ThemeMode.DARK -> true
             ThemeMode.SYSTEM -> isSystemInDarkTheme()
         }
+    }
+    
+    /**
+     * Gets complete display name for current theme config
+     */
+    fun getCurrentThemeDisplayName(): String {
+        val config = _currentThemeConfig.value
+        return "${getThemeColorDisplayName(config.color)} • ${getThemeModeDisplayName(config.mode)}"
     }
     
     /**
@@ -249,14 +255,6 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
             ThemeMode.DARK -> "Oscuro"
             ThemeMode.SYSTEM -> "Sistema"
         }
-    }
-    
-    /**
-     * Gets complete display name for current theme config
-     */
-    fun getCurrentThemeDisplayName(): String {
-        val config = _currentThemeConfig.value
-        return "${getThemeColorDisplayName(config.color)} • ${getThemeModeDisplayName(config.mode)}"
     }
     
     /**

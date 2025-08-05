@@ -357,9 +357,6 @@ private fun createPinkColorScheme(isDark: Boolean) = if (isDark) {
     )
 }
 
-/**
- * Obtiene el gradiente de fondo según el color del tema
- */
 private fun getBackgroundGradient(themeColor: ThemeColor, isDark: Boolean): List<androidx.compose.ui.graphics.Color> {
     return when (themeColor) {
         ThemeColor.BLUE -> if (isDark) BlueUIColors.BackgroundGradient else listOf(BlueTheme.BackgroundLight, BlueTheme.BackgroundLight)

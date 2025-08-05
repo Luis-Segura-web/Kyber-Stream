@@ -30,7 +30,7 @@ class PreferenceManager(context: Context) {
         private const val KEY_HW_ACCELERATION = "hw_acceleration"
         private const val KEY_NETWORK_BUFFER = "network_buffer"
         private const val KEY_APP_THEME = "app_theme"
-
+        
         // --- ¡NUEVAS CLAVES AÑADIDAS! ---
         private const val KEY_RECENTLY_WATCHED_LIMIT = "recently_watched_limit"
         private const val KEY_PARENTAL_CONTROL_ENABLED = "parental_control_enabled"

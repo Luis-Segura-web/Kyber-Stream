@@ -162,8 +162,8 @@ fun ThemePreview(
  */
 @Composable
 fun ThemeSelectionDialog(
-    currentTheme: ThemeMode,
-    onThemeSelected: (ThemeMode) -> Unit,
+    currentTheme: LegacyThemeMode,
+    onThemeSelected: (LegacyThemeMode) -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -188,9 +188,9 @@ fun ThemeSelectionDialog(
                 ThemePreview(
                     themeName = "Claro",
                     isLightTheme = true,
-                    isSelected = currentTheme == ThemeMode.LIGHT,
+                    isSelected = currentTheme == LegacyThemeMode.LIGHT,
                     onClick = { 
-                        onThemeSelected(ThemeMode.LIGHT)
+                        onThemeSelected(LegacyThemeMode.LIGHT)
                         onDismiss()
                     }
                 )
@@ -198,9 +198,39 @@ fun ThemeSelectionDialog(
                 ThemePreview(
                     themeName = "Oscuro",
                     isLightTheme = false,
-                    isSelected = currentTheme == ThemeMode.DARK,
+                    isSelected = currentTheme == LegacyThemeMode.DARK,
                     onClick = { 
-                        onThemeSelected(ThemeMode.DARK)
+                        onThemeSelected(LegacyThemeMode.DARK)
+                        onDismiss()
+                    }
+                )
+                
+                ThemePreview(
+                    themeName = "Azul",
+                    isLightTheme = false,
+                    isSelected = currentTheme == LegacyThemeMode.BLUE,
+                    onClick = { 
+                        onThemeSelected(LegacyThemeMode.BLUE)
+                        onDismiss()
+                    }
+                )
+                
+                ThemePreview(
+                    themeName = "Morado",
+                    isLightTheme = false,
+                    isSelected = currentTheme == LegacyThemeMode.PURPLE,
+                    onClick = { 
+                        onThemeSelected(LegacyThemeMode.PURPLE)
+                        onDismiss()
+                    }
+                )
+                
+                ThemePreview(
+                    themeName = "Rosa",
+                    isLightTheme = false,
+                    isSelected = currentTheme == LegacyThemeMode.PINK,
+                    onClick = { 
+                        onThemeSelected(LegacyThemeMode.PINK)
                         onDismiss()
                     }
                 )
@@ -209,11 +239,11 @@ fun ThemeSelectionDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { 
-                            onThemeSelected(ThemeMode.SYSTEM)
+                            onThemeSelected(LegacyThemeMode.SYSTEM)
                             onDismiss()
                         }
                         .then(
-                            if (currentTheme == ThemeMode.SYSTEM) {
+                            if (currentTheme == LegacyThemeMode.SYSTEM) {
                                 Modifier.border(
                                     2.dp,
                                     MaterialTheme.colorScheme.primary,
@@ -241,7 +271,7 @@ fun ThemeSelectionDialog(
                             modifier = Modifier.weight(1f)
                         )
                         
-                        if (currentTheme == ThemeMode.SYSTEM) {
+                        if (currentTheme == LegacyThemeMode.SYSTEM) {
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = MaterialTheme.colorScheme.primary,
