@@ -96,8 +96,9 @@ class ThemeManager(private val preferenceManager: PreferenceManager) {
             else -> ThemeConfig.DEFAULT
         }
         
-        // Guardar en nuevo formato
-        setThemeConfig(config)
+        // Guardar en nuevo formato directamente sin actualizar StateFlow durante inicialización
+        preferenceManager.saveThemeColor(config.color.name)
+        preferenceManager.saveThemeMode(config.mode.name)
         return config
     }
     
