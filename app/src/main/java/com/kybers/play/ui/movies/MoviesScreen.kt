@@ -369,22 +369,19 @@ fun MovieListItem(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp)
                         ) {
-                            // Show added date as fallback for year
-                            movie.added?.let { addedDate ->
-                                if (addedDate.isNotBlank() && addedDate.length >= 4) {
-                                    val year = addedDate.substring(0, 4) // Extract year from added date
-                                    Text(
-                                        text = year,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                } else {
-                                    Text(
-                                        text = "N/A",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
-                                }
+                            // Show movie year using enhanced method
+                            viewModel.getMovieYear(movie)?.let { year ->
+                                Text(
+                                    text = year,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            } ?: run {
+                                Text(
+                                    text = "N/A",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
                             }
                             
                             if (movie.rating5Based > 0) {
@@ -419,15 +416,15 @@ fun MovieListItem(
                     }
                 }
                 
-                // Expandable description (placeholder for now)
-                // In the future, this could be enhanced to show plot from MovieDetailsCache
-                val description = "Haz clic para ver más detalles de esta película." // Placeholder description
+                // Expandable description - now uses actual movie plot from cache
+                val description = viewModel.getMovieDescription(movie) 
+                    ?: "Haz clic para ver más detalles de esta película." // Fallback description
                 
                 if (description.isNotBlank()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     val maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2
-                    val shouldShowToggle = description.length > 50
+                    val shouldShowToggle = description.length > 100 // Show toggle for longer descriptions
                     
                     Text(
                         text = description,

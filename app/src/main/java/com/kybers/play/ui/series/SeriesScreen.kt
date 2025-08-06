@@ -151,12 +151,24 @@ fun SeriesScreen(
                         onItemFavoriteToggle = { series -> viewModel.toggleFavoriteStatus(series.seriesId) },
                         isItemFavorite = { series -> uiState.favoriteSeriesIds.contains(series.seriesId.toString()) },
                         itemContent = { series ->
-                            SeriesPosterItem(
-                                series = series,
-                                isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
-                                onPosterClick = { onNavigateToDetails(series.seriesId) },
-                                onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
-                            )
+                            when (uiState.displayMode) {
+                                ComponentDisplayMode.GRID -> {
+                                    SeriesPosterItem(
+                                        series = series,
+                                        isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
+                                        onPosterClick = { onNavigateToDetails(series.seriesId) },
+                                        onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
+                                    )
+                                }
+                                ComponentDisplayMode.LIST -> {
+                                    SeriesListItem(
+                                        series = series,
+                                        isFavorite = uiState.favoriteSeriesIds.contains(series.seriesId.toString()),
+                                        onSeriesClick = { onNavigateToDetails(series.seriesId) },
+                                        onFavoriteClick = { viewModel.toggleFavoriteStatus(series.seriesId) }
+                                    )
+                                }
+                            }
                         },
                         searchQuery = uiState.searchQuery,
                         modifier = Modifier.fillMaxSize()
@@ -274,6 +286,168 @@ fun SeriesPosterItem(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+    }
+}
+
+/**
+ * List item for series - shows detailed info with expandable plot
+ */
+@Composable
+fun SeriesListItem(
+    series: Series,
+    isFavorite: Boolean,
+    onSeriesClick: () -> Unit,
+    onFavoriteClick: () -> Unit
+) {
+    var isDescriptionExpanded by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSeriesClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // Mini poster image
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(series.cover)
+                    .crossfade(true)
+                    .error(android.R.drawable.stat_notify_error)
+                    .build(),
+                contentDescription = series.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(60.dp)
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(6.dp))
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Series information
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // Title and year row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = series.name,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        
+                        // Year and rating
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            // Show release date or year
+                            series.releaseDate?.let { releaseDate ->
+                                if (releaseDate.isNotBlank() && releaseDate.length >= 4) {
+                                    val year = releaseDate.substring(0, 4)
+                                    Text(
+                                        text = year,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "N/A",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
+                            } ?: run {
+                                Text(
+                                    text = "N/A",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
+                            
+                            if (series.rating5Based > 0) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    Icons.Filled.Star,
+                                    contentDescription = "Calificación",
+                                    tint = Color(0xFFFFC107),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "%.1f".format(series.rating5Based),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Favorite button
+                    IconButton(
+                        onClick = onFavoriteClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                            tint = if (isFavorite) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                // Expandable description - using series plot
+                val description = series.plot?.takeIf { it.isNotBlank() }
+                    ?: "Haz clic para ver más detalles de esta serie."
+                
+                if (description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2
+                    val shouldShowToggle = description.length > 100 // Show toggle for longer descriptions
+                    
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        maxLines = maxLines,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+                    
+                    if (shouldShowToggle) {
+                        Text(
+                            text = if (isDescriptionExpanded) "Leer menos" else "Leer más",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                        )
+                    }
+                }
             }
         }
     }

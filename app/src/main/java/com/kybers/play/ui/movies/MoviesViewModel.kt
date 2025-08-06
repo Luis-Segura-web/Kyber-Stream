@@ -142,6 +142,32 @@ class MoviesViewModel(
         }
         return movie.streamIcon
     }
+    
+    /**
+     * Get movie description from cache or return a placeholder
+     */
+    fun getMovieDescription(movie: Movie): String? {
+        return cachedDetailsMap[movie.streamId]?.plot?.takeIf { it.isNotBlank() }
+    }
+    
+    /**
+     * Get movie release year from cache or extracted from added date
+     */
+    fun getMovieYear(movie: Movie): String? {
+        // First try from cached details
+        cachedDetailsMap[movie.streamId]?.releaseYear?.let { year ->
+            if (year.isNotBlank()) return year
+        }
+        
+        // Fallback to extracting from added date
+        movie.added.let { addedDate ->
+            if (addedDate.isNotBlank() && addedDate.length >= 4) {
+                return addedDate.substring(0, 4)
+            }
+        }
+        
+        return null
+    }
 
     private fun enrichMoviePosters(movies: List<Movie>) {
         viewModelScope.launch {
