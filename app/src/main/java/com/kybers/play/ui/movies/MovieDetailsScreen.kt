@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -170,20 +171,62 @@ fun MovieDetailsScreen(
                 )
 
                 AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        MovieInfo(uiState = uiState, viewModel = viewModel)
-                        CollectionCarousel(uiState = uiState, onMovieClick = onNavigateToMovie)
-                        MovieCarousel(
-                            title = "Recomendadas",
-                            movies = uiState.availableRecommendedMovies,
-                            onMovieClick = onNavigateToMovie
-                        )
-                        MovieCarousel(
-                            title = "Similares",
-                            movies = uiState.availableSimilarMovies,
-                            onMovieClick = onNavigateToMovie
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp) // Disminuir separación de 24dp a 16dp
+                    ) {
+                        item { MovieInfo(uiState = uiState, viewModel = viewModel) }
+
+                        item {
+                            Divider(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+
+                        item { CollectionCarousel(uiState = uiState, onMovieClick = onNavigateToMovie) }
+
+                        if (uiState.availableRecommendedMovies.isNotEmpty()) {
+                            item {
+                                Divider(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                            item {
+                                MovieCarousel(
+                                    title = "Recomendadas",
+                                    movies = uiState.availableRecommendedMovies,
+                                    onMovieClick = onNavigateToMovie
+                                )
+                            }
+                        }
+
+                        if (uiState.availableSimilarMovies.isNotEmpty()) {
+                            item {
+                                Divider(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                            item {
+                                MovieCarousel(
+                                    title = "Similares",
+                                    movies = uiState.availableSimilarMovies,
+                                    onMovieClick = onNavigateToMovie
+                                )
+                            }
+                        }
+
+                        // 📎 Créditos a TMDB
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp)) // Reducir espaciado
+                            TMDBCreditsSection()
+                        }
                     }
                 }
             }
@@ -309,7 +352,9 @@ fun PlayerAndHeaderSection(
             MovieHeader(
                 backdropUrl = uiState.backdropUrl,
                 title = uiState.title,
+                isFavorite = uiState.isFavorite,
                 onNavigateUp = onNavigateUp,
+                onToggleFavorite = { viewModel.toggleFavorite() },
                 onPlayClick = { viewModel.startPlayback(continueFromLastPosition = false) }
             )
         }
@@ -317,11 +362,11 @@ fun PlayerAndHeaderSection(
 }
 
 @Composable
-fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit, onPlayClick: () -> Unit) {
+fun MovieHeader(backdropUrl: String?, title: String, isFavorite: Boolean, onNavigateUp: () -> Unit, onToggleFavorite: () -> Unit, onPlayClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .height(300.dp) // Altura fija para evitar cambios de layout
             .background(Color.Black)
     ) {
         AsyncImage(
@@ -333,16 +378,25 @@ fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit, o
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
+
+        // Gradiente para mejorar legibilidad
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent),
-                        endY = 200f
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.6f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.8f)
+                        ),
+                        startY = 0f,
+                        endY = 300.dp.value * 3f
                     )
                 )
         )
+
+        // 🔙 Botón de retroceso (arriba izquierda)
         IconButton(
             onClick = onNavigateUp,
             modifier = Modifier
@@ -351,49 +405,83 @@ fun MovieHeader(backdropUrl: String?, title: String, onNavigateUp: () -> Unit, o
                 .padding(8.dp)
                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Regresar",
+                tint = Color.White
+            )
         }
-        
-        // Play button in center
-        Icon(
-            imageVector = Icons.Default.PlayCircleOutline,
-            contentDescription = "Reproducir",
-            tint = Color.White.copy(alpha = 0.8f),
+
+        // ❤️ Botón de favorito (arriba derecha)
+        IconButton(
+            onClick = onToggleFavorite,
             modifier = Modifier
-                .size(80.dp)
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = "Favorito",
+                tint = Color.White
+            )
+        }
+
+        // ▶️ Botón de play (centrado)
+        IconButton(
+            onClick = onPlayClick,
+            modifier = Modifier
                 .align(Alignment.Center)
-                .clickable { onPlayClick() }
-        )
-        
-        // Movie title overlay in bottom-left
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+                .size(80.dp)
+                .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayCircleOutline,
+                contentDescription = "Reproducir",
+                tint = Color.White,
+                modifier = Modifier.size(60.dp)
+            )
+        }
+
+        // 🏷️ Título (abajo izquierda, con sombra para legibilidad)
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(16.dp)
+                .fillMaxWidth()
                 .background(
-                    Color.Black.copy(alpha = 0.3f),
-                    RoundedCornerShape(8.dp)
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                    )
                 )
                 .padding(16.dp)
-        )
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 28.sp
+            )
+        }
     }
 }
 
 @Composable
 fun MovieInfo(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel) {
     Column {
+        // 🎞️ Sección: Miniatura + Metadatos rápidos
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.Top
         ) {
+            // 📸 Miniatura (poster pequeño, tamaño fijo)
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(uiState.posterUrl)
@@ -403,149 +491,135 @@ fun MovieInfo(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .width(120.dp)
-                    .aspectRatio(2f / 3f)
+                    .height(180.dp) // Altura fija para evitar cambios de layout
                     .clip(RoundedCornerShape(8.dp))
             )
+
             Spacer(modifier = Modifier.width(16.dp))
+
+            // Column con metadatos rápidos
             Column(modifier = Modifier.weight(1f)) {
-                // Title with translucent background
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = Color.Black.copy(alpha = 0.6f),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = uiState.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        color = Color.White
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (!uiState.releaseYear.isNullOrBlank()) {
+                // 🎬 Título (otra vez, por claridad)
+                Text(
+                    text = uiState.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // ⭐ Calificación
+                if (uiState.rating != null && uiState.rating > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RatingBar(rating = uiState.rating / 2, maxRating = 5)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = uiState.releaseYear,
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "${(uiState.rating / 2).format(1)}/5",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                if (uiState.rating != null && uiState.rating > 0) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    RatingBar(rating = uiState.rating / 2, maxRating = 5)
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row {
-                    // Show "Continue" button if there's saved progress, otherwise "Play"
-                    val hasProgress = uiState.playbackPosition > 0L
-                    Button(
-                        onClick = { 
-                            viewModel.startPlayback(continueFromLastPosition = hasProgress) 
-                        }
-                    ) {
-                        Icon(
-                            imageVector = if (hasProgress) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
-                            contentDescription = if (hasProgress) "Continuar" else "Reproducir"
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (hasProgress) "Continuar" else "Reproducir")
-                    }
-                    
-                    // Optional: Add a secondary "Play from beginning" button when there's progress
-                    if (hasProgress) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        OutlinedButton(
-                            onClick = { viewModel.startPlayback(continueFromLastPosition = false) }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Replay,
-                                contentDescription = "Reproducir desde el inicio",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Inicio")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = { viewModel.toggleFavorite() }) {
-                        Icon(
-                            imageVector = if (uiState.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = "Favorito",
-                            tint = if (uiState.isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+
+                // 🗓️ Año y otros metadatos
+                if (!uiState.releaseYear.isNullOrBlank()) {
+                    Text(
+                        text = "Año: ${uiState.releaseYear}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
+
+                // Duración si está disponible
+                // Text(
+                //     text = "Duración: ${uiState.duration ?: "N/A"}",
+                //     style = MaterialTheme.typography.bodyMedium,
+                //     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                //     modifier = Modifier.padding(bottom = 4.dp)
+                // )
             }
         }
-        
-        // Expandable description section
+
+        // ▶️ Botones de acción (Reproducir / Continuar)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        ActionButtonsSection(
+            uiState = uiState,
+            viewModel = viewModel,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // 📖 Descripción de la película
+        Spacer(modifier = Modifier.height(16.dp))
+
         ExpandableDescriptionSection(
             description = uiState.plot,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
-        
+
+        // 🎭 Reparto principal
         if (uiState.cast.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
             CastSection(cast = uiState.cast, onActorClick = { viewModel.onActorSelected(it) })
         }
     }
 }
 
-/**
- * Expandable description section with "read more/less" functionality
- */
 @Composable
-fun ExpandableDescriptionSection(
-    description: String?,
+private fun ActionButtonsSection(
+    uiState: MovieDetailsUiState,
+    viewModel: MovieDetailsViewModel,
     modifier: Modifier = Modifier
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-    
-    val descriptionText = if (description.isNullOrBlank()) {
-        "Sin descripción disponible."
-    } else {
-        description
-    }
-    
-    val isPlaceholder = description.isNullOrBlank()
-    val shouldShowToggle = !isPlaceholder && description.length > 150
-    
-    Column(modifier = modifier) {
-        Text(
-            text = descriptionText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontStyle = if (isPlaceholder) FontStyle.Italic else FontStyle.Normal,
-            color = if (isPlaceholder) {
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            } else {
-                LocalContentColor.current
+    val hasProgress = uiState.playbackPosition > 0L
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Botón principal de reproducir/continuar
+        Button(
+            onClick = {
+                viewModel.startPlayback(continueFromLastPosition = hasProgress)
             },
-            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
-            overflow = TextOverflow.Ellipsis,
-            lineHeight = 20.sp
-        )
-        
-        if (shouldShowToggle) {
-            Text(
-                text = if (isExpanded) "Leer menos" else "Leer más",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium
-                ),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .clickable { isExpanded = !isExpanded }
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = if (hasProgress) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
             )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (hasProgress) "Continuar reproducción" else "Reproducir",
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // Botón secundario solo cuando hay progreso
+        if (hasProgress) {
+            OutlinedButton(
+                onClick = { viewModel.startPlayback(continueFromLastPosition = false) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Replay,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Reproducir desde el inicio",
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -606,8 +680,16 @@ fun CollectionCarousel(uiState: MovieDetailsUiState, onMovieClick: (Int) -> Unit
     val collection = uiState.collection
     if (collection != null) {
         Column(modifier = Modifier.padding(top = 24.dp)) {
+            // Evitar repetir "Colección" si ya está en el nombre
+            val displayTitle = if (collection.name.contains("Colección", ignoreCase = true) ||
+                                   collection.name.contains("Collection", ignoreCase = true)) {
+                collection.name
+            } else {
+                "Colección: ${collection.name}"
+            }
+
             Text(
-                text = "Colección: ${collection.name}",
+                text = displayTitle,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -877,4 +959,94 @@ fun UnavailableItemDetailsDialog(
     onDismiss: () -> Unit
 ) {
     // Implementación del diálogo
+}
+
+@Composable
+fun TMDBCreditsSection() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = "Créditos a TMDB",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = "Esta película utiliza datos y imágenes proporcionados por TMDb (The Movie Database).",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        Text(
+            text = "Para más información, visita su sitio web.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        // Botón para más información (opcional)
+        OutlinedButton(
+            onClick = { /* Abrir enlace a TMDb */ },
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Text(
+                text = "Ir a TMDb",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+// Función de extensión para formatear números
+private fun Double.format(digits: Int) = "%.${digits}f".format(this)
+
+/**
+ * Expandable description section with "read more/less" functionality
+ */
+@Composable
+fun ExpandableDescriptionSection(
+    description: String?,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val descriptionText = if (description.isNullOrBlank()) {
+        "Sin descripción disponible."
+    } else {
+        description
+    }
+
+    val isPlaceholder = description.isNullOrBlank()
+    val shouldShowToggle = !isPlaceholder && description.length > 150
+
+    Column(modifier = modifier) {
+        Text(
+            text = descriptionText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontStyle = if (isPlaceholder) FontStyle.Italic else FontStyle.Normal,
+            color = if (isPlaceholder) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            } else {
+                LocalContentColor.current
+            },
+            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 20.sp
+        )
+
+        if (shouldShowToggle) {
+            Text(
+                text = if (isExpanded) "Leer menos" else "Leer más",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { isExpanded = !isExpanded }
+            )
+        }
+    }
 }
