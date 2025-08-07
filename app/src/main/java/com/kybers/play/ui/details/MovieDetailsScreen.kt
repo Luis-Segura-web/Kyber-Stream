@@ -407,13 +407,25 @@ fun MovieInfo(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel) {
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = uiState.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Title with translucent background
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = Color.Black.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = uiState.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        color = Color.White
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -433,11 +445,37 @@ fun MovieInfo(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Row {
-                    Button(onClick = { viewModel.startPlayback(continueFromLastPosition = false) }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Reproducir")
+                    // Show "Continue" button if there's saved progress, otherwise "Play"
+                    val hasProgress = uiState.playbackPosition > 0L
+                    Button(
+                        onClick = { 
+                            viewModel.startPlayback(continueFromLastPosition = hasProgress) 
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (hasProgress) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
+                            contentDescription = if (hasProgress) "Continuar" else "Reproducir"
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reproducir")
+                        Text(if (hasProgress) "Continuar" else "Reproducir")
                     }
+                    
+                    // Optional: Add a secondary "Play from beginning" button when there's progress
+                    if (hasProgress) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedButton(
+                            onClick = { viewModel.startPlayback(continueFromLastPosition = false) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Replay,
+                                contentDescription = "Reproducir desde el inicio",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Inicio")
+                        }
+                    }
+                    
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(onClick = { viewModel.toggleFavorite() }) {
                         Icon(
@@ -449,16 +487,64 @@ fun MovieInfo(uiState: MovieDetailsUiState, viewModel: MovieDetailsViewModel) {
                 }
             }
         }
-        val plotText = if (uiState.plot.isNullOrBlank()) "Sin descripción disponible." else uiState.plot
-        Text(
-            text = plotText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontStyle = if (uiState.plot.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
-            color = if (uiState.plot.isNullOrBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else LocalContentColor.current,
+        
+        // Expandable description section
+        ExpandableDescriptionSection(
+            description = uiState.plot,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+        
         if (uiState.cast.isNotEmpty()) {
             CastSection(cast = uiState.cast, onActorClick = { viewModel.onActorSelected(it) })
+        }
+    }
+}
+
+/**
+ * Expandable description section with "read more/less" functionality
+ */
+@Composable
+fun ExpandableDescriptionSection(
+    description: String?,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
+    val descriptionText = if (description.isNullOrBlank()) {
+        "Sin descripción disponible."
+    } else {
+        description
+    }
+    
+    val isPlaceholder = description.isNullOrBlank()
+    val shouldShowToggle = !isPlaceholder && description.length > 150
+    
+    Column(modifier = modifier) {
+        Text(
+            text = descriptionText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontStyle = if (isPlaceholder) FontStyle.Italic else FontStyle.Normal,
+            color = if (isPlaceholder) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            } else {
+                LocalContentColor.current
+            },
+            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 20.sp
+        )
+        
+        if (shouldShowToggle) {
+            Text(
+                text = if (isExpanded) "Leer menos" else "Leer más",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { isExpanded = !isExpanded }
+            )
         }
     }
 }
@@ -520,7 +606,7 @@ fun CollectionCarousel(uiState: MovieDetailsUiState, onMovieClick: (Int) -> Unit
     if (collection != null) {
         Column(modifier = Modifier.padding(top = 24.dp)) {
             Text(
-                text = "Parte de la colección: ${collection.name}",
+                text = "Colección: ${collection.name}",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp)

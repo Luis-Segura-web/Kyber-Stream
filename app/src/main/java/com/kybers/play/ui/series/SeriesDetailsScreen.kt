@@ -32,11 +32,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 // --- ¡CORRECCIÓN! Se añade la importación que faltaba ---
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -411,14 +415,13 @@ fun InfoContent(uiState: SeriesDetailsUiState, onNavigateToSeries: (Int) -> Unit
             rating = uiState.rating,
             certification = uiState.certification
         )
-        val plotText = if (uiState.plot.isNullOrBlank()) "Sin descripción disponible." else uiState.plot
-        Text(
-            text = plotText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontStyle = if (uiState.plot.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
-            color = if (uiState.plot.isNullOrBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else LocalContentColor.current,
+        
+        // Expandable description section
+        ExpandableDescriptionSection(
+            description = uiState.plot,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+        
         if (uiState.cast.isNotEmpty()) {
             CastSection(cast = uiState.cast, onActorClick = { /* TODO */ })
         }
@@ -432,6 +435,54 @@ fun InfoContent(uiState: SeriesDetailsUiState, onNavigateToSeries: (Int) -> Unit
     }
 }
 
+/**
+ * Expandable description section with "read more/less" functionality for series
+ */
+@Composable
+fun ExpandableDescriptionSection(
+    description: String?,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
+    val descriptionText = if (description.isNullOrBlank()) {
+        "Sin descripción disponible."
+    } else {
+        description
+    }
+    
+    val isPlaceholder = description.isNullOrBlank()
+    val shouldShowToggle = !isPlaceholder && description.length > 150
+    
+    Column(modifier = modifier) {
+        Text(
+            text = descriptionText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontStyle = if (isPlaceholder) FontStyle.Italic else FontStyle.Normal,
+            color = if (isPlaceholder) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            } else {
+                LocalContentColor.current
+            },
+            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 20.sp
+        )
+        
+        if (shouldShowToggle) {
+            Text(
+                text = if (isExpanded) "Leer menos" else "Leer más",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { isExpanded = !isExpanded }
+            )
+        }
+    }
+}
 
 @Composable
 fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?, certification: String?) {
@@ -446,7 +497,25 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            // Title with translucent background
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
