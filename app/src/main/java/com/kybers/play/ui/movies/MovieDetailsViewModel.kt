@@ -1,4 +1,4 @@
-package com.kybers.play.ui.details
+package com.kybers.play.ui.movies
 
 import android.app.Application
 import android.media.AudioManager
@@ -16,6 +16,7 @@ import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
 import com.kybers.play.data.remote.model.TMDbCollectionDetails
+import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.player.AspectRatioMode
@@ -53,7 +54,7 @@ data class MovieDetailsUiState(
     val playbackPosition: Long = 0L,
     val collection: TMDbCollectionDetails? = null,
     val availableCollectionMovies: List<Movie> = emptyList(),
-    val unavailableCollectionMovies: List<com.kybers.play.data.remote.model.TMDbMovieResult> = emptyList(),
+    val unavailableCollectionMovies: List<TMDbMovieResult> = emptyList(),
     val availableRecommendedMovies: List<Movie> = emptyList(),
     val availableSimilarMovies: List<Movie> = emptyList(),
     val showActorMoviesDialog: Boolean = false,

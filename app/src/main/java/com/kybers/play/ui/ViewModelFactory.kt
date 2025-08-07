@@ -8,14 +8,13 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.ExternalApiService
-import com.kybers.play.data.repository.BaseContentRepository
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.details.MovieDetailsViewModel
+import com.kybers.play.ui.movies.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.movies.MoviesViewModel

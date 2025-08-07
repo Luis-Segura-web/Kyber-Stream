@@ -1,4 +1,4 @@
-package com.kybers.play.ui.details
+package com.kybers.play.ui.movies
 
 import android.app.Activity
 import android.app.PictureInPictureParams
@@ -12,8 +12,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -228,8 +229,8 @@ fun PlayerAndHeaderSection(
     Box(modifier = playerModifier) {
         AnimatedVisibility(
             visible = uiState.isPlayerVisible,
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut()
+            enter = fadeIn(),
+            exit = fadeOut()
         ) {
             PlayerHost(
                 mediaPlayer = viewModel.mediaPlayer,
@@ -302,8 +303,8 @@ fun PlayerAndHeaderSection(
         }
         AnimatedVisibility(
             visible = !uiState.isPlayerVisible,
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut()
+            enter = fadeIn(),
+            exit = fadeOut()
         ) {
             MovieHeader(
                 backdropUrl = uiState.backdropUrl,

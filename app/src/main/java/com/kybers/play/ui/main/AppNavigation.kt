@@ -17,8 +17,8 @@ import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.SyncViewModelFactory
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
-import com.kybers.play.ui.details.MovieDetailsScreen
-import com.kybers.play.ui.details.MovieDetailsViewModel
+import com.kybers.play.ui.movies.MovieDetailsScreen
+import com.kybers.play.ui.movies.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeScreen
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.movies.MoviesScreen
@@ -34,29 +34,14 @@ import com.kybers.play.ui.login.LoginViewModel
 import com.kybers.play.ui.splash.SplashScreen
 import com.kybers.play.ui.sync.SyncScreen
 import com.kybers.play.ui.sync.SyncViewModel
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
-import com.kybers.play.ui.theme.rememberThemeManager
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(
