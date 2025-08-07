@@ -56,6 +56,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
@@ -276,14 +278,57 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     modifier = Modifier.fillMaxSize()
                 )
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-                Icon(
-                    imageVector = Icons.Default.PlayCircleOutline, contentDescription = "Reproducir",
-                    tint = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.size(80.dp).clickable {
-                        val firstEpisode = uiState.episodesBySeason[uiState.selectedSeasonNumber]?.firstOrNull()
-                        firstEpisode?.let { viewModel.playEpisode(it) }
+                // Main play button with continue logic
+                val lastWatchedEpisode = remember(uiState.playbackStates) { 
+                    viewModel.getLastWatchedEpisode() 
+                }
+                val hasProgress = lastWatchedEpisode != null
+                
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleOutline, 
+                        contentDescription = if (hasProgress) "Continuar viendo" else "Reproducir",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(80.dp).clickable {
+                            viewModel.continueWatching()
+                        }
+                    )
+                    
+                    if (hasProgress) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Continuar viendo",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                shadow = Shadow(
+                                    color = Color.Black,
+                                    offset = Offset(2f, 2f),
+                                    blurRadius = 4f
+                                )
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                        lastWatchedEpisode?.let { episode ->
+                            Text(
+                                text = "Ep. ${episode.episodeNum}: ${episode.title}",
+                                color = Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(1f, 1f),
+                                        blurRadius = 3f
+                                    )
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.Start

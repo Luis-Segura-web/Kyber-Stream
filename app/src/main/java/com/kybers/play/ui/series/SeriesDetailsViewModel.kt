@@ -549,6 +549,48 @@ class SeriesDetailsViewModel(
         }
     }
 
+    /**
+     * Find the last watched episode (the one with the highest progress that's not completed)
+     */
+    fun getLastWatchedEpisode(): Episode? {
+        val playbackStates = _uiState.value.playbackStates
+        val allEpisodes = _uiState.value.episodesBySeason.values.flatten()
+        
+        return allEpisodes
+            .filter { episode ->
+                val state = playbackStates[episode.id]
+                val progress = if (state != null && state.second > 0) {
+                    state.first.toFloat() / state.second.toFloat()
+                } else 0f
+                // Consider episodes with progress > 5% and < 90% as "in progress"
+                progress > 0.05f && progress < 0.90f
+            }
+            .maxByOrNull { episode ->
+                // Return the episode with the most recent progress (highest position)
+                playbackStates[episode.id]?.first ?: 0L
+            }
+    }
+    
+    /**
+     * Get the episode to continue watching from - either last watched or first episode
+     */
+    fun getContinueWatchingEpisode(): Episode? {
+        // First try to find the last watched episode
+        getLastWatchedEpisode()?.let { return it }
+        
+        // If no episode in progress, return the first episode of the selected season
+        return _uiState.value.episodesBySeason[_uiState.value.selectedSeasonNumber]?.firstOrNull()
+    }
+    
+    /**
+     * Continue watching from the appropriate episode
+     */
+    fun continueWatching() {
+        getContinueWatchingEpisode()?.let { episode ->
+            playEpisode(episode)
+        }
+    }
+
     private fun buildStreamUrl(episode: Episode): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"
         return "${baseUrl}series/${currentUser.username}/${currentUser.password}/${episode.id}.${episode.containerExtension}"
