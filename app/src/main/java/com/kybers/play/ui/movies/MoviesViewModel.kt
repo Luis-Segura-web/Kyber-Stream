@@ -289,38 +289,31 @@ class MoviesViewModel(
         val specialCategories = mutableListOf<ExpandableMovieCategory>()
         val regularCategories = mutableListOf<ExpandableMovieCategory>()
 
-        // Always show favorites (even during search) as requested
+        // Always show favorites category (even when empty or during search)
         val favoriteIds = _uiState.value.favoriteMovieIds
-        if (favoriteIds.isNotEmpty()) {
-            val favoriteMovies = parentalFilteredMovies.filter { favoriteIds.contains(it.streamId.toString()) }
-            if (favoriteMovies.isNotEmpty()) {
-                specialCategories.add(
-                    ExpandableMovieCategory(
-                        category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
-                        movies = favoriteMovies,
-                        isExpanded = expansionState.getOrPut("favorites") { true }
-                    )
-                )
-            }
-        }
+        val favoriteMovies = parentalFilteredMovies.filter { favoriteIds.contains(it.streamId.toString()) }
+        specialCategories.add(
+            ExpandableMovieCategory(
+                category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
+                movies = favoriteMovies,
+                isExpanded = expansionState.getOrPut("favorites") { true }
+            )
+        )
 
-        // Continue watching only when not searching
+        // Always show continue watching category (even when empty) but only when not searching
         if (lowercasedQuery.isBlank()) {
             val playbackPositions = preferenceManager.getAllPlaybackPositions()
-            if (playbackPositions.isNotEmpty()) {
-                val resumeMovies = parentalFilteredMovies.filter { movie ->
-                    (playbackPositions[movie.streamId.toString()] ?: 0L) > 10000
-                }.sortedByDescending { playbackPositions[it.streamId.toString()] }
-                if (resumeMovies.isNotEmpty()) {
-                    specialCategories.add(
-                        ExpandableMovieCategory(
-                            category = Category(categoryId = "continue_watching", categoryName = "Continuar Viendo", parentId = 0),
-                            movies = resumeMovies,
-                            isExpanded = expansionState.getOrPut("continue_watching") { true }
-                        )
-                    )
-                }
-            }
+            val resumeMovies = parentalFilteredMovies.filter { movie ->
+                (playbackPositions[movie.streamId.toString()] ?: 0L) > 10000
+            }.sortedByDescending { playbackPositions[it.streamId.toString()] }
+            
+            specialCategories.add(
+                ExpandableMovieCategory(
+                    category = Category(categoryId = "continue_watching", categoryName = "Continuar Viendo", parentId = 0),
+                    movies = resumeMovies,
+                    isExpanded = expansionState.getOrPut("continue_watching") { true }
+                )
+            )
         }
         val moviesByCategoryId = moviesToDisplay.groupBy { it.categoryId.takeIf { !it.isNullOrBlank() } ?: "misc" }
 

@@ -6,10 +6,17 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kybers.play.ui.components.categories.*
 import com.kybers.play.ui.components.DisplayMode
 import kotlinx.coroutines.delay
@@ -162,7 +169,15 @@ fun <T> SmartCategoryList(
 
             // Category content with smooth animation and performance optimization
             if (categoryStateData.isExpanded) {
-                if (displayMode == DisplayMode.GRID) {
+                // Check if category is empty and show appropriate message
+                if (categoryData.items.isEmpty()) {
+                    item {
+                        EmptyStateMessage(
+                            categoryId = categoryData.categoryId,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                } else if (displayMode == DisplayMode.GRID) {
                     // Grid mode - support for all screen types
                     val itemRows = categoryData.items.chunked(gridColumns)
                     
@@ -275,6 +290,47 @@ fun <T> List<T>.toSmartCategoryData(
             categoryName = getCategoryName(expandableCategory),
             items = getItems(expandableCategory),
             isExpanded = isExpanded(expandableCategory)
+        )
+    }
+}
+
+/**
+ * Empty state message component for specific categories
+ */
+@Composable
+private fun EmptyStateMessage(
+    categoryId: String,
+    modifier: Modifier = Modifier
+) {
+    val message = when (categoryId) {
+        "favorites" -> "No has agregado ninguna serie a favoritos aún.\nExplora y marca tus series preferidas tocando el ❤️."
+        "continue_watching" -> "No tienes series en progreso.\nComienza a ver alguna serie para que aparezca aquí."
+        else -> "Esta categoría está vacía por el momento."
+    }
+    
+    val icon = when (categoryId) {
+        "favorites" -> Icons.Default.FavoriteBorder
+        "continue_watching" -> Icons.Default.PlayArrow
+        else -> Icons.Default.Info
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            lineHeight = 20.sp
         )
     }
 }
