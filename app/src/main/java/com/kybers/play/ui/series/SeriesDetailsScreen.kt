@@ -32,11 +32,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 // --- ¡CORRECCIÓN! Se añade la importación que faltaba ---
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +56,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
@@ -272,14 +278,57 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     modifier = Modifier.fillMaxSize()
                 )
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-                Icon(
-                    imageVector = Icons.Default.PlayCircleOutline, contentDescription = "Reproducir",
-                    tint = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.size(80.dp).clickable {
-                        val firstEpisode = uiState.episodesBySeason[uiState.selectedSeasonNumber]?.firstOrNull()
-                        firstEpisode?.let { viewModel.playEpisode(it) }
+                // Main play button with continue logic
+                val lastWatchedEpisode = remember(uiState.playbackStates) { 
+                    viewModel.getLastWatchedEpisode() 
+                }
+                val hasProgress = lastWatchedEpisode != null
+                
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircleOutline, 
+                        contentDescription = if (hasProgress) "Continuar viendo" else "Reproducir",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(80.dp).clickable {
+                            viewModel.continueWatching()
+                        }
+                    )
+                    
+                    if (hasProgress) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Continuar viendo",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                shadow = Shadow(
+                                    color = Color.Black,
+                                    offset = Offset(2f, 2f),
+                                    blurRadius = 4f
+                                )
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                        lastWatchedEpisode?.let { episode ->
+                            Text(
+                                text = "Ep. ${episode.episodeNum}: ${episode.title}",
+                                color = Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    shadow = Shadow(
+                                        color = Color.Black,
+                                        offset = Offset(1f, 1f),
+                                        blurRadius = 3f
+                                    )
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.Start
@@ -411,14 +460,13 @@ fun InfoContent(uiState: SeriesDetailsUiState, onNavigateToSeries: (Int) -> Unit
             rating = uiState.rating,
             certification = uiState.certification
         )
-        val plotText = if (uiState.plot.isNullOrBlank()) "Sin descripción disponible." else uiState.plot
-        Text(
-            text = plotText,
-            style = MaterialTheme.typography.bodyMedium,
-            fontStyle = if (uiState.plot.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
-            color = if (uiState.plot.isNullOrBlank()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else LocalContentColor.current,
+        
+        // Expandable description section
+        ExpandableDescriptionSection(
+            description = uiState.plot,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+        
         if (uiState.cast.isNotEmpty()) {
             CastSection(cast = uiState.cast, onActorClick = { /* TODO */ })
         }
@@ -432,6 +480,54 @@ fun InfoContent(uiState: SeriesDetailsUiState, onNavigateToSeries: (Int) -> Unit
     }
 }
 
+/**
+ * Expandable description section with "read more/less" functionality for series
+ */
+@Composable
+fun ExpandableDescriptionSection(
+    description: String?,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
+    val descriptionText = if (description.isNullOrBlank()) {
+        "Sin descripción disponible."
+    } else {
+        description
+    }
+    
+    val isPlaceholder = description.isNullOrBlank()
+    val shouldShowToggle = !isPlaceholder && description.length > 150
+    
+    Column(modifier = modifier) {
+        Text(
+            text = descriptionText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontStyle = if (isPlaceholder) FontStyle.Italic else FontStyle.Normal,
+            color = if (isPlaceholder) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            } else {
+                LocalContentColor.current
+            },
+            maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 20.sp
+        )
+        
+        if (shouldShowToggle) {
+            Text(
+                text = if (isExpanded) "Leer menos" else "Leer más",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable { isExpanded = !isExpanded }
+            )
+        }
+    }
+}
 
 @Composable
 fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?, certification: String?) {
@@ -446,7 +542,25 @@ fun InfoHeader(title: String, posterUrl: String?, year: String?, rating: Double?
         )
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            // Title with translucent background
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,

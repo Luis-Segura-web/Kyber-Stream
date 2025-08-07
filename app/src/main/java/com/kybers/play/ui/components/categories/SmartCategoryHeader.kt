@@ -60,7 +60,7 @@ fun SmartCategoryHeader(
     
     val textColor by animateColorAsState(
         targetValue = if (categoryState.hasActiveContent) {
-            MaterialTheme.colorScheme.onPrimaryContainer
+            MaterialTheme.colorScheme.onPrimary // high-contrast for active category
         } else {
             MaterialTheme.colorScheme.onSurface
         },

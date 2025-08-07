@@ -162,8 +162,8 @@ fun <T> SmartCategoryList(
 
             // Category content with smooth animation and performance optimization
             if (categoryStateData.isExpanded) {
-                if (displayMode == DisplayMode.GRID && screenType != ScreenType.CHANNELS) {
-                    // Grid mode for movies/series with optimized chunking
+                if (displayMode == DisplayMode.GRID) {
+                    // Grid mode - support for all screen types
                     val itemRows = categoryData.items.chunked(gridColumns)
                     
                     itemsIndexed(
@@ -201,7 +201,7 @@ fun <T> SmartCategoryList(
                         }
                     }
                 } else {
-                    // List mode or channels with optimized item rendering
+                    // List mode for all screen types
                     items(
                         items = categoryData.items,
                         key = { item -> "list_${categoryData.categoryId}_${getItemId(item)}" }

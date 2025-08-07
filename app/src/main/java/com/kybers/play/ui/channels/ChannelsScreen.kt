@@ -495,11 +495,13 @@ private fun ChannelListSection(
                         isFavorite = channel.streamId.toString() in uiState.favoriteChannelIds,
                         onToggleFavorite = { favoriteChannel: LiveStream -> 
                             viewModel.toggleFavorite(favoriteChannel.streamId.toString()) 
-                        }
+                        },
+                        displayMode = uiState.displayMode
                     )
                 },
                 searchQuery = uiState.searchQuery,
                 activeContentId = uiState.currentlyPlaying?.streamId?.toString(),
+                displayMode = uiState.displayMode,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -577,9 +579,126 @@ fun SearchBar(
  * @param onChannelClick A callback that is invoked when the channel is clicked.
  * @param isFavorite Whether the channel is a favorite.
  * @param onToggleFavorite A callback that is invoked when the favorite button is clicked.
+ * @param displayMode The current display mode (LIST or GRID).
  */
 @Composable
 fun ChannelListItem(
+    channel: LiveStream,
+    isSelected: Boolean,
+    onChannelClick: (LiveStream) -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: (LiveStream) -> Unit,
+    displayMode: ComponentDisplayMode = ComponentDisplayMode.LIST
+) {
+    when (displayMode) {
+        ComponentDisplayMode.GRID -> ChannelGridItem(
+            channel = channel,
+            isSelected = isSelected,
+            onChannelClick = onChannelClick,
+            isFavorite = isFavorite,
+            onToggleFavorite = onToggleFavorite
+        )
+        ComponentDisplayMode.LIST -> ChannelListItemDetailed(
+            channel = channel,
+            isSelected = isSelected,
+            onChannelClick = onChannelClick,
+            isFavorite = isFavorite,
+            onToggleFavorite = onToggleFavorite
+        )
+    }
+}
+
+/**
+ * Grid item for channels - shows only channel name and icon (no EPG)
+ */
+@Composable
+fun ChannelGridItem(
+    channel: LiveStream,
+    isSelected: Boolean,
+    onChannelClick: (LiveStream) -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: (LiveStream) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .clickable { onChannelClick(channel) }
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                // Logo del canal
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(channel.streamIcon)
+                        .crossfade(true)
+                        .error(android.R.drawable.stat_notify_error)
+                        .build(),
+                    contentDescription = channel.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White)
+                )
+                
+                // Botón de favoritos en esquina superior derecha
+                IconButton(
+                    onClick = { onToggleFavorite(channel) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(24.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.6f),
+                            shape = CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                        tint = if (isFavorite) Color(0xFFE91E63) else Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Nombre del canal solo - centrado y máximo 2 líneas
+            Text(
+                text = channel.name,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * List item for channels - shows detailed info with EPG
+ */
+@Composable
+fun ChannelListItemDetailed(
     channel: LiveStream,
     isSelected: Boolean,
     onChannelClick: (LiveStream) -> Unit,
