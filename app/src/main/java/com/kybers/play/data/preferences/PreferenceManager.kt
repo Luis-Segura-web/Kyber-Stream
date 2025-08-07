@@ -226,4 +226,22 @@ class PreferenceManager(context: Context) {
 
     fun saveDisplayModeSeries(mode: String) = sharedPreferences.edit().putString(KEY_DISPLAY_MODE_SERIES, mode).apply()
     fun getDisplayModeSeries(): String = sharedPreferences.getString(KEY_DISPLAY_MODE_SERIES, "GRID") ?: "GRID"
+
+    // --- Convenience methods for favorites ---
+    
+    fun addFavoriteSeries(seriesId: Int) {
+        val current = getFavoriteSeriesIds().toMutableSet()
+        current.add(seriesId.toString())
+        saveFavoriteSeriesIds(current)
+    }
+
+    fun removeFavoriteSeries(seriesId: Int) {
+        val current = getFavoriteSeriesIds().toMutableSet()
+        current.remove(seriesId.toString())
+        saveFavoriteSeriesIds(current)
+    }
+
+    fun isSerisFavorite(seriesId: Int): Boolean {
+        return getFavoriteSeriesIds().contains(seriesId.toString())
+    }
 }

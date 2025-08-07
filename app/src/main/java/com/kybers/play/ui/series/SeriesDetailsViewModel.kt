@@ -57,6 +57,7 @@ data class SeriesDetailsUiState(
     val plot: String? = null,
     val cast: List<TMDbCastMember> = emptyList(),
     val availableRecommendations: List<Series> = emptyList(),
+    val availableSimilarSeries: List<Series> = emptyList(),
     val certification: String? = null,
     val selectedTabIndex: Int = 0,
     val currentlyPlayingEpisode: Episode? = null,
@@ -64,6 +65,7 @@ data class SeriesDetailsUiState(
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
     val isFullScreen: Boolean = false,
     val isMuted: Boolean = false,
+    val isFavorite: Boolean = false,
     val systemVolume: Int = 0,
     val maxSystemVolume: Int = 1,
     val screenBrightness: Float = 0.5f,
@@ -141,6 +143,7 @@ class SeriesDetailsViewModel(
             }
 
             findAvailableRecommendations(recommendationsList)
+            loadFavoriteStatus()
             loadEpisodes()
         }
     }
@@ -702,6 +705,28 @@ class SeriesDetailsViewModel(
                 mediaPlayer.play()
                 mediaPlayer.time = currentPosition
             }
+        }
+    }
+
+    fun toggleFavorite() {
+        val currentSeries = _uiState.value.seriesInfo ?: return
+        val isFavorite = !_uiState.value.isFavorite
+        
+        viewModelScope.launch {
+            if (isFavorite) {
+                preferenceManager.addFavoriteSeries(currentSeries.seriesId)
+            } else {
+                preferenceManager.removeFavoriteSeries(currentSeries.seriesId)
+            }
+            _uiState.update { it.copy(isFavorite = isFavorite) }
+        }
+    }
+
+    private fun loadFavoriteStatus() {
+        viewModelScope.launch {
+            val seriesId = _uiState.value.seriesInfo?.seriesId ?: return@launch
+            val isFavorite = preferenceManager.isSerisFavorite(seriesId)
+            _uiState.update { it.copy(isFavorite = isFavorite) }
         }
     }
 }

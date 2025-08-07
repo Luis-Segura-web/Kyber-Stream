@@ -179,7 +179,7 @@ fun MovieDetailsScreen(
                         item { MovieInfo(uiState = uiState, viewModel = viewModel) }
 
                         item {
-                            Divider(
+                            HorizontalDivider(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                                 thickness = 0.5.dp,
                                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -190,7 +190,7 @@ fun MovieDetailsScreen(
 
                         if (uiState.availableRecommendedMovies.isNotEmpty()) {
                             item {
-                                Divider(
+                                HorizontalDivider(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                                     thickness = 0.5.dp,
                                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -207,7 +207,7 @@ fun MovieDetailsScreen(
 
                         if (uiState.availableSimilarMovies.isNotEmpty()) {
                             item {
-                                Divider(
+                                HorizontalDivider(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
                                     thickness = 0.5.dp,
                                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -966,33 +966,25 @@ fun TMDBCreditsSection() {
     Column(modifier = Modifier.padding(16.dp)) {
         Text(
             text = "Créditos a TMDB",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleSmall, // Smaller title
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 6.dp) // Reduced padding
         )
 
         Text(
-            text = "Esta película utiliza datos y imágenes proporcionados por TMDb (The Movie Database).",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "Esta película utiliza datos e imágenes proporcionados por TMDb.",
+            style = MaterialTheme.typography.bodySmall, // Smaller text
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp)
         )
 
-        Text(
-            text = "Para más información, visita su sitio web.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        // Botón para más información (opcional)
         OutlinedButton(
-            onClick = { /* Abrir enlace a TMDb */ },
-            modifier = Modifier.padding(top = 8.dp)
+            onClick = { /* Open TMDb link */ },
+            modifier = Modifier.padding(top = 4.dp) // Reduced padding
         ) {
             Text(
                 text = "Ir a TMDb",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelSmall, // Smaller button text
                 color = MaterialTheme.colorScheme.primary
             )
         }
