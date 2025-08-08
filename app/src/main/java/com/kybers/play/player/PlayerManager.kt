@@ -2,6 +2,8 @@ package com.kybers.play.player
 
 import android.app.Application
 import android.util.Log
+import android.media.MediaCodecList
+import android.webkit.MimeTypeMap
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +40,13 @@ class PlayerManager(
     private var onRetryFailed: (() -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
     private var softwareFallbackTried = false
+
+    private fun isCodecSupported(mimeType: String): Boolean {
+        val list = MediaCodecList(MediaCodecList.ALL_CODECS)
+        return list.codecInfos.any { info ->
+            !info.isEncoder && info.supportedTypes.any { it.equals(mimeType, true) }
+        }
+    }
     
     /**
      * Initialize VLC components and network observer if not already initialized
@@ -192,6 +201,14 @@ class PlayerManager(
             onError?.invoke("Sin conexión a internet. Verifica tu red.")
             return
         }
+
+        val ext = MimeTypeMap.getFileExtensionFromUrl(url)
+        val mime = ext?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+        if (!forceSoftwareDecoding && mime != null && mime.startsWith("video/") && !isCodecSupported(mime)) {
+            Log.w(TAG, "Codec $mime not supported, retrying with software decoding")
+            playMedia(url, forceSoftwareDecoding = true)
+            return
+        }
         
         retryManager?.startRetry(scope) {
             try {
@@ -199,6 +216,7 @@ class PlayerManager(
                 if (forceSoftwareDecoding) media.addOption("--avcodec-hw=none")
                 mediaManager.setMediaSafely(mediaPlayer!!, media)
                 mediaPlayer!!.play()
+                com.kybers.play.util.XLogClient.sendVideoPlay(application, url)
                 Log.d(TAG, "Media playback started successfully")
                 true
             } catch (e: Exception) {
@@ -212,6 +230,7 @@ class PlayerManager(
                 if (forceSoftwareDecoding) media.addOption("--avcodec-hw=none")
                 mediaManager.setMediaSafely(mediaPlayer!!, media)
                 mediaPlayer!!.play()
+                com.kybers.play.util.XLogClient.sendVideoPlay(application, url)
                 Log.d(TAG, "Media playback started (no retry)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to play media (no retry)", e)
