@@ -425,12 +425,13 @@ class MovieDetailsViewModel(
                 }
             },
             onRetryFailed = {
-                _uiState.update { 
+                mediaManager.stopAndReleaseMedia(mediaPlayer)
+                _uiState.update {
                     it.copy(
                         playerStatus = PlayerStatus.RETRY_FAILED,
                         retryAttempt = 0,
                         retryMessage = "Error de conexión. Verifica tu red e inténtalo de nuevo."
-                    ) 
+                    )
                 }
             }
         )
