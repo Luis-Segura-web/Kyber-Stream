@@ -194,6 +194,7 @@ class PlayerManager(
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to play media", e)
+                mediaManager.releaseCurrentMedia(mediaPlayer!!)
                 false
             }
         } ?: run {
@@ -205,6 +206,7 @@ class PlayerManager(
                 Log.d(TAG, "Media playback started (no retry)")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to play media (no retry)", e)
+                mediaManager.releaseCurrentMedia(mediaPlayer!!)
                 onError?.invoke("Error al reproducir el contenido")
             }
         }

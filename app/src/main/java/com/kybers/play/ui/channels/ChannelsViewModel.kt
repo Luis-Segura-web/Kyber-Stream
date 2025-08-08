@@ -304,28 +304,27 @@ open class ChannelsViewModel(
     }
 
     private suspend fun playChannelInternal(channel: LiveStream): Boolean {
+        val streamUrl = buildStreamUrl(channel)
+        val vlcOptions = preferenceManager.getVLCOptions()
+        val media = Media(libVLC, streamUrl.toUri()).apply {
+            vlcOptions.forEach { addOption(it) }
+        }
         return try {
-            val streamUrl = buildStreamUrl(channel)
-            val vlcOptions = preferenceManager.getVLCOptions()
-            val media = Media(libVLC, streamUrl.toUri()).apply {
-                vlcOptions.forEach { addOption(it) }
-            }
-
             // Use MediaManager for safe media handling
             mediaManager.setMediaSafely(mediaPlayer, media)
             mediaPlayer.play()
             mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
             applyAspectRatio(_uiState.value.currentAspectRatioMode)
             _uiState.update { it.copy(playerStatus = PlayerStatus.BUFFERING) }
-            
+
             // Wait for VLC to actually start playing or fail (max 10 seconds)
             var attempts = 0
             val maxAttempts = 100 // 10 seconds (100ms intervals)
-            
+
             while (attempts < maxAttempts) {
                 delay(100) // Check every 100ms
                 attempts++
-                
+
                 when {
                     mediaPlayer.isPlaying -> {
                         Log.d("ChannelsViewModel", "Stream successfully started playing")
@@ -337,13 +336,14 @@ open class ChannelsViewModel(
                     }
                 }
             }
-            
+
             // Timeout - VLC didn't start playing within reasonable time
             Log.e("ChannelsViewModel", "Timeout waiting for stream to start playing")
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             false
-            
+
         } catch (e: Exception) {
+            mediaManager.releaseCurrentMedia(mediaPlayer)
             Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             throw e
@@ -774,9 +774,14 @@ open class ChannelsViewModel(
                 val newMedia = Media(libVLC, media.uri).apply {
                     newOptions.forEach { addOption(it) }
                 }
-                mediaManager.setMediaSafely(mediaPlayer, newMedia)
-                mediaPlayer.play()
-                mediaPlayer.time = currentPosition
+                try {
+                    mediaManager.setMediaSafely(mediaPlayer, newMedia)
+                    mediaPlayer.play()
+                    mediaPlayer.time = currentPosition
+                } catch (e: Exception) {
+                    mediaManager.releaseCurrentMedia(mediaPlayer)
+                    throw e
+                }
             }
         }
     }

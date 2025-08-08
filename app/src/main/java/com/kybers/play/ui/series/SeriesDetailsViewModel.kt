@@ -411,13 +411,12 @@ class SeriesDetailsViewModel(
     }
 
     private suspend fun startEpisodePlaybackInternal(episode: Episode, resumeFromSaved: Boolean): Boolean {
+        val streamUrl = buildStreamUrl(episode)
+        val vlcOptions = preferenceManager.getVLCOptions()
+        val newMedia = Media(libVLC, streamUrl.toUri()).apply {
+            vlcOptions.forEach { addOption(it) }
+        }
         return try {
-            val streamUrl = buildStreamUrl(episode)
-            val vlcOptions = preferenceManager.getVLCOptions()
-            val newMedia = Media(libVLC, streamUrl.toUri()).apply {
-                vlcOptions.forEach { addOption(it) }
-            }
-
             // Use MediaManager for safe media handling
             mediaManager.setMediaSafely(mediaPlayer, newMedia)
             mediaPlayer.play()
@@ -466,6 +465,7 @@ class SeriesDetailsViewModel(
             false
             
         } catch (e: Exception) {
+            mediaManager.releaseCurrentMedia(mediaPlayer)
             Log.e("SeriesDetailsViewModel", "Error in startEpisodePlaybackInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             throw e
@@ -700,9 +700,14 @@ class SeriesDetailsViewModel(
                 val newMedia = Media(libVLC, media.uri).apply {
                     newOptions.forEach { addOption(it) }
                 }
-                mediaManager.setMediaSafely(mediaPlayer, newMedia)
-                mediaPlayer.play()
-                mediaPlayer.time = currentPosition
+                try {
+                    mediaManager.setMediaSafely(mediaPlayer, newMedia)
+                    mediaPlayer.play()
+                    mediaPlayer.time = currentPosition
+                } catch (e: Exception) {
+                    mediaManager.releaseCurrentMedia(mediaPlayer)
+                    throw e
+                }
             }
         }
     }

@@ -453,14 +453,13 @@ class MovieDetailsViewModel(
     }
 
     private suspend fun startPlaybackInternal(continueFromLastPosition: Boolean): Boolean {
+        val movie = _uiState.value.movie ?: throw IllegalStateException("No movie selected")
+        val streamUrl = buildStreamUrl(movie)
+        val vlcOptions = preferenceManager.getVLCOptions()
+        val newMedia = Media(libVLC, streamUrl.toUri()).apply {
+            vlcOptions.forEach { addOption(it) }
+        }
         return try {
-            val movie = _uiState.value.movie ?: throw IllegalStateException("No movie selected")
-            val streamUrl = buildStreamUrl(movie)
-            val vlcOptions = preferenceManager.getVLCOptions()
-            val newMedia = Media(libVLC, streamUrl.toUri()).apply {
-                vlcOptions.forEach { addOption(it) }
-            }
-            
             // Use MediaManager for safe media handling
             mediaManager.setMediaSafely(mediaPlayer, newMedia)
             mediaPlayer.play()
@@ -502,6 +501,7 @@ class MovieDetailsViewModel(
             false
             
         } catch (e: Exception) {
+            mediaManager.releaseCurrentMedia(mediaPlayer)
             Log.e("MovieDetailsViewModel", "Error in startPlaybackInternal", e)
             _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             throw e
@@ -653,9 +653,14 @@ class MovieDetailsViewModel(
                 val newMedia = Media(libVLC, media.uri).apply {
                     newOptions.forEach { addOption(it) }
                 }
-                mediaManager.setMediaSafely(mediaPlayer, newMedia)
-                mediaPlayer.play()
-                mediaPlayer.time = currentPosition
+                try {
+                    mediaManager.setMediaSafely(mediaPlayer, newMedia)
+                    mediaPlayer.play()
+                    mediaPlayer.time = currentPosition
+                } catch (e: Exception) {
+                    mediaManager.releaseCurrentMedia(mediaPlayer)
+                    throw e
+                }
             }
         }
     }
