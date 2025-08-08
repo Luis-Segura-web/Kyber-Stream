@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import org.videolan.libvlc.IVLCVout
 import org.videolan.libvlc.MediaPlayer
@@ -21,7 +22,9 @@ import org.videolan.libvlc.util.VLCVideoLayout
  */
 @Composable
 fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val vlcVout = mediaPlayer.vlcVout
+    val videoLayout = remember { VLCVideoLayout(context) }
     val voutCallback = remember {
         object : IVLCVout.Callback {
             override fun onNewVideoLayout(
@@ -46,7 +49,9 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
         }
     }
 
-    DisposableEffect(vlcVout) {
+    DisposableEffect(vlcVout, videoLayout) {
+        vlcVout.setVideoView(videoLayout)
+        vlcVout.attachViews()
         vlcVout.addCallback(voutCallback)
         onDispose {
             vlcVout.removeCallback(voutCallback)
@@ -56,14 +61,8 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.background(Color.Black)) {
         AndroidView(
-            factory = { context ->
-                VLCVideoLayout(context).also { layout ->
-                    vlcVout.setVideoView(layout)
-                    vlcVout.attachViews()
-                }
-            },
+            factory = { videoLayout },
             modifier = Modifier.fillMaxSize(),
         )
     }
 }
-
