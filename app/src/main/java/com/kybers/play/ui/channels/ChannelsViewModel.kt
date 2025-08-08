@@ -774,8 +774,7 @@ open class ChannelsViewModel(
                 val newMedia = Media(libVLC, media.uri).apply {
                     newOptions.forEach { addOption(it) }
                 }
-                mediaPlayer.media?.release()
-                mediaPlayer.media = newMedia
+                mediaManager.setMediaSafely(mediaPlayer, newMedia)
                 mediaPlayer.play()
                 mediaPlayer.time = currentPosition
             }
