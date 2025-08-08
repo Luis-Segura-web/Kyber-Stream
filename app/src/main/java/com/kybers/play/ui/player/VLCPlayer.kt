@@ -25,7 +25,12 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
                     surfaceTextureListener = object : TextureView.SurfaceTextureListener {
                         override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
                             try {
-                                mediaPlayer.vlcVout.setVideoSurface(android.view.Surface(surface), null)
+                                val videoSurface = android.view.Surface(surface)
+                                if (!videoSurface.isValid) {
+                                    Log.e("VLCPlayer", "Invalid surface for playback. Check permissions or flags.")
+                                    return
+                                }
+                                mediaPlayer.vlcVout.setVideoSurface(videoSurface, null)
                                 mediaPlayer.vlcVout.setWindowSize(width, height)
                                 mediaPlayer.vlcVout.attachViews()
                                 Log.d("VLCPlayer", "Surface attached successfully")

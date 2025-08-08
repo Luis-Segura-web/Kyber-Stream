@@ -2,11 +2,13 @@ package com.kybers.play.player
 
 import android.app.Application
 import android.util.Log
+import android.media.MediaCodec
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.net.URLConnection
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -32,6 +34,7 @@ class PlayerManager(
     private var networkObserver: NetworkConnectivityObserver? = null
     private var currentUrl: String? = null // Store current URL for retry
     private var isPlaybackActive = false
+    private var useHardwareDecoder = true
     
     private var onRetryAttempt: ((Int, Int) -> Unit)? = null
     private var onRetrySuccess: (() -> Unit)? = null
@@ -43,8 +46,9 @@ class PlayerManager(
      */
     private fun initializeVLC() {
         if (libVLC == null) {
-            libVLC = LibVLC(application)
-            Log.d(TAG, "LibVLC initialized")
+            val options = if (useHardwareDecoder) emptyList() else listOf("--avcodec-hw=none")
+            libVLC = LibVLC(application, options)
+            Log.d(TAG, "LibVLC initialized with hardwareDecoding=$useHardwareDecoder")
         }
         
         if (mediaPlayer == null) {
@@ -59,6 +63,24 @@ class PlayerManager(
             Log.d(TAG, "NetworkConnectivityObserver initialized")
         }
     }
+
+    private fun restartPipelineWithSoftwareCodec() {
+        useHardwareDecoder = false
+        try {
+            mediaPlayer?.setEventListener(null)
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+
+        try {
+            libVLC?.release()
+        } catch (_: Exception) {}
+
+        mediaPlayer = null
+        libVLC = null
+        initializeVLC()
+    }
+
+    private fun guessVideoMimeType(url: String): String? = URLConnection.guessContentTypeFromName(url)
     
     /**
      * Setup network connectivity observer
@@ -152,6 +174,10 @@ class PlayerManager(
                 MediaPlayer.Event.EncounteredError -> {
                     Log.e(TAG, "VLC Error encountered, triggering retry")
                     isPlaybackActive = false
+                    if (useHardwareDecoder) {
+                        Log.w(TAG, "Attempting fallback to software decoder")
+                        restartPipelineWithSoftwareCodec()
+                    }
                     onError?.invoke("Error de reproducción detectado")
                     retryCurrentMedia()
                 }
@@ -177,6 +203,15 @@ class PlayerManager(
         initializeVLC()
         currentUrl = url // Store current URL for retry
         isPlaybackActive = true
+
+        // Verify codec support before playback
+        guessVideoMimeType(url)?.let { mime ->
+            if (!CodecUtils.isVideoMimeTypeSupported(mime)) {
+                Log.e(TAG, "Unsupported video mime type: $mime")
+                onError?.invoke("Formato de video no soportado: $mime")
+                return
+            }
+        }
         
         // Check network connectivity before attempting playback
         if (networkObserver?.isCurrentlyConnected() == false) {
@@ -187,13 +222,20 @@ class PlayerManager(
         
         retryManager?.startRetry(scope) {
             try {
+                initializeVLC()
                 val media = Media(libVLC!!, android.net.Uri.parse(url))
                 mediaManager.setMediaSafely(mediaPlayer!!, media)
                 mediaPlayer!!.play()
                 Log.d(TAG, "Media playback started successfully")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to play media", e)
+                if (e is MediaCodec.CodecException && useHardwareDecoder) {
+                    Log.e(TAG, "MediaCodec error, switching to software codec", e)
+                    restartPipelineWithSoftwareCodec()
+                    currentUrl = url
+                } else {
+                    Log.e(TAG, "Failed to play media", e)
+                }
                 false
             }
         } ?: run {
@@ -204,6 +246,13 @@ class PlayerManager(
                 mediaPlayer!!.play()
                 Log.d(TAG, "Media playback started (no retry)")
             } catch (e: Exception) {
+                if (e is MediaCodec.CodecException && useHardwareDecoder) {
+                    Log.e(TAG, "MediaCodec error (no retry), switching to software codec", e)
+                    restartPipelineWithSoftwareCodec()
+                    currentUrl = url
+                    playMedia(url)
+                    return
+                }
                 Log.e(TAG, "Failed to play media (no retry)", e)
                 onError?.invoke("Error al reproducir el contenido")
             }
