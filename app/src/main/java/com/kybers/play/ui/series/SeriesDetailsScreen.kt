@@ -166,11 +166,81 @@ fun SeriesDetailsScreen(
                 SeriesPlayerSection(viewModel = viewModel, audioManager = audioManager, onNavigateUp = onNavigateUp)
 
                 AnimatedVisibility(visible = !uiState.isFullScreen && !uiState.isInPipMode) {
-                    SeriesDetailsContent(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        onNavigateToSeries = onNavigateToSeries
-                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        item { SeriesInfo(uiState = uiState, viewModel = viewModel) }
+
+                        item {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+
+                        item { 
+                            Text(
+                                text = "Episodios",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        item {
+                            SeasonTabs(
+                                seasons = uiState.seasons,
+                                selectedSeasonNumber = uiState.selectedSeasonNumber,
+                                onSeasonSelected = viewModel::selectSeason
+                            )
+                        }
+
+                        val episodes = uiState.episodesBySeason[uiState.selectedSeasonNumber] ?: emptyList()
+                        if (episodes.isEmpty() && !uiState.isLoading) {
+                            item {
+                                Text(
+                                    "No hay episodios para esta temporada.",
+                                    modifier = Modifier.padding(16.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            items(episodes, key = { it.id }) { episode ->
+                                EpisodeListItem(
+                                    episode = episode,
+                                    playbackState = uiState.playbackStates[episode.id],
+                                    onPlayClick = { viewModel.playEpisode(episode) },
+                                    isImageLoading = uiState.isLoadingImages && episode.imageUrl.isNullOrBlank()
+                                )
+                            }
+                        }
+
+                        if (uiState.availableRecommendations.isNotEmpty()) {
+                            item {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                            item {
+                                SeriesCarousel(
+                                    title = "Series Similares",
+                                    series = uiState.availableRecommendations,
+                                    onSeriesClick = onNavigateToSeries
+                                )
+                            }
+                        }
+
+                        // 📎 Créditos a TMDB
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TMDBCreditsSectionSeries()
+                        }
+                    }
                 }
             }
         }
@@ -211,7 +281,7 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     onRequestPipMode = onRequestPipMode,
                     isPlaying = uiState.playerStatus == PlayerStatus.PLAYING,
                     isMuted = uiState.isMuted,
-                    isFavorite = false,
+                    isFavorite = uiState.isFavorite,
                     isFullScreen = uiState.isFullScreen,
                     streamTitle = uiState.currentlyPlayingEpisode?.title ?: "Episodio",
                     systemVolume = uiState.systemVolume,
@@ -237,7 +307,7 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     onSeekForward = { /* viewModel.seekForward() */ },
                     onSeekBackward = { /* viewModel.seekBackward() */ },
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
-                    onToggleFavorite = {},
+                    onToggleFavorite = viewModel::toggleFavorite,
                     onToggleFullScreen = {
                         activity?.requestedOrientation = if (uiState.isFullScreen) {
                             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -267,179 +337,336 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(uiState.backdropUrl ?: uiState.posterUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Backdrop de la serie",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-                // Main play button with continue logic
-                val lastWatchedEpisode = remember(uiState.playbackStates) { 
-                    viewModel.getLastWatchedEpisode() 
-                }
-                val hasProgress = lastWatchedEpisode != null
-                
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayCircleOutline, 
-                        contentDescription = if (hasProgress) "Continuar viendo" else "Reproducir",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(80.dp).clickable {
-                            viewModel.continueWatching()
-                        }
+            SeriesHeader(
+                backdropUrl = uiState.backdropUrl,
+                title = uiState.title,
+                isFavorite = uiState.isFavorite,
+                onNavigateUp = onNavigateUp,
+                onToggleFavorite = { viewModel.toggleFavorite() },
+                onPlayClick = { viewModel.continueWatching() },
+                lastWatchedEpisode = viewModel.getLastWatchedEpisode()
+            )
+        }
+    }
+}
+
+@Composable
+fun SeriesHeader(
+    backdropUrl: String?, 
+    title: String, 
+    isFavorite: Boolean, 
+    onNavigateUp: () -> Unit, 
+    onToggleFavorite: () -> Unit, 
+    onPlayClick: () -> Unit,
+    lastWatchedEpisode: Episode?
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp) // Altura fija para evitar cambios de layout
+            .background(Color.Black)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(backdropUrl)
+                .crossfade(true)
+                .build(),
+            contentDescription = "Backdrop de la serie",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Gradiente para mejorar legibilidad
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.6f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.8f)
+                        ),
+                        startY = 0f,
+                        endY = 300.dp.value * 3f
                     )
-                    
-                    if (hasProgress) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Continuar viendo",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                shadow = Shadow(
-                                    color = Color.Black,
-                                    offset = Offset(2f, 2f),
-                                    blurRadius = 4f
-                                )
-                            ),
-                            textAlign = TextAlign.Center
+                )
+        )
+
+        // 🔙 Botón de retroceso (arriba izquierda)
+        IconButton(
+            onClick = onNavigateUp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Regresar",
+                tint = Color.White
+            )
+        }
+
+        // ❤️ Botón de favorito (arriba derecha)
+        IconButton(
+            onClick = onToggleFavorite,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = "Favorito",
+                tint = Color.White
+            )
+        }
+
+        // ▶️ Botón de play (centrado) con lógica de continuar viendo
+        Column(
+            modifier = Modifier.align(Alignment.Center),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            IconButton(
+                onClick = onPlayClick,
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayCircleOutline,
+                    contentDescription = if (lastWatchedEpisode != null) "Continuar viendo" else "Reproducir",
+                    tint = Color.White,
+                    modifier = Modifier.size(60.dp)
+                )
+            }
+
+            if (lastWatchedEpisode != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Continuar viendo",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        shadow = Shadow(
+                            color = Color.Black,
+                            offset = Offset(2f, 2f),
+                            blurRadius = 4f
                         )
-                        lastWatchedEpisode?.let { episode ->
-                            Text(
-                                text = "Ep. ${episode.episodeNum}: ${episode.title}",
-                                color = Color.White.copy(alpha = 0.9f),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    shadow = Shadow(
-                                        color = Color.Black,
-                                        offset = Offset(1f, 1f),
-                                        blurRadius = 3f
-                                    )
-                                ),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    IconButton(
-                        onClick = onNavigateUp,
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = Color.White)
-                    }
-                }
-                
-                // Series title overlay in bottom-left
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Ep. ${lastWatchedEpisode.episodeNum}: ${lastWatchedEpisode.title}",
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        shadow = Shadow(
+                            color = Color.Black,
+                            offset = Offset(1f, 1f),
+                            blurRadius = 3f
+                        )
+                    ),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // 🏷️ Título (abajo izquierda, con sombra para legibilidad)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 28.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun SeriesInfo(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewModel) {
+    Column {
+        // 🎞️ Sección: Miniatura + Metadatos rápidos
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // 📸 Miniatura (poster pequeño, tamaño fijo)
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(uiState.posterUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Poster de la serie",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(180.dp) // Altura fija para evitar cambios de layout
+                    .clip(RoundedCornerShape(8.dp))
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Column con metadatos rápidos
+            Column(modifier = Modifier.weight(1f)) {
+                // 🎬 Título (otra vez, por claridad)
                 Text(
                     text = uiState.title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(16.dp)
-                        .background(
-                            Color.Black.copy(alpha = 0.3f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-            }
-        }
-    }
-}
 
-@Composable
-fun SeriesDetailsContent(
-    uiState: SeriesDetailsUiState,
-    viewModel: SeriesDetailsViewModel,
-    onNavigateToSeries: (Int) -> Unit
-) {
-    val tabTitles = listOf("EPISODIOS", "INFO")
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = uiState.selectedTabIndex) {
-            tabTitles.forEachIndexed { index, title ->
-                Tab(
-                    selected = uiState.selectedTabIndex == index,
-                    onClick = { viewModel.onTabSelected(index) },
-                    text = { Text(text = title) }
-                )
-            }
-        }
-
-        when (uiState.selectedTabIndex) {
-            0 -> EpisodesContent(uiState = uiState, viewModel = viewModel)
-            1 -> InfoContent(uiState = uiState, onNavigateToSeries = onNavigateToSeries)
-        }
-    }
-}
-
-@Composable
-fun EpisodesContent(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewModel) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Column {
-                SeasonTabs(
-                    seasons = uiState.seasons,
-                    selectedSeasonNumber = uiState.selectedSeasonNumber,
-                    onSeasonSelected = viewModel::selectSeason
-                )
-                
-                // Mostrar indicador cuando las imágenes se están cargando
-                if (uiState.isLoadingImages) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
+                // ⭐ Calificación
+                if (uiState.rating != null && uiState.rating > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RatingBar(rating = uiState.rating / 2, maxRating = 5)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Cargando imágenes...",
+                            text = "${(uiState.rating / 2).format(1)}/5",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // 🗓️ Año y otros metadatos
+                if (!uiState.firstAirYear.isNullOrBlank()) {
+                    Text(
+                        text = "Año: ${uiState.firstAirYear}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+
+                // Certificación si está disponible
+                if (!uiState.certification.isNullOrBlank()) {
+                    Text(
+                        text = "Clasificación: ${uiState.certification}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
             }
         }
-        
-        val episodes = uiState.episodesBySeason[uiState.selectedSeasonNumber] ?: emptyList()
-        if (episodes.isEmpty() && !uiState.isLoading) {
-            item {
+
+        // ▶️ Botones de acción (Reproducir / Continuar)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SeriesActionButtonsSection(
+            uiState = uiState,
+            viewModel = viewModel,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // 📖 Descripción de la serie
+        Spacer(modifier = Modifier.height(16.dp))
+
+        ExpandableDescriptionSection(
+            description = uiState.plot,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // 🎭 Reparto principal
+        if (uiState.cast.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            CastSection(cast = uiState.cast, onActorClick = { /* TODO: Handle actor click */ })
+        }
+    }
+}
+
+@Composable
+private fun SeriesActionButtonsSection(
+    uiState: SeriesDetailsUiState,
+    viewModel: SeriesDetailsViewModel,
+    modifier: Modifier = Modifier
+) {
+    val lastWatchedEpisode = viewModel.getLastWatchedEpisode()
+    val hasProgress = lastWatchedEpisode != null
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Botón principal de reproducir/continuar
+        Button(
+            onClick = {
+                viewModel.continueWatching()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = if (hasProgress) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (hasProgress) "Continuar viendo" else "Comenzar serie",
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // Información del último episodio visto
+        if (hasProgress) {
+            OutlinedButton(
+                onClick = { 
+                    // Start from beginning of the series
+                    val firstEpisode = uiState.episodesBySeason.values.flatten()
+                        .minByOrNull { it.episodeNum }
+                    firstEpisode?.let { viewModel.playEpisode(it) }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Replay,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    "No hay episodios para esta temporada.",
-                    modifier = Modifier.padding(16.dp),
-                    textAlign = TextAlign.Center
+                    text = "Empezar desde el inicio",
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        } else {
-            items(episodes, key = { it.id }) { episode ->
-                EpisodeListItem(
-                    episode = episode,
-                    playbackState = uiState.playbackStates[episode.id],
-                    onPlayClick = { viewModel.playEpisode(episode) },
-                    isImageLoading = uiState.isLoadingImages && episode.imageUrl.isNullOrBlank()
+            
+            lastWatchedEpisode?.let { episode ->
+                Text(
+                    text = "Último episodio visto: Ep. ${episode.episodeNum} - ${episode.title}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }
@@ -447,38 +674,145 @@ fun EpisodesContent(uiState: SeriesDetailsUiState, viewModel: SeriesDetailsViewM
 }
 
 @Composable
-fun InfoContent(uiState: SeriesDetailsUiState, onNavigateToSeries: (Int) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        InfoHeader(
-            title = uiState.title,
-            posterUrl = uiState.posterUrl,
-            year = uiState.firstAirYear,
-            rating = uiState.rating,
-            certification = uiState.certification
-        )
-        
-        // Expandable description section
-        ExpandableDescriptionSection(
-            description = uiState.plot,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-        
-        if (uiState.cast.isNotEmpty()) {
-            CastSection(cast = uiState.cast, onActorClick = { /* TODO */ })
-        }
-        if (uiState.availableRecommendations.isNotEmpty()) {
-            RecommendationsSection(
-                recommendations = uiState.availableRecommendations,
-                onSeriesClick = { series -> onNavigateToSeries(series.seriesId) }
+fun SeriesCarousel(title: String, series: List<Series>, onSeriesClick: (Int) -> Unit) {
+    if (series.isNotEmpty()) {
+        Column(modifier = Modifier.padding(top = 24.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(series, key = { it.seriesId }) { seriesItem ->
+                    EnhancedSeriesPosterItem(
+                        series = seriesItem,
+                        onClick = { onSeriesClick(seriesItem.seriesId) }
+                    )
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
+
+@Composable
+fun EnhancedSeriesPosterItem(
+    series: Series,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(140.dp)
+            .aspectRatio(2f / 3f)
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(series.cover)
+                    .crossfade(true)
+                    .fallback(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .build(),
+                contentDescription = series.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            
+            // Rating overlay at top
+            if (series.rating5Based > 0) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(Color.Black.copy(alpha = 0.7f))
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Star,
+                        contentDescription = "Calificación",
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "%.1f".format(series.rating5Based),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            // Series name at bottom
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(top = 16.dp, bottom = 8.dp, start = 6.dp, end = 6.dp)
+            ) {
+                Text(
+                    text = series.name,
+                    color = Color.White,
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 12.sp,
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TMDBCreditsSectionSeries() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = "Créditos a TMDB",
+            style = MaterialTheme.typography.titleSmall, // Smaller title
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 6.dp) // Reduced padding
+        )
+
+        Text(
+            text = "Esta serie utiliza datos e imágenes proporcionados por TMDb.",
+            style = MaterialTheme.typography.bodySmall, // Smaller text
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+
+        OutlinedButton(
+            onClick = { /* Open TMDb link */ },
+            modifier = Modifier.padding(top = 4.dp) // Reduced padding
+        ) {
+            Text(
+                text = "Ir a TMDb",
+                style = MaterialTheme.typography.labelSmall, // Smaller button text
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+// Extension function for formatting numbers  
+private fun Double.format(digits: Int) = "%.${digits}f".format(this)
 
 /**
  * Expandable description section with "read more/less" functionality for series

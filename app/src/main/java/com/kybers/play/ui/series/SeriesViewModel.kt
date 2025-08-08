@@ -178,8 +178,11 @@ class SeriesViewModel(
         viewModelScope.launch {
             val isNowExpanding = !(expansionState[categoryId] ?: false)
             if (isNowExpanding) {
-                if (categoryId != "favorites") {
-                    expansionState.keys.forEach { expansionState[it] = false }
+                // Close all other categories when expanding any category (only one should be open at a time)
+                expansionState.keys.forEach { key ->
+                    if (key != categoryId) {
+                        expansionState[key] = false
+                    }
                 }
             }
             expansionState[categoryId] = isNowExpanding
@@ -227,38 +230,31 @@ class SeriesViewModel(
 
         val specialCategories = mutableListOf<ExpandableSeriesCategory>()
 
-        // Always show favorites (even during search) as requested
+        // Always show favorites category (even when empty or during search)
         val favoriteIds = _uiState.value.favoriteSeriesIds
-        if (favoriteIds.isNotEmpty()) {
-            val favoriteSeries = parentalFilteredSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
-            if (favoriteSeries.isNotEmpty()) {
-                specialCategories.add(
-                    ExpandableSeriesCategory(
-                        category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
-                        series = favoriteSeries,
-                        isExpanded = expansionState.getOrPut("favorites") { true }
-                    )
-                )
-            }
-        }
+        val favoriteSeries = parentalFilteredSeries.filter { favoriteIds.contains(it.seriesId.toString()) }
+        specialCategories.add(
+            ExpandableSeriesCategory(
+                category = Category(categoryId = "favorites", categoryName = "Favoritos", parentId = 0),
+                series = favoriteSeries,
+                isExpanded = expansionState.getOrPut("favorites") { true }
+            )
+        )
 
-        // Add continue watching category similar to movies
+        // Always show continue watching category (even when empty) but only when not searching
         if (lowercasedQuery.isBlank()) {
             val playbackPositions = preferenceManager.getAllPlaybackPositions()
-            if (playbackPositions.isNotEmpty()) {
-                val resumeSeries = parentalFilteredSeries.filter { series ->
-                    (playbackPositions[series.seriesId.toString()] ?: 0L) > 10000
-                }.sortedByDescending { playbackPositions[it.seriesId.toString()] }
-                if (resumeSeries.isNotEmpty()) {
-                    specialCategories.add(
-                        ExpandableSeriesCategory(
-                            category = Category(categoryId = "continue_watching", categoryName = "Continuar Viendo", parentId = 0),
-                            series = resumeSeries,
-                            isExpanded = expansionState.getOrPut("continue_watching") { true }
-                        )
-                    )
-                }
-            }
+            val resumeSeries = parentalFilteredSeries.filter { series ->
+                (playbackPositions[series.seriesId.toString()] ?: 0L) > 10000
+            }.sortedByDescending { playbackPositions[it.seriesId.toString()] }
+            
+            specialCategories.add(
+                ExpandableSeriesCategory(
+                    category = Category(categoryId = "continue_watching", categoryName = "Continuar Viendo", parentId = 0),
+                    series = resumeSeries,
+                    isExpanded = expansionState.getOrPut("continue_watching") { true }
+                )
+            )
         }
 
         val seriesByCategoryId = seriesToDisplay.groupBy { it.categoryId }
