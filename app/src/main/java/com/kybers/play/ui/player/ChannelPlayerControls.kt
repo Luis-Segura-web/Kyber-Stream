@@ -148,26 +148,15 @@ private fun CenterChannelControls(
     val centerIconSize = if (isFullScreen) 96.dp else 56.dp
     val spacerWidth = if (isFullScreen) 64.dp else 32.dp
 
-    Column(
+    Box(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        // Show retry message if available
-        retryMessage?.let { message ->
-            Text(
-                text = message,
-                color = Color.White,
-                fontSize = if (isFullScreen) 18.sp else 14.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Previous button (only show if not in retry state)
             if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
                 IconButton(onClick = onPrevious) {
                     Icon(Icons.Default.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(iconSize))
@@ -175,10 +164,8 @@ private fun CenterChannelControls(
                 Spacer(modifier = Modifier.width(spacerWidth))
             }
 
-            // Center button - changes based on player status
             when (playerStatus) {
                 PlayerStatus.RETRYING -> {
-                    // Show loading indicator with retry count
                     Box(
                         modifier = Modifier.size(centerIconSize),
                         contentAlignment = Alignment.Center
@@ -195,33 +182,45 @@ private fun CenterChannelControls(
                     }
                 }
                 PlayerStatus.RETRY_FAILED, PlayerStatus.ERROR -> {
-                    // Show retry button
                     IconButton(onClick = onRetry) {
                         Icon(Icons.Default.Refresh, "Reintentar", tint = Color.White, modifier = Modifier.size(centerIconSize))
                     }
                 }
                 PlayerStatus.LOADING -> {
-                    // Show loading indicator
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(centerIconSize * 0.8f)
-                    )
+                    Box(
+                        modifier = Modifier.size(centerIconSize),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(centerIconSize * 0.8f)
+                        )
+                    }
                 }
                 else -> {
-                    // Normal play/pause button
                     IconButton(onClick = onPlayPause) {
                         Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
                     }
                 }
             }
 
-            // Next button (only show if not in retry state)
             if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
                 Spacer(modifier = Modifier.width(spacerWidth))
                 IconButton(onClick = onNext) {
                     Icon(Icons.Default.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(iconSize))
                 }
             }
+        }
+
+        retryMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = if (isFullScreen) 18.sp else 14.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = -(centerIconSize / 2 + 16.dp))
+            )
         }
     }
 }

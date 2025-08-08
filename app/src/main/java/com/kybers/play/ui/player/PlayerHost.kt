@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +100,7 @@ fun PlayerHost(
         // Muestra un indicador de carga mientras el reproductor está en estado de buffering.
         AnimatedVisibility(
             visible = playerStatus == PlayerStatus.BUFFERING,
-            modifier = Modifier.align(Alignment.Center).offset(y = (-16).dp)
+            modifier = Modifier.align(Alignment.Center)
         ) {
             CircularProgressIndicator(color = Color.White)
         }
