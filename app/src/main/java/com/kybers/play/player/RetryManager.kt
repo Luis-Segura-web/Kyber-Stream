@@ -33,43 +33,39 @@ class RetryManager(
     fun startRetry(scope: CoroutineScope, retryAction: suspend () -> Boolean) {
         cancelRetry() // Cancel any existing retry
         currentAttempt = 0
-        
+
         retryJob = scope.launch {
             Log.d(TAG, "Starting retry sequence, max attempts: $maxRetries")
-            
+
             while (currentAttempt < maxRetries) {
-                currentAttempt++
-                Log.d(TAG, "Retry attempt $currentAttempt of $maxRetries")
-                
-                // Notify UI of retry attempt
-                onRetryAttempt(currentAttempt, maxRetries)
-                
-                try {
-                    // Attempt the action
-                    val success = retryAction()
-                    
-                    if (success) {
-                        Log.d(TAG, "Retry succeeded on attempt $currentAttempt")
-                        onRetrySuccess()
-                        reset()
-                        return@launch
-                    }
+                val attempt = currentAttempt + 1
+                Log.d(TAG, "Retry attempt $attempt of $maxRetries")
+                onRetryAttempt(attempt, maxRetries)
+
+                val delayMs = baseDelayMs * (1L shl (attempt - 1))
+                Log.d(TAG, "Waiting ${delayMs}ms before attempt")
+                delay(delayMs)
+
+                val success = try {
+                    retryAction()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Retry attempt $currentAttempt failed with exception", e)
+                    Log.w(TAG, "Retry attempt $attempt failed with exception", e)
+                    false
                 }
-                
-                // If not the last attempt, wait with exponential backoff
-                if (currentAttempt < maxRetries) {
-                    val delayMs = baseDelayMs * (1L shl (currentAttempt - 1)) // 2^(attempt-1) * baseDelay
-                    Log.d(TAG, "Waiting ${delayMs}ms before next attempt")
-                    delay(delayMs)
+
+                if (success) {
+                    Log.d(TAG, "Retry succeeded on attempt $attempt")
+                    onRetrySuccess()
+                    reset()
+                    return@launch
                 }
+
+                currentAttempt = attempt
             }
-            
-            // All retries failed
+
             Log.e(TAG, "All $maxRetries retry attempts failed")
             onRetryFailed()
-            reset()
+            retryJob = null
         }
     }
     

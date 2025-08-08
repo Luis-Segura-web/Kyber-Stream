@@ -85,9 +85,8 @@ fun MoviePlayerControls(
                 onRequestPipMode = { onRequestPipMode(); onAnyInteraction() }
             )
 
-            // --- ¡MODIFICACIÓN! Se añade un desplazamiento vertical hacia arriba ---
             CenterVODControls(
-                modifier = Modifier.align(Alignment.Center).offset(y = (-16).dp),
+                modifier = Modifier.align(Alignment.Center),
                 isPlaying = isPlaying,
                 isFullScreen = isFullScreen,
                 showNextPrevious = showNextPreviousButtons,
@@ -159,26 +158,15 @@ private fun CenterVODControls(
     val sideIconSize = if (isFullScreen) 64.dp else 40.dp
     val spacerWidth = if (isFullScreen) 48.dp else 24.dp
 
-    Column(
+    Box(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
-        // Show retry message if available
-        retryMessage?.let { message ->
-            Text(
-                text = message,
-                color = Color.White,
-                fontSize = if (isFullScreen) 18.sp else 14.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left button (only show if not in retry state)
             if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
                 if (showNextPrevious) {
                     IconButton(onClick = onPrevious) {
@@ -192,10 +180,8 @@ private fun CenterVODControls(
                 Spacer(modifier = Modifier.width(spacerWidth))
             }
 
-            // Center button - changes based on player status
             when (playerStatus) {
                 PlayerStatus.RETRYING -> {
-                    // Show loading indicator with retry count
                     Box(
                         modifier = Modifier.size(centerIconSize),
                         contentAlignment = Alignment.Center
@@ -212,27 +198,28 @@ private fun CenterVODControls(
                     }
                 }
                 PlayerStatus.RETRY_FAILED, PlayerStatus.ERROR -> {
-                    // Show retry button
                     IconButton(onClick = onRetry) {
                         Icon(Icons.Default.Refresh, "Reintentar", tint = Color.White, modifier = Modifier.size(centerIconSize))
                     }
                 }
                 PlayerStatus.LOADING -> {
-                    // Show loading indicator
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(centerIconSize * 0.8f)
-                    )
+                    Box(
+                        modifier = Modifier.size(centerIconSize),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(centerIconSize * 0.8f)
+                        )
+                    }
                 }
                 else -> {
-                    // Normal play/pause button
                     IconButton(onClick = onPlayPause) {
                         Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pausa", tint = Color.White, modifier = Modifier.size(centerIconSize))
                     }
                 }
             }
 
-            // Right button (only show if not in retry state)
             if (playerStatus != PlayerStatus.RETRYING && playerStatus != PlayerStatus.RETRY_FAILED) {
                 Spacer(modifier = Modifier.width(spacerWidth))
                 if (showNextPrevious) {
@@ -245,6 +232,17 @@ private fun CenterVODControls(
                     }
                 }
             }
+        }
+
+        retryMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = if (isFullScreen) 18.sp else 14.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = -(centerIconSize / 2 + 16.dp))
+            )
         }
     }
 }
