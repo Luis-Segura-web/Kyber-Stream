@@ -122,6 +122,7 @@ open class ChannelsViewModel(
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
     private lateinit var vlcPlayerListener: MediaPlayer.EventListener
+    private var softwareFallbackTried = false
 
     init {
         setupRetryManager()
@@ -203,25 +204,37 @@ open class ChannelsViewModel(
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> {
                     Log.e("ChannelsViewModel", "VLC encountered error")
-                    // Only trigger retry if we're not already in a retry state
-                    // Let the current retry system handle the failure naturally
-                    if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
-                        Log.d("ChannelsViewModel", "VLC error occurred outside retry system, triggering retry")
-                        val currentChannel = _uiState.value.currentlyPlaying
-                        if (currentChannel != null && !retryManager.isRetrying()) {
-                            retryManager.startRetry(viewModelScope) {
-                                try {
-                                    playChannelInternal(currentChannel)
-                                } catch (e: Exception) {
-                                    Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
-                                    false
-                                }
+                    val currentChannel = _uiState.value.currentlyPlaying
+                    if (!softwareFallbackTried && currentChannel != null) {
+                        softwareFallbackTried = true
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                playChannelInternal(currentChannel, forceSoftwareDecoding = true)
+                            } catch (e: Exception) {
+                                Log.e("ChannelsViewModel", "Retry with software decoding failed: ${e.message}", e)
+                                false
                             }
                         }
+                        null
                     } else {
-                        Log.d("ChannelsViewModel", "VLC error during retry - letting retry system handle it")
+                        // Only trigger retry if we're not already in a retry state
+                        if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
+                            Log.d("ChannelsViewModel", "VLC error occurred outside retry system, triggering retry")
+                            if (currentChannel != null && !retryManager.isRetrying()) {
+                                retryManager.startRetry(viewModelScope) {
+                                    try {
+                                        playChannelInternal(currentChannel)
+                                    } catch (e: Exception) {
+                                        Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
+                                        false
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.d("ChannelsViewModel", "VLC error during retry - letting retry system handle it")
+                        }
+                        PlayerStatus.ERROR
                     }
-                    PlayerStatus.ERROR
                 }
                 MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
                 else -> null
@@ -277,6 +290,7 @@ open class ChannelsViewModel(
                     _uiState.value.categories.flatMap { it.channels }
             val index = allVisibleChannels.indexOfFirst { it.streamId == channel.streamId }
 
+            softwareFallbackTried = false
             _uiState.update {
                 it.copy(
                     currentlyPlaying = channel,
@@ -303,10 +317,15 @@ open class ChannelsViewModel(
         }
     }
 
-    private suspend fun playChannelInternal(channel: LiveStream): Boolean {
+    private suspend fun playChannelInternal(channel: LiveStream, forceSoftwareDecoding: Boolean = false): Boolean {
         return try {
             val streamUrl = buildStreamUrl(channel)
-            val vlcOptions = preferenceManager.getVLCOptions()
+            val vlcOptions = preferenceManager.getVLCOptions().apply {
+                if (forceSoftwareDecoding) {
+                    removeAll { it.startsWith("--avcodec-hw") }
+                    add("--avcodec-hw=none")
+                }
+            }
             val media = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }

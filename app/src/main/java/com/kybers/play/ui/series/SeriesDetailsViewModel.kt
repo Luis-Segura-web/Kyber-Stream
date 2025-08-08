@@ -105,6 +105,7 @@ class SeriesDetailsViewModel(
 
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
+    private var softwareFallbackTried = false
 
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
@@ -303,26 +304,37 @@ class SeriesDetailsViewModel(
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> {
                     Log.e("SeriesDetailsViewModel", "VLC encountered error")
-                    // Only trigger retry if we're not already in a retry state
-                    // Let the current retry system handle the failure naturally
-                    val currentState = _uiState.value.playerStatus
-                    if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
-                        Log.d("SeriesDetailsViewModel", "VLC error occurred outside retry system, triggering retry")
-                        val currentEpisode = _uiState.value.currentlyPlayingEpisode
-                        if (currentEpisode != null && !retryManager.isRetrying()) {
-                            retryManager.startRetry(viewModelScope) {
-                                try {
-                                    startEpisodePlaybackInternal(currentEpisode, false)
-                                } catch (e: Exception) {
-                                    Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
-                                    false
-                                }
+                    val currentEpisode = _uiState.value.currentlyPlayingEpisode
+                    if (!softwareFallbackTried && currentEpisode != null) {
+                        softwareFallbackTried = true
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                startEpisodePlaybackInternal(currentEpisode, resumeFromSaved = false, forceSoftwareDecoding = true)
+                            } catch (e: Exception) {
+                                Log.e("SeriesDetailsViewModel", "Retry with software decoding failed: ${e.message}", e)
+                                false
                             }
                         }
+                        null
                     } else {
-                        Log.d("SeriesDetailsViewModel", "VLC error during retry - letting retry system handle it")
+                        // Only trigger retry if we're not already in a retry state
+                        if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
+                            Log.d("SeriesDetailsViewModel", "VLC error occurred outside retry system, triggering retry")
+                            if (currentEpisode != null && !retryManager.isRetrying()) {
+                                retryManager.startRetry(viewModelScope) {
+                                    try {
+                                        startEpisodePlaybackInternal(currentEpisode, false)
+                                    } catch (e: Exception) {
+                                        Log.e("SeriesDetailsViewModel", "Retry failed: ${e.message}", e)
+                                        false
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.d("SeriesDetailsViewModel", "VLC error during retry - letting retry system handle it")
+                        }
+                        PlayerStatus.ERROR
                     }
-                    PlayerStatus.ERROR
                 }
                 MediaPlayer.Event.EndReached -> {
                     saveCurrentEpisodeProgress(markAsFinished = true)
@@ -389,6 +401,7 @@ class SeriesDetailsViewModel(
             saveCurrentEpisodeProgress()
         }
 
+        softwareFallbackTried = false
         _uiState.update {
             it.copy(
                 currentlyPlayingEpisode = episode,
@@ -410,10 +423,15 @@ class SeriesDetailsViewModel(
         }
     }
 
-    private suspend fun startEpisodePlaybackInternal(episode: Episode, resumeFromSaved: Boolean): Boolean {
+    private suspend fun startEpisodePlaybackInternal(episode: Episode, resumeFromSaved: Boolean, forceSoftwareDecoding: Boolean = false): Boolean {
         return try {
             val streamUrl = buildStreamUrl(episode)
-            val vlcOptions = preferenceManager.getVLCOptions()
+            val vlcOptions = preferenceManager.getVLCOptions().apply {
+                if (forceSoftwareDecoding) {
+                    removeAll { it.startsWith("--avcodec-hw") }
+                    add("--avcodec-hw=none")
+                }
+            }
             val newMedia = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }

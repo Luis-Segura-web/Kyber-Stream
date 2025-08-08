@@ -37,6 +37,7 @@ class PlayerManager(
     private var onRetrySuccess: (() -> Unit)? = null
     private var onRetryFailed: (() -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
+    private var softwareFallbackTried = false
     
     /**
      * Initialize VLC components and network observer if not already initialized
@@ -150,10 +151,16 @@ class PlayerManager(
                     isPlaybackActive = false
                 }
                 MediaPlayer.Event.EncounteredError -> {
-                    Log.e(TAG, "VLC Error encountered, triggering retry")
+                    Log.e(TAG, "VLC Error encountered")
                     isPlaybackActive = false
-                    onError?.invoke("Error de reproducción detectado")
-                    retryCurrentMedia()
+                    val url = currentUrl
+                    if (!softwareFallbackTried && url != null) {
+                        Log.w(TAG, "Unknown format? retrying with software decoding")
+                        playMedia(url, forceSoftwareDecoding = true)
+                    } else {
+                        onError?.invoke("Error de reproducción detectado")
+                        retryCurrentMedia()
+                    }
                 }
                 MediaPlayer.Event.EndReached -> {
                     Log.d(TAG, "Media playback ended")
@@ -173,10 +180,11 @@ class PlayerManager(
     /**
      * Play media with safe resource management and retry capability
      */
-    fun playMedia(url: String) {
+    fun playMedia(url: String, forceSoftwareDecoding: Boolean = false) {
         initializeVLC()
         currentUrl = url // Store current URL for retry
         isPlaybackActive = true
+        softwareFallbackTried = forceSoftwareDecoding
         
         // Check network connectivity before attempting playback
         if (networkObserver?.isCurrentlyConnected() == false) {
@@ -188,6 +196,7 @@ class PlayerManager(
         retryManager?.startRetry(scope) {
             try {
                 val media = Media(libVLC!!, android.net.Uri.parse(url))
+                if (forceSoftwareDecoding) media.addOption("--avcodec-hw=none")
                 mediaManager.setMediaSafely(mediaPlayer!!, media)
                 mediaPlayer!!.play()
                 Log.d(TAG, "Media playback started successfully")
@@ -200,6 +209,7 @@ class PlayerManager(
             // Fallback if retry manager not set up
             try {
                 val media = Media(libVLC!!, android.net.Uri.parse(url))
+                if (forceSoftwareDecoding) media.addOption("--avcodec-hw=none")
                 mediaManager.setMediaSafely(mediaPlayer!!, media)
                 mediaPlayer!!.play()
                 Log.d(TAG, "Media playback started (no retry)")
@@ -217,7 +227,7 @@ class PlayerManager(
         val url = currentUrl
         if (url != null && retryManager != null) {
             Log.d(TAG, "Retrying current media: $url")
-            playMedia(url)
+            playMedia(url, softwareFallbackTried)
         } else {
             Log.w(TAG, "Cannot retry: no current URL or retry manager")
             onError?.invoke("Error al reintentar la reproducción")
