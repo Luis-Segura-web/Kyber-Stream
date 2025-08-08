@@ -1,64 +1,69 @@
 package com.kybers.play.ui.player
 
 import android.util.Log
-import android.view.TextureView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
+import org.videolan.libvlc.IVLCVout
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 
 /**
- * Un Composable reutilizable que muestra el video de un MediaPlayer de VLC
- * usando una TextureView para ser compatible con otros elementos de la UI.
- * Includes enhanced error handling for VLC operations.
+ * Composable reutilizable que muestra el video de un MediaPlayer de VLC
+ * usando [VLCVideoLayout] para gestionar correctamente las superficies y
+ * callbacks del video.
  */
 @Composable
 fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
+    val vlcVout = mediaPlayer.vlcVout
+    val voutCallback = remember {
+        object : IVLCVout.Callback {
+            override fun onNewVideoLayout(
+                vlcVout: IVLCVout?,
+                width: Int,
+                height: Int,
+                visibleWidth: Int,
+                visibleHeight: Int,
+                sarNum: Int,
+                sarDen: Int
+            ) {
+                Log.d("VLCPlayer", "New video layout: ${width}x${height}")
+            }
+
+            override fun onSurfacesCreated(vlcVout: IVLCVout?) {
+                Log.d("VLCPlayer", "Surfaces created")
+            }
+
+            override fun onSurfacesDestroyed(vlcVout: IVLCVout?) {
+                Log.d("VLCPlayer", "Surfaces destroyed")
+            }
+        }
+    }
+
+    DisposableEffect(vlcVout) {
+        vlcVout.addCallback(voutCallback)
+        onDispose {
+            vlcVout.removeCallback(voutCallback)
+            vlcVout.detachViews()
+        }
+    }
+
     Box(modifier = modifier.background(Color.Black)) {
         AndroidView(
             factory = { context ->
-                TextureView(context).apply {
-                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                        override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                            try {
-                                mediaPlayer.vlcVout.setVideoSurface(android.view.Surface(surface), null)
-                                mediaPlayer.vlcVout.setWindowSize(width, height)
-                                mediaPlayer.vlcVout.attachViews()
-                                Log.d("VLCPlayer", "Surface attached successfully")
-                            } catch (e: Exception) {
-                                Log.e("VLCPlayer", "Error setting up video surface", e)
-                            }
-                        }
-
-                        override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                            try {
-                                mediaPlayer.vlcVout.setWindowSize(width, height)
-                                Log.d("VLCPlayer", "Surface size changed: ${width}x${height}")
-                            } catch (e: Exception) {
-                                Log.e("VLCPlayer", "Error updating surface size", e)
-                            }
-                        }
-
-                        override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
-                            try {
-                                mediaPlayer.vlcVout.detachViews()
-                                Log.d("VLCPlayer", "Surface detached successfully")
-                                return true
-                            } catch (e: Exception) {
-                                Log.e("VLCPlayer", "Error detaching surface", e)
-                                return true // Return true anyway to free the surface
-                            }
-                        }
-
-                        override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {}
-                    }
+                VLCVideoLayout(context).also { layout ->
+                    vlcVout.setVideoView(layout)
+                    vlcVout.attachViews()
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
+
