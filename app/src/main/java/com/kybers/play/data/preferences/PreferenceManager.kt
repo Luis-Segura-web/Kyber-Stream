@@ -179,8 +179,12 @@ class PreferenceManager(context: Context) {
         // Apply network buffer setting
         val networkBuffer = getNetworkBuffer()
         val bufferValue = when (networkBuffer) {
-            "LOW" -> "1000"
+            // New standard values used across UI and dynamic recommendations
+            "SMALL" -> "1000"
             "MEDIUM" -> "3000"
+            "LARGE" -> "5000"
+            // Legacy values kept for backward compatibility
+            "LOW" -> "1000"
             "HIGH" -> "5000"
             "ULTRA" -> "8000"
             else -> "3000"
