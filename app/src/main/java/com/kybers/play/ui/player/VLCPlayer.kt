@@ -11,8 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import org.videolan.libvlc.IVLCVout
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IVLCVout
 import org.videolan.libvlc.util.VLCVideoLayout
 
 /**
@@ -26,7 +26,7 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
     val vlcVout = mediaPlayer.vlcVout
     val videoLayout = remember { VLCVideoLayout(context) }
     val voutCallback = remember {
-        object : IVLCVout.Callback {
+        object : IVLCVout.Callback, IVLCVout.OnNewVideoLayoutListener {
             override fun onNewVideoLayout(
                 vlcVout: IVLCVout?,
                 width: Int,
@@ -49,13 +49,12 @@ fun VLCPlayer(mediaPlayer: MediaPlayer, modifier: Modifier = Modifier) {
         }
     }
 
-    DisposableEffect(vlcVout, videoLayout) {
-        vlcVout.setVideoView(videoLayout)
-        vlcVout.attachViews()
+    DisposableEffect(mediaPlayer, videoLayout) {
         vlcVout.addCallback(voutCallback)
+        mediaPlayer.attachViews(videoLayout, null, false, false)
         onDispose {
             vlcVout.removeCallback(voutCallback)
-            vlcVout.detachViews()
+            mediaPlayer.detachViews()
         }
     }
 
