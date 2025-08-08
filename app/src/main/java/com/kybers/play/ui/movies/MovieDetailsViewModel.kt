@@ -124,6 +124,7 @@ class MovieDetailsViewModel(
 
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
+    private var softwareFallbackTried = false
 
     init {
         loadInitialData()
@@ -349,25 +350,37 @@ class MovieDetailsViewModel(
                 MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
                 MediaPlayer.Event.EncounteredError -> {
                     Log.e("MovieDetailsViewModel", "VLC encountered error")
-                    // Only trigger retry if we're not already in a retry state
-                    // Let the current retry system handle the failure naturally
-                    val currentState = _uiState.value.playerStatus
-                    if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
-                        Log.d("MovieDetailsViewModel", "VLC error occurred outside retry system, triggering retry")
-                        if (!retryManager.isRetrying()) {
-                            retryManager.startRetry(viewModelScope) {
-                                try {
-                                    startPlaybackInternal(_uiState.value.playbackPosition > 0)
-                                } catch (e: Exception) {
-                                    Log.e("MovieDetailsViewModel", "Retry failed: ${e.message}", e)
-                                    false
-                                }
+                    if (!softwareFallbackTried) {
+                        softwareFallbackTried = true
+                        retryManager.startRetry(viewModelScope) {
+                            try {
+                                startPlaybackInternal(_uiState.value.playbackPosition > 0, forceSoftwareDecoding = true)
+                            } catch (e: Exception) {
+                                Log.e("MovieDetailsViewModel", "Retry with software decoding failed: ${e.message}", e)
+                                false
                             }
                         }
+                        null
                     } else {
-                        Log.d("MovieDetailsViewModel", "VLC error during retry - letting retry system handle it")
+                        // Only trigger retry if we're not already in a retry state
+                        val currentState = _uiState.value.playerStatus
+                        if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
+                            Log.d("MovieDetailsViewModel", "VLC error occurred outside retry system, triggering retry")
+                            if (!retryManager.isRetrying()) {
+                                retryManager.startRetry(viewModelScope) {
+                                    try {
+                                        startPlaybackInternal(_uiState.value.playbackPosition > 0)
+                                    } catch (e: Exception) {
+                                        Log.e("MovieDetailsViewModel", "Retry failed: ${e.message}", e)
+                                        false
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.d("MovieDetailsViewModel", "VLC error during retry - letting retry system handle it")
+                        }
+                        PlayerStatus.ERROR
                     }
-                    PlayerStatus.ERROR
                 }
                 MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
                 MediaPlayer.Event.TimeChanged -> {
@@ -432,12 +445,13 @@ class MovieDetailsViewModel(
 
     fun startPlayback(continueFromLastPosition: Boolean) {
         viewModelScope.launch {
-            _uiState.update { 
+            softwareFallbackTried = false
+            _uiState.update {
                 it.copy(
                     playerStatus = PlayerStatus.LOADING,
                     retryAttempt = 0,
                     retryMessage = null
-                ) 
+                )
             }
             
             // Try to start playback with retry mechanism
@@ -452,11 +466,16 @@ class MovieDetailsViewModel(
         }
     }
 
-    private suspend fun startPlaybackInternal(continueFromLastPosition: Boolean): Boolean {
+    private suspend fun startPlaybackInternal(continueFromLastPosition: Boolean, forceSoftwareDecoding: Boolean = false): Boolean {
         return try {
             val movie = _uiState.value.movie ?: throw IllegalStateException("No movie selected")
             val streamUrl = buildStreamUrl(movie)
-            val vlcOptions = preferenceManager.getVLCOptions()
+            val vlcOptions = preferenceManager.getVLCOptions().apply {
+                if (forceSoftwareDecoding) {
+                    removeAll { it.startsWith("--avcodec-hw") }
+                    add("--avcodec-hw=none")
+                }
+            }
             val newMedia = Media(libVLC, streamUrl.toUri()).apply {
                 vlcOptions.forEach { addOption(it) }
             }
