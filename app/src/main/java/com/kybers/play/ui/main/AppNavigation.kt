@@ -154,8 +154,10 @@ private fun MainScreenWithBottomNav(
                     viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToMovie = { newMovieId ->
-                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
-                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
+                        navController.currentDestination?.id?.let { destinationId ->
+                            navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
+                                popUpTo(destinationId) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -171,8 +173,10 @@ private fun MainScreenWithBottomNav(
                     viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToSeries = { newSeriesId ->
-                        navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
-                            popUpTo(navController.currentDestination!!.id) { inclusive = true }
+                        navController.currentDestination?.id?.let { destinationId ->
+                            navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
+                                popUpTo(destinationId) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -252,7 +256,7 @@ fun AppNavHost(
                     }
                 }
                 uiState.user != null -> {
-                    val user = uiState.user!!
+                    val user = requireNotNull(uiState.user)
                     val vodRepository = uiState.vodRepository!!
                     val liveRepository = uiState.liveRepository!!
 
