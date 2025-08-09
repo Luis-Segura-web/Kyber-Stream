@@ -610,6 +610,7 @@ private fun SeriesActionButtonsSection(
     modifier: Modifier = Modifier
 ) {
     val continueEpisode = viewModel.getContinueWatchingEpisode()
+    val lastWatchedEpisode = viewModel.getLastWatchedEpisode()
     val allEpisodes = uiState.episodesBySeason.values.flatten()
     val firstEpisode = allEpisodes.minWithOrNull(compareBy<Episode>({ it.season }, { it.episodeNum }))
     val hasProgress = continueEpisode != null && continueEpisode != firstEpisode
@@ -687,6 +688,7 @@ fun SeriesCarousel(title: String, series: List<Series>, onSeriesClick: (Int) -> 
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 items(series, key = { it.seriesId }) { seriesItem ->
                     EnhancedSeriesPosterItem(
                         series = seriesItem,
