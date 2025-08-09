@@ -609,8 +609,11 @@ private fun SeriesActionButtonsSection(
     viewModel: SeriesDetailsViewModel,
     modifier: Modifier = Modifier
 ) {
+    val continueEpisode = viewModel.getContinueWatchingEpisode()
     val lastWatchedEpisode = viewModel.getLastWatchedEpisode()
-    val hasProgress = lastWatchedEpisode != null
+    val allEpisodes = uiState.episodesBySeason.values.flatten()
+    val firstEpisode = allEpisodes.minWithOrNull(compareBy<Episode>({ it.season }, { it.episodeNum }))
+    val hasProgress = continueEpisode != null && continueEpisode != firstEpisode
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -624,7 +627,7 @@ private fun SeriesActionButtonsSection(
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
-                imageVector = if (hasProgress) Icons.Default.PlayArrow else Icons.Default.PlayArrow,
+                imageVector = Icons.Default.PlayArrow,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp)
             )
@@ -637,16 +640,13 @@ private fun SeriesActionButtonsSection(
             )
         }
 
-        // Información del último episodio visto
+        // Botón para reiniciar la serie
         if (hasProgress) {
             OutlinedButton(
-                onClick = { 
-                    // Start from beginning of the series
-                    val firstEpisode = uiState.episodesBySeason.values.flatten()
-                        .minByOrNull { it.episodeNum }
+                onClick = {
                     firstEpisode?.let { viewModel.playEpisode(it) }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(
                     imageVector = Icons.Default.Replay,

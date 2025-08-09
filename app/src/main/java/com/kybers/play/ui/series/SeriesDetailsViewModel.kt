@@ -501,8 +501,15 @@ class SeriesDetailsViewModel(
         val isConsideredFinished = markAsFinished || (duration > 0 && (duration - position) < 5000)
         val finalPosition = if (isConsideredFinished) duration else position
 
-        // Guardamos la posición y la duración real.
+        // Guardamos la posición del episodio y de la serie para la pantalla principal
         preferenceManager.saveEpisodePlaybackState(episode.id, finalPosition, duration)
+
+        val allEpisodes = _uiState.value.episodesBySeason.values.flatten()
+        val currentIndex = allEpisodes.indexOf(episode)
+        val isLastEpisode = currentIndex == allEpisodes.lastIndex
+        val seriesProgress = if (isLastEpisode && isConsideredFinished) 0L else finalPosition
+        preferenceManager.savePlaybackPosition(seriesId.toString(), seriesProgress)
+
         // Actualizamos el estado de la UI para que la barra de progreso se actualice al instante.
         _uiState.update {
             it.copy(playbackStates = it.playbackStates + (episode.id to (finalPosition to duration)))
@@ -594,14 +601,39 @@ class SeriesDetailsViewModel(
     }
     
     /**
-     * Get the episode to continue watching from - either last watched or first episode
+     * Obtiene el episodio adecuado para continuar.
+     * - Si hay un episodio en progreso, lo devuelve.
+     * - Si todos los episodios anteriores están completos, devuelve el siguiente sin ver.
+     * - En caso contrario, el primer episodio de la serie.
      */
     fun getContinueWatchingEpisode(): Episode? {
-        // First try to find the last watched episode
-        getLastWatchedEpisode()?.let { return it }
-        
-        // If no episode in progress, return the first episode of the selected season
-        return _uiState.value.episodesBySeason[_uiState.value.selectedSeasonNumber]?.firstOrNull()
+        val playbackStates = _uiState.value.playbackStates
+        val episodes = _uiState.value.episodesBySeason.values.flatten()
+            .sortedWith(compareBy<Episode>({ it.season }, { it.episodeNum }))
+
+        // Episodio en progreso
+        episodes.firstOrNull { episode ->
+            val state = playbackStates[episode.id]
+            val progress = if (state != null && state.second > 0) {
+                state.first.toFloat() / state.second.toFloat()
+            } else 0f
+            progress > 0.05f && progress < 0.90f
+        }?.let { return it }
+
+        // Siguiente después del último completado
+        val lastCompletedIndex = episodes.indexOfLast { episode ->
+            val state = playbackStates[episode.id]
+            val progress = if (state != null && state.second > 0) {
+                state.first.toFloat() / state.second.toFloat()
+            } else 0f
+            progress >= 0.90f
+        }
+        if (lastCompletedIndex != -1 && lastCompletedIndex < episodes.lastIndex) {
+            return episodes[lastCompletedIndex + 1]
+        }
+
+        // Default al primer episodio
+        return episodes.firstOrNull()
     }
     
     /**
