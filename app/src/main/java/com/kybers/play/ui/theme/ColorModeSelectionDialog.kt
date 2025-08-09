@@ -146,7 +146,7 @@ fun ThemePreviewCard(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = colors["surface"]!!
+            containerColor = colors["surface"] ?: Color.Unspecified
         )
     ) {
         Column(
@@ -156,7 +156,7 @@ fun ThemePreviewCard(
             Text(
                 text = "Vista Previa",
                 style = MaterialTheme.typography.labelMedium,
-                color = colors["onSurface"]!!.copy(alpha = 0.7f),
+                color = (colors["onSurface"] ?: Color.Unspecified).copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -167,7 +167,7 @@ fun ThemePreviewCard(
                     .fillMaxWidth()
                     .height(40.dp)
                     .clip(RoundedCornerShape(8.dp)),
-                color = colors["primary"]!!
+                color = colors["primary"] ?: Color.Unspecified
             ) {
                 Row(
                     modifier = Modifier
@@ -197,7 +197,7 @@ fun ThemePreviewCard(
                     .fillMaxWidth()
                     .height(60.dp)
                     .clip(RoundedCornerShape(8.dp)),
-                color = colors["background"]!!
+                color = colors["background"] ?: Color.Unspecified
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
@@ -208,21 +208,21 @@ fun ThemePreviewCard(
                             .fillMaxWidth(0.7f)
                             .height(6.dp),
                         shape = RoundedCornerShape(3.dp),
-                        color = colors["onSurface"]!!.copy(alpha = 0.8f)
+                        color = (colors["onSurface"] ?: Color.Unspecified).copy(alpha = 0.8f)
                     ) {}
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth(0.5f)
                             .height(4.dp),
                         shape = RoundedCornerShape(2.dp),
-                        color = colors["onSurface"]!!.copy(alpha = 0.6f)
+                        color = (colors["onSurface"] ?: Color.Unspecified).copy(alpha = 0.6f)
                     ) {}
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth(0.3f)
                             .height(4.dp),
                         shape = RoundedCornerShape(2.dp),
-                        color = colors["onSurface"]!!.copy(alpha = 0.4f)
+                        color = (colors["onSurface"] ?: Color.Unspecified).copy(alpha = 0.4f)
                     ) {}
                 }
             }
