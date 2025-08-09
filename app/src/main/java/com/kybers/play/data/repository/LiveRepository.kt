@@ -13,6 +13,7 @@ import com.kybers.play.util.XmlTvParser
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlin.io.use
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.io.IOException
@@ -133,11 +134,12 @@ class LiveRepository(
                 .groupBy({ it.epgChannelId!!.lowercase().trim() }, { it.streamId })
 
             val response = xtreamApiService.getXmlTvEpg(user = user, pass = pass)
-            if (response.isSuccessful && response.body() != null) {
-                val inputStream = response.body()!!.byteStream()
-                val allEpgEvents = XmlTvParser.parse(inputStream, epgIdToStreamIdsMap, userId)
-                epgEventDao.replaceAll(allEpgEvents, userId)
-                Log.d("LiveRepository", "EPG cacheada. Se procesaron ${allEpgEvents.size} eventos.")
+            if (response.isSuccessful) {
+                response.body()?.byteStream()?.use { input ->
+                    val allEpgEvents = XmlTvParser.parse(input, epgIdToStreamIdsMap, userId)
+                    epgEventDao.replaceAll(allEpgEvents, userId)
+                    Log.d("LiveRepository", "EPG cacheada. Se procesaron ${allEpgEvents.size} eventos.")
+                }
             }
         } catch (e: Exception) {
             Log.e("LiveRepository", "Error al cachear datos de EPG", e)
