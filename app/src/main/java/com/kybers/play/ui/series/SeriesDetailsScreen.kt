@@ -160,7 +160,7 @@ fun SeriesDetailsScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else if (uiState.error != null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = uiState.error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                    Text(text = uiState.error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
                 }
             } else {
                 SeriesPlayerSection(viewModel = viewModel, audioManager = audioManager, onNavigateUp = onNavigateUp)
