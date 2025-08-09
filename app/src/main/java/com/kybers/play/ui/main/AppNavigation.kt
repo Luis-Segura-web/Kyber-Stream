@@ -154,9 +154,10 @@ private fun MainScreenWithBottomNav(
                     viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToMovie = { newMovieId ->
-                        val destinationId = navController.currentDestination?.id ?: return@onNavigateToMovie
-                        navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
-                            popUpTo(destinationId) { inclusive = true }
+                        navController.currentDestination?.id?.let { destinationId ->
+                            navController.navigate(Screen.MovieDetails.createRoute(newMovieId)) {
+                                popUpTo(destinationId) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -172,9 +173,10 @@ private fun MainScreenWithBottomNav(
                     viewModel = viewModel,
                     onNavigateUp = { navController.popBackStack() },
                     onNavigateToSeries = { newSeriesId ->
-                        val destinationId = navController.currentDestination?.id ?: return@onNavigateToSeries
-                        navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
-                            popUpTo(destinationId) { inclusive = true }
+                        navController.currentDestination?.id?.let { destinationId ->
+                            navController.navigate(Screen.SeriesDetails.createRoute(newSeriesId)) {
+                                popUpTo(destinationId) { inclusive = true }
+                            }
                         }
                     }
                 )
