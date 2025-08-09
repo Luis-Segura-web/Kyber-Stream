@@ -23,6 +23,8 @@ import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.sync.SyncViewModel
+import com.kybers.play.ui.main.MainViewModel
+import com.kybers.play.AppContainer
 
 class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -166,6 +168,19 @@ class SettingsViewModelFactory(
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return SettingsViewModel(context, liveRepository, vodRepository, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+    }
+}
+
+class MainViewModelFactory(
+    private val appContainer: AppContainer,
+    private val userId: Int
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return MainViewModel(appContainer, userId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

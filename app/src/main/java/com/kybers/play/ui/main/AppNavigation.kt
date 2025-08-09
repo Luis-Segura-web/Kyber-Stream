@@ -15,6 +15,8 @@ import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
 import com.kybers.play.ui.LoginViewModelFactory
 import com.kybers.play.ui.SyncViewModelFactory
+import com.kybers.play.ui.MainViewModelFactory
+import com.kybers.play.ui.main.MainViewModel
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.movies.MovieDetailsScreen
@@ -236,34 +238,32 @@ fun AppNavHost(
             arguments = listOf(navArgument("userId") { type = NavType.IntType })
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
-            
-            // Load user and create all necessary factories
-            var user by remember { mutableStateOf<com.kybers.play.data.local.model.User?>(null) }
-            var isLoading by remember { mutableStateOf(true) }
-            
-            LaunchedEffect(userId) {
-                user = appContainer.userRepository.getUserById(userId)
-                isLoading = false
+
+            val mainViewModelFactory = remember(userId) {
+                MainViewModelFactory(appContainer = appContainer, userId = userId)
             }
-            
+            val mainViewModel: MainViewModel = viewModel(factory = mainViewModelFactory)
+            val uiState by mainViewModel.uiState.collectAsState()
+
             when {
-                isLoading -> {
+                uiState.isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         androidx.compose.material3.CircularProgressIndicator()
                     }
                 }
-                user != null -> {
-                    val vodRepository = remember(user!!.url) { appContainer.createVodRepository(user!!.url) }
-                    val liveRepository = remember(user!!.url) { appContainer.createLiveRepository(user!!.url) }
+                uiState.user != null -> {
+                    val user = uiState.user!!
+                    val vodRepository = uiState.vodRepository!!
+                    val liveRepository = uiState.liveRepository!!
 
-                    val contentViewModelFactory = remember(user!!.id) {
+                    val contentViewModelFactory = remember(user.id) {
                         ContentViewModelFactory(
                             application = application,
                             vodRepository = vodRepository,
                             liveRepository = liveRepository,
                             detailsRepository = appContainer.detailsRepository,
                             externalApiService = appContainer.tmdbApiService,
-                            currentUser = user!!,
+                            currentUser = user,
                             preferenceManager = appContainer.preferenceManager,
                             syncManager = appContainer.syncManager,
                             parentalControlManager = appContainer.parentalControlManager
@@ -278,7 +278,7 @@ fun AppNavHost(
                                 detailsRepository = appContainer.detailsRepository,
                                 externalApiService = appContainer.tmdbApiService,
                                 preferenceManager = appContainer.preferenceManager,
-                                currentUser = user!!,
+                                currentUser = user,
                                 movieId = movieId
                             )
                         }
@@ -292,7 +292,7 @@ fun AppNavHost(
                                 vodRepository = vodRepository,
                                 detailsRepository = appContainer.detailsRepository,
                                 externalApiService = appContainer.tmdbApiService,
-                                currentUser = user!!,
+                                currentUser = user,
                                 seriesId = seriesId
                             )
                         }
@@ -306,14 +306,13 @@ fun AppNavHost(
                                 vodRepository = vodRepository,
                                 preferenceManager = appContainer.preferenceManager,
                                 syncManager = appContainer.syncManager,
-                                currentUser = user!!,
+                                currentUser = user,
                                 parentalControlManager = appContainer.parentalControlManager,
                                 themeManager = themeManager
                             )
                         }
                     }
 
-                    // Show the MainScreen with bottom navigation
                     MainScreenWithBottomNav(
                         contentViewModelFactory = contentViewModelFactory,
                         movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
@@ -322,14 +321,13 @@ fun AppNavHost(
                         currentUserId = userId,
                         onPlayerUiStateChanged = { _, _ -> /* Handle player UI state changes if needed */ },
                         onLogout = {
-                            // Navigate to splash to restart the flow
                             navController.navigate(Screen.Splash.route) {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             }
                         }
                     )
-                } else -> {
-                    // User not found, navigate back to login
+                }
+                else -> {
                     LaunchedEffect(Unit) {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
