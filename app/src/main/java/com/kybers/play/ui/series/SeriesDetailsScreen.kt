@@ -156,11 +156,12 @@ fun SeriesDetailsScreen(
                 .fillMaxSize()
                 .padding(if (!uiState.isFullScreen && !uiState.isInPipMode) paddingValues else PaddingValues(0.dp))
         ) {
+            val errorMessage = uiState.error
             if (uiState.isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            } else if (uiState.error != null) {
+            } else if (errorMessage != null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = uiState.error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
                 }
             } else {
                 SeriesPlayerSection(viewModel = viewModel, audioManager = audioManager, onNavigateUp = onNavigateUp)
