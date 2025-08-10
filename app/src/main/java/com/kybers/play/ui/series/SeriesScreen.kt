@@ -696,7 +696,6 @@ fun SortOptionsDialog(
     )
 }
 
-@Composable
 fun SortOrder.toLocalizedName(): String {
     return when (this) {
         SortOrder.DEFAULT -> "Por Defecto"
