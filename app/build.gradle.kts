@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.hilt.android)
 }
 
 kotlin {
@@ -82,6 +83,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.accompanist.systemuicontroller)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.gson)
@@ -96,6 +99,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.hilt.navigation.compose)
 
     // --- ASÍNCRONIA ---
     implementation(libs.kotlinx.coroutines.core)

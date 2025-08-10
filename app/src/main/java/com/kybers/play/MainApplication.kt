@@ -8,6 +8,10 @@ import java.util.concurrent.TimeUnit
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
@@ -26,15 +30,14 @@ import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
 
+@HiltAndroidApp
 class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
 
-    lateinit var container: AppContainer
-        private set
+    @Inject lateinit var container: AppContainer
 
     override fun onCreate() {
         super.onCreate()
         setDefaultLocale()
-        container = AppContainer(this)
         scheduleCacheWorker()
     }
 
@@ -97,7 +100,10 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 }
 
-class AppContainer(private val context: Context) {
+@Singleton
+class AppContainer @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
 
     private val database by lazy { AppDatabase.getDatabase(context) }
     
