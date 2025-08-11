@@ -194,30 +194,28 @@ class PlayerManager(
      * Play media with safe resource management and retry capability
      */
     fun playMedia(url: String, forceSoftwareDecoding: Boolean = false) {
-        Log.i(TAG, "🚀🚀🚀 PlayerManager.playMedia() INICIADO 🚀🚀🚀")
-        Log.i(TAG, "🎯 URL a reproducir: ${url.takeLast(30)}...")
+        // LOGS BÁSICOS - SIN EMOJIS PARA COMPATIBILIDAD
+        Log.d(TAG, "=== PLAYERMANAGER.playMedia() INICIADO ===")
+        Log.d(TAG, "URL: " + url.takeLast(30) + "...")
         
-        // LOG DEBUGGING: Verificar preferencias del reproductor si está disponible
+        // VERIFICAR PREFERENCIAS DEL REPRODUCTOR
         preferenceManager?.let { prefs ->
             val playerPreference = prefs.getPlayerPreference()
-            Log.i(TAG, "🎛️ Preferencia del reproductor desde PreferenceManager: $playerPreference")
+            Log.d(TAG, "PREFERENCIA DETECTADA: " + playerPreference)
             
-            // IMPORTANTE: Este PlayerManager solo soporta VLC actualmente
-            // Si el usuario seleccionó Media3, mostrar advertencia MUY VISIBLE
+            // DIAGNÓSTICO CRÍTICO - ESTE ES EL PROBLEMA PRINCIPAL
             if (playerPreference == "MEDIA3") {
-                Log.e(TAG, "🔴🔴🔴 PROBLEMA CRÍTICO DETECTADO 🔴🔴🔴")
-                Log.e(TAG, "🔴 Usuario seleccionó MEDIA3 pero PlayerManager SOLO soporta VLC")
-                Log.e(TAG, "🔴 EL REPRODUCTOR ESTÁ IGNORANDO LA PREFERENCIA DEL USUARIO!")
-                Log.e(TAG, "🔴 Esto explica por qué Media3 no funciona")
-                Log.e(TAG, "🔴 Solución: Usar ModernPlayerViewModel en lugar de PlayerManager")
-                Log.e(TAG, "🔴🔴🔴 FIN DIAGNÓSTICO - PROBLEMA CONFIRMADO 🔴🔴🔴")
+                Log.e(TAG, "*** PROBLEMA DETECTADO ***")
+                Log.e(TAG, "Usuario eligio MEDIA3 pero PlayerManager solo usa VLC")
+                Log.e(TAG, "POR ESO MEDIA3 NO FUNCIONA - EL CODIGO IGNORA LA PREFERENCIA")
+                Log.e(TAG, "*** FIN DIAGNOSTICO ***")
             } else if (playerPreference == "VLC") {
-                Log.i(TAG, "✅ Usuario seleccionó VLC - PlayerManager puede proceder normalmente")
+                Log.d(TAG, "VLC seleccionado - OK para PlayerManager")
             } else {
-                Log.i(TAG, "📋 Usuario seleccionó AUTO - PlayerManager usará VLC por defecto")
+                Log.d(TAG, "AUTO seleccionado - PlayerManager usara VLC")
             }
         } ?: run {
-            Log.w(TAG, "⚠️ No hay PreferenceManager disponible para verificar preferencias")
+            Log.w(TAG, "Sin PreferenceManager - no se pueden verificar preferencias")
         }
         
         initializeVLC()
