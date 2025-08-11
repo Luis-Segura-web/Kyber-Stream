@@ -19,6 +19,7 @@ import dagger.hilt.components.SingletonComponent
 interface AppDependencies {
     
     @ApplicationContext fun applicationContext(): Context
+    fun application(): Application
     fun repositoryFactory(): RepositoryFactory
     fun detailsRepository(): DetailsRepository
     @TmdbApiService fun tmdbApiService(): ExternalApiService
