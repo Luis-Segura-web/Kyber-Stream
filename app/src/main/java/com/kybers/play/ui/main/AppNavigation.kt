@@ -91,9 +91,7 @@ private fun MainScreenWithBottomNav(
     val movieDetailsViewModelFactoryProvider = @Composable { movieId: Int ->
         remember(movieId) {
             com.kybers.play.ui.MovieDetailsViewModelFactory(
-                application = (hiltEntryPoint.applicationContext() as? android.app.Application)
-                    ?: (context.applicationContext as? android.app.Application)
-                    ?: throw IllegalStateException("Application instance not found"),
+                application = hiltEntryPoint.application(),
                 vodRepository = vodRepository,
                 detailsRepository = hiltEntryPoint.detailsRepository(),
                 externalApiService = hiltEntryPoint.tmdbApiService(),
