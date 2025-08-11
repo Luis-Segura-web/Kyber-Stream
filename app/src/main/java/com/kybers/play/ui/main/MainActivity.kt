@@ -15,16 +15,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val appContainer = (application as MainApplication).container
-
         setContent {
             val themeManager = rememberThemeManager(this@MainActivity)
             IPTVAppTheme(themeManager = themeManager) {
                 val navController = rememberNavController()
                 AppNavHost(
                     navController = navController,
-                    appContainer = appContainer,
-                    application = application,
                     themeManager = themeManager
                 )
             }

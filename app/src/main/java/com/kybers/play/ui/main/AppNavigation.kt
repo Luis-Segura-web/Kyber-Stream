@@ -3,6 +3,7 @@ package com.kybers.play.ui.main
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -38,6 +39,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
+import dagger.hilt.android.EntryPointAccessors
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(
@@ -64,23 +66,37 @@ private fun MainScreenWithBottomNav(
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
 
-    // Get the factory provider using Hilt
-    val factoryProvider: com.kybers.play.di.ViewModelFactoryProvider = hiltViewModel()
+    // Get dependencies from Hilt using EntryPoint
+    val context = LocalContext.current
+    val hiltEntryPoint = EntryPointAccessors.fromApplication(
+        context.applicationContext,
+        com.kybers.play.di.AppDependencies::class.java
+    )
 
     // Create factories for each ViewModel type
     val contentViewModelFactory = remember(user.id) {
-        factoryProvider.createContentViewModelFactory(
-            currentUser = user,
+        com.kybers.play.ui.ContentViewModelFactory(
+            application = hiltEntryPoint.applicationContext() as android.app.Application,
             vodRepository = vodRepository,
-            liveRepository = liveRepository
+            liveRepository = liveRepository,
+            detailsRepository = hiltEntryPoint.detailsRepository(),
+            externalApiService = hiltEntryPoint.tmdbApiService(),
+            currentUser = user,
+            preferenceManager = hiltEntryPoint.preferenceManager(),
+            syncManager = hiltEntryPoint.syncManager(),
+            parentalControlManager = hiltEntryPoint.parentalControlManager()
         )
     }
 
     val movieDetailsViewModelFactoryProvider = @Composable { movieId: Int ->
         remember(movieId) {
-            factoryProvider.createMovieDetailsViewModelFactory(
-                currentUser = user,
+            com.kybers.play.ui.MovieDetailsViewModelFactory(
+                application = hiltEntryPoint.applicationContext() as android.app.Application,
                 vodRepository = vodRepository,
+                detailsRepository = hiltEntryPoint.detailsRepository(),
+                externalApiService = hiltEntryPoint.tmdbApiService(),
+                preferenceManager = hiltEntryPoint.preferenceManager(),
+                currentUser = user,
                 movieId = movieId
             )
         }
@@ -88,9 +104,13 @@ private fun MainScreenWithBottomNav(
 
     val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
         remember(seriesId) {
-            factoryProvider.createSeriesDetailsViewModelFactory(
-                currentUser = user,
+            com.kybers.play.ui.SeriesDetailsViewModelFactory(
+                application = hiltEntryPoint.applicationContext() as android.app.Application,
+                preferenceManager = hiltEntryPoint.preferenceManager(),
                 vodRepository = vodRepository,
+                detailsRepository = hiltEntryPoint.detailsRepository(),
+                externalApiService = hiltEntryPoint.tmdbApiService(),
+                currentUser = user,
                 seriesId = seriesId
             )
         }
@@ -98,10 +118,14 @@ private fun MainScreenWithBottomNav(
 
     val settingsViewModelFactoryProvider = @Composable {
         remember {
-            factoryProvider.createSettingsViewModelFactory(
-                currentUser = user,
+            com.kybers.play.ui.SettingsViewModelFactory(
+                context = hiltEntryPoint.applicationContext(),
                 liveRepository = liveRepository,
                 vodRepository = vodRepository,
+                preferenceManager = hiltEntryPoint.preferenceManager(),
+                syncManager = hiltEntryPoint.syncManager(),
+                currentUser = user,
+                parentalControlManager = hiltEntryPoint.parentalControlManager(),
                 themeManager = themeManager
             )
         }

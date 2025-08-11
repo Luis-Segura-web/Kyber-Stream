@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.kybers.play.MainApplication
-import com.kybers.play.data.preferences.SyncManager
+import com.kybers.play.di.AppDependencies
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import dagger.hilt.android.EntryPointAccessors
 
 /**
  * --- ¡WORKER OPTIMIZADO! ---
@@ -20,12 +20,18 @@ class CacheWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        val container = (applicationContext as MainApplication).container
-        val syncManager = container.syncManager
-
+        // Get dependencies from Hilt using EntryPoint
+        val hiltEntryPoint = EntryPointAccessors.fromApplication(
+            applicationContext,
+            AppDependencies::class.java
+        )
+        
+        val syncManager = hiltEntryPoint.syncManager()
+        val userRepository = hiltEntryPoint.userRepository()
+        val repositoryFactory = hiltEntryPoint.repositoryFactory()
         // ADVERTENCIA: Este worker siempre sincroniza el primer usuario de la lista.
         // En una futura mejora, se podría guardar y sincronizar el último perfil activo.
-        val user = container.userRepository.allUsers.first().firstOrNull()
+        val user = userRepository.allUsers.first().firstOrNull()
             ?: run {
                 Log.e("CacheWorker", "No se encontró ningún usuario para la sincronización. Fallando el trabajo.")
                 return Result.failure()
@@ -39,8 +45,8 @@ class CacheWorker(
                 somethingWasSynced = true
                 Log.d("CacheWorker", "Iniciando sincronización de contenido para: ${user.profileName}")
 
-                val liveRepository = container.createLiveRepository(user.url)
-                val vodRepository = container.createVodRepository(user.url)
+                val liveRepository = repositoryFactory.createLiveRepository(user.url)
+                val vodRepository = repositoryFactory.createVodRepository(user.url)
 
                 liveRepository.cacheLiveStreams(user.username, user.password, user.id)
                 Log.d("CacheWorker", "Canales sincronizados para userId: ${user.id}")
@@ -59,7 +65,7 @@ class CacheWorker(
             if (syncManager.isEpgSyncNeeded(user.id)) {
                 somethingWasSynced = true
                 Log.d("CacheWorker", "Iniciando sincronización de EPG para: ${user.profileName}")
-                val liveRepository = container.createLiveRepository(user.url)
+                val liveRepository = repositoryFactory.createLiveRepository(user.url)
                 liveRepository.cacheEpgData(user.username, user.password, user.id)
                 syncManager.saveEpgLastSyncTimestamp(user.id)
                 Log.d("CacheWorker", "Sincronización de EPG completada.")

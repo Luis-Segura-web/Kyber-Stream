@@ -24,17 +24,9 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     @Inject
     lateinit var preferenceManager: PreferenceManager
 
-    // Temporary compatibility layer for gradual migration
-    lateinit var container: AppContainer
-        private set
-
     override fun onCreate() {
         super.onCreate()
         setDefaultLocale()
-        
-        // Create compatibility container after Hilt injection
-        container = AppContainer(this)
-        
         scheduleCacheWorker()
     }
 
@@ -94,49 +86,5 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
             syncRequest
         )
         Log.d("MainApplication", "CacheWorker programado para ejecutarse cada $userFrequency horas según configuración del usuario")
-    }
-}
-
-// Temporary compatibility layer - will be removed in future steps
-class AppContainer(private val context: Context) {
-
-    private val database by lazy { com.kybers.play.data.local.AppDatabase.getDatabase(context) }
-    
-    val tmdbApiService by lazy { com.kybers.play.data.remote.ExternalApiRetrofitClient.createTMDbService() }
-
-    val userRepository by lazy { com.kybers.play.data.repository.UserRepository(database.userDao()) }
-    val preferenceManager by lazy { com.kybers.play.data.preferences.PreferenceManager(context) }
-    val syncManager by lazy { com.kybers.play.data.preferences.SyncManager(context, preferenceManager) }
-    val parentalControlManager by lazy { com.kybers.play.ui.components.ParentalControlManager(preferenceManager) }
-
-    val detailsRepository by lazy {
-        com.kybers.play.data.repository.DetailsRepository(
-            tmdbApiService = tmdbApiService,
-            movieDetailsCacheDao = database.movieDetailsCacheDao(),
-            seriesDetailsCacheDao = database.seriesDetailsCacheDao(),
-            actorDetailsCacheDao = database.actorDetailsCacheDao(),
-            episodeDetailsCacheDao = database.episodeDetailsCacheDao()
-        )
-    }
-
-    fun createLiveRepository(baseUrl: String): com.kybers.play.data.repository.LiveRepository {
-        val xtreamApiService = com.kybers.play.data.remote.RetrofitClient.create(baseUrl)
-        return com.kybers.play.data.repository.LiveRepository(
-            xtreamApiService = xtreamApiService,
-            liveStreamDao = database.liveStreamDao(),
-            epgEventDao = database.epgEventDao(),
-            categoryCacheDao = database.categoryCacheDao()
-        )
-    }
-
-    fun createVodRepository(baseUrl: String): com.kybers.play.data.repository.VodRepository {
-        val xtreamApiService = com.kybers.play.data.remote.RetrofitClient.create(baseUrl)
-        return com.kybers.play.data.repository.VodRepository(
-            xtreamApiService = xtreamApiService,
-            movieDao = database.movieDao(),
-            seriesDao = database.seriesDao(),
-            episodeDao = database.episodeDao(),
-            categoryCacheDao = database.categoryCacheDao()
-        )
     }
 }
