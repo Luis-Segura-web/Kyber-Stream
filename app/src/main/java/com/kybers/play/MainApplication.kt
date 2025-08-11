@@ -13,28 +13,28 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
-import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
-import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.remote.ExternalApiRetrofitClient
-import com.kybers.play.data.remote.ExternalApiService
-import com.kybers.play.data.remote.RetrofitClient
-import com.kybers.play.data.repository.DetailsRepository
-import com.kybers.play.data.repository.LiveRepository
-import com.kybers.play.data.repository.UserRepository
-import com.kybers.play.data.repository.VodRepository
-import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
+@HiltAndroidApp
 class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
 
+    @Inject
+    lateinit var preferenceManager: PreferenceManager
+
+    // Temporary compatibility layer for gradual migration
     lateinit var container: AppContainer
         private set
 
     override fun onCreate() {
         super.onCreate()
         setDefaultLocale()
+        
+        // Create compatibility container after Hilt injection
         container = AppContainer(this)
+        
         scheduleCacheWorker()
     }
 
@@ -75,7 +75,7 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 
     private fun scheduleCacheWorker() {
-        val userFrequency = container.preferenceManager.getSyncFrequency()
+        val userFrequency = preferenceManager.getSyncFrequency()
         
         if (userFrequency == 0) {
             Log.d("MainApplication", "Sincronización automática deshabilitada por el usuario")
@@ -97,20 +97,20 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 }
 
+// Temporary compatibility layer - will be removed in future steps
 class AppContainer(private val context: Context) {
 
-    private val database by lazy { AppDatabase.getDatabase(context) }
+    private val database by lazy { com.kybers.play.data.local.AppDatabase.getDatabase(context) }
     
-    // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
-    val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
+    val tmdbApiService by lazy { com.kybers.play.data.remote.ExternalApiRetrofitClient.createTMDbService() }
 
-    val userRepository by lazy { UserRepository(database.userDao()) }
-    val preferenceManager by lazy { PreferenceManager(context) }
-    val syncManager by lazy { SyncManager(context, preferenceManager) }
-    val parentalControlManager by lazy { ParentalControlManager(preferenceManager) }
+    val userRepository by lazy { com.kybers.play.data.repository.UserRepository(database.userDao()) }
+    val preferenceManager by lazy { com.kybers.play.data.preferences.PreferenceManager(context) }
+    val syncManager by lazy { com.kybers.play.data.preferences.SyncManager(context, preferenceManager) }
+    val parentalControlManager by lazy { com.kybers.play.ui.components.ParentalControlManager(preferenceManager) }
 
     val detailsRepository by lazy {
-        DetailsRepository(
+        com.kybers.play.data.repository.DetailsRepository(
             tmdbApiService = tmdbApiService,
             movieDetailsCacheDao = database.movieDetailsCacheDao(),
             seriesDetailsCacheDao = database.seriesDetailsCacheDao(),
@@ -119,9 +119,9 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    fun createLiveRepository(baseUrl: String): LiveRepository {
-        val xtreamApiService = RetrofitClient.create(baseUrl)
-        return LiveRepository(
+    fun createLiveRepository(baseUrl: String): com.kybers.play.data.repository.LiveRepository {
+        val xtreamApiService = com.kybers.play.data.remote.RetrofitClient.create(baseUrl)
+        return com.kybers.play.data.repository.LiveRepository(
             xtreamApiService = xtreamApiService,
             liveStreamDao = database.liveStreamDao(),
             epgEventDao = database.epgEventDao(),
@@ -129,9 +129,9 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    fun createVodRepository(baseUrl: String): VodRepository {
-        val xtreamApiService = RetrofitClient.create(baseUrl)
-        return VodRepository(
+    fun createVodRepository(baseUrl: String): com.kybers.play.data.repository.VodRepository {
+        val xtreamApiService = com.kybers.play.data.remote.RetrofitClient.create(baseUrl)
+        return com.kybers.play.data.repository.VodRepository(
             xtreamApiService = xtreamApiService,
             movieDao = database.movieDao(),
             seriesDao = database.seriesDao(),
