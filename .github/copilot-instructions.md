@@ -5,7 +5,12 @@
 
 ---
 
-## Estilo y lenguaje
+## Idioma de comunicación
+- **Toda la comunicación, respuestas y generación de código por parte del asistente deben ser en español latino.**
+
+---
+
+## Estilo y lenguaje de código
 - Comentarios en **español latino**.
 - Identificadores en **inglés** (`camelCase` / `PascalCase`).
 - Formato con **ktlint/spotless**.
@@ -62,6 +67,16 @@
 - **Nunca** loggear credenciales/URLs completas
 - Usar **EncryptedSharedPreferences** para almacenamiento de credenciales
 - Redactar URLs en logs: `url.replaceAfterLast("/", "***")`
+
+---
+
+## Datos de acceso para pruebas internas Xtream Codes
+
+> **Importante:** Los siguientes datos de acceso son exclusivamente para pruebas internas de conexión al servicio Xtream Codes. No deben usarse en producción ni compartirse fuera del equipo de desarrollo.
+
+- **Usuario:** DMWyCAxket
+- **Contraseña:** kfvRWYajJJ
+- **URL:** http://gzytv.vip:8880
 
 ---
 
