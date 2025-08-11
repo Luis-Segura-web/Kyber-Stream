@@ -104,7 +104,7 @@ private fun MainScreenWithBottomNav(
 
     val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
         remember(seriesId) {
-            com.kybers.play.ui.SeriesDetailsViewModelFactory(
+            SeriesDetailsViewModelFactory(
                 application = hiltEntryPoint.application(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
                 vodRepository = vodRepository,
