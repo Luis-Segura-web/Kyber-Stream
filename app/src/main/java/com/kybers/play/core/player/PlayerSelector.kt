@@ -135,21 +135,26 @@ class PlayerSelector @Inject constructor(
     private suspend fun getPreferredEngineType(): EngineType {
         return try {
             val settings = settingsDataStore.settings.first()
-            when (settings.playerPref) {
+            val engineType = when (settings.playerPref) {
                 Settings.PlayerPref.MEDIA3 -> EngineType.MEDIA3
                 Settings.PlayerPref.VLC -> EngineType.VLC
                 Settings.PlayerPref.AUTO -> EngineType.AUTO
                 else -> EngineType.AUTO // Valor por defecto
             }
+            Log.d(TAG, "SettingsDataStore preference: ${settings.playerPref} -> $engineType")
+            engineType
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read from SettingsDataStore, falling back to PreferenceManager", e)
             // Fallback al sistema anterior
-            when (preferenceManager.getPlayerPreference()) {
+            val legacyPref = preferenceManager.getPlayerPreference()
+            val engineType = when (legacyPref) {
                 "MEDIA3" -> EngineType.MEDIA3
                 "VLC" -> EngineType.VLC
                 "AUTO" -> EngineType.AUTO
                 else -> EngineType.AUTO // Valor por defecto
             }
+            Log.d(TAG, "PreferenceManager fallback preference: $legacyPref -> $engineType")
+            engineType
         }
     }
 

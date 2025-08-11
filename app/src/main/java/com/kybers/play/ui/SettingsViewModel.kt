@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -122,11 +123,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun loadInitialSettings() {
+        val playerPreference = preferenceManager.getPlayerPreference()
+        Log.d("SettingsViewModel", "Loading initial player preference: $playerPreference")
+        
         _uiState.update {
             it.copy(
                 lastSyncTimestamp = syncManager.getOldestSyncTimestamp(currentUser.id),
                 syncFrequency = preferenceManager.getSyncFrequency(),
-                playerPreference = preferenceManager.getPlayerPreference(),
+                playerPreference = playerPreference,
                 streamFormat = preferenceManager.getStreamFormat(),
                 hwAccelerationEnabled = preferenceManager.getHwAcceleration(),
                 networkBuffer = preferenceManager.getNetworkBuffer(),
@@ -243,8 +247,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onPlayerPreferenceChanged(preference: String) {
+        Log.d("SettingsViewModel", "Player preference changed to: $preference")
+        
         // Update old preference system for backward compatibility
         preferenceManager.savePlayerPreference(preference)
+        Log.d("SettingsViewModel", "Saved to PreferenceManager: $preference")
         
         // Also update new settings datastore
         viewModelScope.launch {
@@ -253,11 +260,21 @@ class SettingsViewModel @Inject constructor(
                 "VLC" -> Settings.PlayerPref.VLC
                 else -> Settings.PlayerPref.AUTO
             }
+            Log.d("SettingsViewModel", "Updating SettingsDataStore with enum: $playerPref")
+            
             settingsDataStore.updatePlayerPreferences(
                 playerPref = playerPref,
                 stopOnBackground = preferenceManager.getStopOnBackground(),
                 enableAutoFallback = preferenceManager.getAutoFallbackEnabled()
             )
+            
+            // Verify the save worked
+            try {
+                val savedSettings = settingsDataStore.settings.first()
+                Log.d("SettingsViewModel", "Verified SettingsDataStore value: ${savedSettings.playerPref}")
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "Failed to verify SettingsDataStore save", e)
+            }
         }
         
         _uiState.update { it.copy(playerPreference = preference) }
