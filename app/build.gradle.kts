@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
+    id("com.google.protobuf") version "0.9.4"
 }
 
 kotlin {
@@ -75,6 +76,21 @@ android {
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
 }
 
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.5"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                register("java") {
+                    option("lite")
+                }
+            }
+        }
+    }
+}
+
 dependencies {
     // --- CORE & UI ---
     implementation(libs.androidx.core.ktx)
@@ -119,6 +135,14 @@ dependencies {
 
     // --- REPRODUCTOR DE VIDEO ---
     implementation(libs.libvlc.all)
+    
+    // --- MEDIA3 (EXOPLAYER) ---
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-cast:1.4.1")
 
     // --- CARGA DE IMÁGENES ---
     implementation(libs.coil.compose)
@@ -127,9 +151,17 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    
+    // --- SECURITY ---
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
+    // --- DATASTORE ---
+    implementation("androidx.datastore:datastore:1.1.1")
+    implementation("com.google.protobuf:protobuf-javalite:3.25.5")
 
     // --- TESTING ---
     testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.compose.bom))

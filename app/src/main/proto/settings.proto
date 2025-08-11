@@ -1,0 +1,70 @@
+syntax = "proto3";
+option java_package = "com.kybers.play.settings";
+option java_multiple_files = true;
+
+message Settings {
+  enum PlayerPref {
+    AUTO = 0;
+    MEDIA3 = 1;
+    VLC = 2;
+  }
+
+  enum ThemeMode {
+    SYSTEM = 0;
+    LIGHT = 1;
+    DARK = 2;
+  }
+
+  enum NetworkBuffer {
+    SMALL = 0;
+    MEDIUM = 1;
+    LARGE = 2;
+  }
+
+  // Player preferido (principal/alternativo/auto)
+  PlayerPref player_pref = 1;
+
+  // Si es true, corta la reproducción al ir a background
+  bool stop_on_background = 2;
+
+  // Cooldown en ms entre cierres/aberturas para evitar doble conexión
+  int32 cooldown_ms = 3;
+
+  // Habilita fallback automático a VLC cuando Media3 falla
+  bool enable_auto_fallback = 4;
+
+  // Configuraciones de tema
+  ThemeMode theme_mode = 5;
+  string theme_color = 6;
+
+  // Configuraciones de red y reproductor
+  bool hw_acceleration = 7;
+  NetworkBuffer network_buffer = 8;
+  string stream_format = 9;
+
+  // Configuraciones de sincronización
+  int32 sync_frequency_hours = 10;
+  int32 recently_watched_limit = 11;
+
+  // Control parental
+  bool parental_control_enabled = 12;
+  string parental_control_pin = 13;
+  repeated string blocked_categories = 14;
+
+  // Categorías ocultas
+  repeated string hidden_live_categories = 15;
+  repeated string hidden_movie_categories = 16;
+  repeated string hidden_series_categories = 17;
+
+  // Modos de visualización
+  string display_mode_channels = 18;
+  string display_mode_movies = 19;
+  string display_mode_series = 20;
+
+  // Usuario actual
+  int32 current_user_id = 21;
+
+  // Favoritos (como listas repetidas de IDs)
+  repeated string favorite_movie_ids = 22;
+  repeated string favorite_series_ids = 23;
+}

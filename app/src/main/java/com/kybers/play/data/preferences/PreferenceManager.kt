@@ -55,6 +55,12 @@ class PreferenceManager(context: Context) {
         
         // --- NUEVA CLAVE PARA USUARIO ACTUAL ---
         private const val KEY_CURRENT_USER_ID = "current_user_id"
+        
+        // --- NUEVAS CLAVES PARA CONFIGURACIÓN DE REPRODUCTOR ---
+        private const val KEY_PLAYER_PREFERENCE = "player_preference"
+        private const val KEY_STOP_ON_BACKGROUND = "stop_on_background"
+        private const val KEY_COOLDOWN_MS = "cooldown_ms"
+        private const val KEY_ENABLE_AUTO_FALLBACK = "enable_auto_fallback"
     }
 
     // --- Métodos existentes (sin cambios) ---
@@ -259,4 +265,46 @@ class PreferenceManager(context: Context) {
     fun getCurrentUserId(): Int = sharedPreferences.getInt(KEY_CURRENT_USER_ID, -1)
     
     fun clearCurrentUserId() = sharedPreferences.edit().remove(KEY_CURRENT_USER_ID).apply()
+    
+    // --- MÉTODOS PARA CONFIGURACIÓN DE REPRODUCTOR ---
+    
+    /**
+     * Guarda la preferencia de reproductor (AUTO, MEDIA3, VLC)
+     */
+    fun savePlayerPreference(preference: String) = sharedPreferences.edit().putString(KEY_PLAYER_PREFERENCE, preference).apply()
+    
+    /**
+     * Obtiene la preferencia de reproductor
+     */
+    fun getPlayerPreference(): String = sharedPreferences.getString(KEY_PLAYER_PREFERENCE, "AUTO") ?: "AUTO"
+    
+    /**
+     * Guarda si se debe detener la reproducción al ir a background
+     */
+    fun saveStopOnBackground(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_STOP_ON_BACKGROUND, enabled).apply()
+    
+    /**
+     * Obtiene si se debe detener la reproducción al ir a background
+     */
+    fun getStopOnBackground(): Boolean = sharedPreferences.getBoolean(KEY_STOP_ON_BACKGROUND, true)
+    
+    /**
+     * Guarda el tiempo de cooldown en milisegundos
+     */
+    fun saveCooldownMs(cooldownMs: Int) = sharedPreferences.edit().putInt(KEY_COOLDOWN_MS, cooldownMs).apply()
+    
+    /**
+     * Obtiene el tiempo de cooldown en milisegundos
+     */
+    fun getCooldownMs(): Int = sharedPreferences.getInt(KEY_COOLDOWN_MS, 2000)
+    
+    /**
+     * Guarda si el fallback automático está habilitado
+     */
+    fun saveAutoFallbackEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_ENABLE_AUTO_FALLBACK, enabled).apply()
+    
+    /**
+     * Obtiene si el fallback automático está habilitado
+     */
+    fun getAutoFallbackEnabled(): Boolean = sharedPreferences.getBoolean(KEY_ENABLE_AUTO_FALLBACK, true)
 }
