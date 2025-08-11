@@ -20,6 +20,9 @@ object RetrofitClient {
         .add(KotlinJsonAdapterFactory())
         .build()
 
+    // Interceptor para manejar URLs dinámicas de Xtream Codes
+    private val dynamicUrlInterceptor = DynamicUrlInterceptor()
+
     // Configuración del cliente HTTP (OkHttp).
     private val okHttpClient: OkHttpClient by lazy {
         // El HttpLoggingInterceptor nos permite ver las llamadas de red en el Logcat.
@@ -29,6 +32,7 @@ object RetrofitClient {
         }
 
         OkHttpClient.Builder()
+            .addInterceptor(dynamicUrlInterceptor) // Agregar interceptor dinámico primero
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS) // Aumentamos el tiempo de espera
             .readTimeout(30, TimeUnit.SECONDS)
@@ -44,8 +48,11 @@ object RetrofitClient {
      * @return Una instancia de XtreamApiService lista para usar.
      */
     fun create(baseUrl: String): XtreamApiService {
+        // Actualizar la URL base en el interceptor dinámico
+        dynamicUrlInterceptor.updateBaseUrl(baseUrl)
+        
         val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
+            .baseUrl("http://example.com/") // URL placeholder que será interceptada
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
