@@ -19,11 +19,16 @@ import com.kybers.play.data.remote.model.TMDbCollectionDetails
 import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.TmdbApiService
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
 import com.kybers.play.player.MediaManager
 import com.kybers.play.player.RetryManager
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -102,15 +107,21 @@ data class UnavailableItemDetails(
     val overview: String?
 )
 
-class MovieDetailsViewModel(
-    application: Application,
+class MovieDetailsViewModel @AssistedInject constructor(
+    @Assisted private val application: Application,
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
-    private val externalApiService: ExternalApiService,
+    @TmdbApiService private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User,
-    private val movieId: Int
+    @CurrentUser private val currentUser: User,
+    @Assisted private val movieId: Int,
+    val mediaManager: MediaManager
 ) : AndroidViewModel(application) {
+
+    @AssistedFactory
+    interface Factory {
+        fun create(application: Application, movieId: Int): MovieDetailsViewModel
+    }
 
     private val _uiState = MutableStateFlow(MovieDetailsUiState())
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
@@ -119,7 +130,6 @@ class MovieDetailsViewModel(
     val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
 
-    private val mediaManager = MediaManager()
     private lateinit var retryManager: RetryManager
 
     private var lastSaveTimeMillis: Long = 0L
