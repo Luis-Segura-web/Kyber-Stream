@@ -118,7 +118,7 @@ private fun MainScreenWithBottomNav(
 
     val settingsViewModelFactoryProvider = @Composable {
         remember {
-            com.kybers.play.ui.SettingsViewModelFactory(
+            SettingsViewModelFactory(
                 context = hiltEntryPoint.applicationContext(),
                 liveRepository = liveRepository,
                 vodRepository = vodRepository,
