@@ -12,13 +12,13 @@ import com.kybers.play.ui.PlayerViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
 import com.kybers.play.ui.theme.rememberThemeManager
 import android.util.Log // Importación necesaria para Log
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class PlayerActivity : ComponentActivity() {
 
-    // Usamos la fábrica para crear el PlayerViewModel
-    private val playerViewModel: PlayerViewModel by viewModels {
-        PlayerViewModelFactory(application)
-    }
+    // Ahora PlayerViewModel puede usar inyección de dependencias directamente
+    private val playerViewModel: PlayerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

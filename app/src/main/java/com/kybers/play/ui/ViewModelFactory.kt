@@ -125,11 +125,14 @@ class SeriesDetailsViewModelFactory(
 }
 
 
-class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+class PlayerViewModelFactory(
+    private val application: Application,
+    private val preferenceManager: PreferenceManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PlayerViewModel(application) as T
+            return PlayerViewModel(application, preferenceManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

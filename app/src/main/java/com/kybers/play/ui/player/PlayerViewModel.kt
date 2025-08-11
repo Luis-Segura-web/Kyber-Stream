@@ -14,10 +14,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    @ApplicationContext private val context: android.content.Context
+    @ApplicationContext private val context: android.content.Context,
+    private val preferenceManager: com.kybers.play.data.preferences.PreferenceManager
 ) : AndroidViewModel(context as Application) {
 
-    private val playerManager = PlayerManager(context as Application, viewModelScope)
+    private val playerManager = PlayerManager(context as Application, viewModelScope, preferenceManager)
     
     // UI state for retry and error handling
     private val _playerStatus = MutableStateFlow(PlayerStatus.IDLE)

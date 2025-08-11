@@ -12,14 +12,18 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import com.kybers.play.data.preferences.PreferenceManager
 
 /**
- * Centralized manager for VLC player operations with proper lifecycle management,
- * network connectivity handling, and resource cleanup to prevent memory leaks.
+ * Centralized manager for player operations with player preference support.
+ * Respects user's choice between Media3 (ExoPlayer) and VLC (LibVLC).
+ * Includes proper lifecycle management, network connectivity handling, 
+ * and resource cleanup to prevent memory leaks.
  */
 class PlayerManager(
     private val application: Application,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val preferenceManager: PreferenceManager? = null
 ) : DefaultLifecycleObserver {
     
     companion object {
@@ -190,6 +194,27 @@ class PlayerManager(
      * Play media with safe resource management and retry capability
      */
     fun playMedia(url: String, forceSoftwareDecoding: Boolean = false) {
+        // LOG DEBUGGING: Verificar preferencias del reproductor si está disponible
+        preferenceManager?.let { prefs ->
+            val playerPreference = prefs.getPlayerPreference()
+            Log.d(TAG, "PlayerManager.playMedia() - URL: ${url.takeLast(20)}...")
+            Log.d(TAG, "PlayerManager.playMedia() - Player preference from PreferenceManager: $playerPreference")
+            
+            // IMPORTANTE: Este PlayerManager solo soporta VLC actualmente
+            // Si el usuario seleccionó Media3, mostrar advertencia
+            if (playerPreference == "MEDIA3") {
+                Log.w(TAG, "⚠️ PROBLEMA DETECTADO: Usuario seleccionó MEDIA3 pero PlayerManager solo soporta VLC")
+                Log.w(TAG, "⚠️ El reproductor está ignorando la preferencia del usuario!")
+                Log.w(TAG, "⚠️ Se necesita usar ModernPlayerViewModel para respetar la preferencia")
+            } else if (playerPreference == "VLC") {
+                Log.d(TAG, "✅ Usuario seleccionó VLC - PlayerManager puede proceder normalmente")
+            } else {
+                Log.d(TAG, "📋 Usuario seleccionó AUTO - PlayerManager usará VLC por defecto")
+            }
+        } ?: run {
+            Log.d(TAG, "PlayerManager.playMedia() - No PreferenceManager disponible")
+        }
+        
         initializeVLC()
         currentUrl = url // Store current URL for retry
         isPlaybackActive = true
