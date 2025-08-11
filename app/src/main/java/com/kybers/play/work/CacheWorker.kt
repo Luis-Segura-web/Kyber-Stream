@@ -61,11 +61,18 @@ class CacheWorker(
                 Log.d("CacheWorker", "Sincronización de contenido completada.")
             }
 
-            // 2. Sincronización de EPG (solo si es necesario)
-            if (syncManager.isEpgSyncNeeded(user.id)) {
+            // --- ¡LÓGICA EPG MEJORADA CON VERIFICACIONES INTELIGENTES! ---
+            // 2. Sincronización de EPG (con verificaciones adicionales)
+            val liveRepository = repositoryFactory.createLiveRepository(user.url)
+            
+            // Verificar si necesita sincronización por tiempo o por datos obsoletos
+            val needsEpgSyncByTime = syncManager.isEpgSyncNeeded(user.id)
+            val needsEpgSyncByData = liveRepository.isEpgDataStale(user.id)
+            
+            if (needsEpgSyncByTime || needsEpgSyncByData) {
                 somethingWasSynced = true
-                Log.d("CacheWorker", "Iniciando sincronización de EPG para: ${user.profileName}")
-                val liveRepository = repositoryFactory.createLiveRepository(user.url)
+                Log.d("CacheWorker", "Iniciando sincronización de EPG para: ${user.profileName} (tiempo: $needsEpgSyncByTime, datos: $needsEpgSyncByData)")
+                
                 liveRepository.cacheEpgData(user.username, user.password, user.id)
                 syncManager.saveEpgLastSyncTimestamp(user.id)
                 Log.d("CacheWorker", "Sincronización de EPG completada.")

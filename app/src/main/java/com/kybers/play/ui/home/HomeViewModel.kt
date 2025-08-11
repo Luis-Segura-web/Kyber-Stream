@@ -338,8 +338,9 @@ class HomeViewModel @Inject constructor(
         
         if (filteredChannels.isEmpty()) return emptyList()
 
-        val epgMap = liveRepo.getAllEpgMapForUser(user.id)
-        val enrichedChannels = liveRepo.enrichChannelsWithEpg(filteredChannels, epgMap)
+        // --- ¡USO DE MÉTODO OPTIMIZADO! ---
+        // Usar el nuevo método optimizado con cache para enriquecer con EPG
+        val enrichedChannels = liveRepo.enrichChannelsWithEpg(filteredChannels, user.id)
 
         return enrichedChannels
             .filter { it.currentEpgEvent != null }
