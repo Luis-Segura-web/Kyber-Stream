@@ -88,7 +88,9 @@ private fun MainScreenWithBottomNav(
             currentUser = user,
             preferenceManager = hiltEntryPoint.preferenceManager(),
             syncManager = hiltEntryPoint.syncManager(),
-            parentalControlManager = hiltEntryPoint.parentalControlManager()
+            parentalControlManager = hiltEntryPoint.parentalControlManager(),
+            userSession = hiltEntryPoint.userSession(),
+            mediaManager = hiltEntryPoint.mediaManager()
         )
     }
 
@@ -101,7 +103,8 @@ private fun MainScreenWithBottomNav(
                 externalApiService = hiltEntryPoint.tmdbApiService(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
                 currentUser = user,
-                movieId = movieId
+                movieId = movieId,
+                mediaManager = hiltEntryPoint.mediaManager()
             )
         }
     }
@@ -115,7 +118,8 @@ private fun MainScreenWithBottomNav(
                 detailsRepository = hiltEntryPoint.detailsRepository(),
                 externalApiService = hiltEntryPoint.tmdbApiService(),
                 currentUser = user,
-                seriesId = seriesId
+                seriesId = seriesId,
+                mediaManager = hiltEntryPoint.mediaManager()
             )
         }
     }
@@ -130,7 +134,8 @@ private fun MainScreenWithBottomNav(
                 syncManager = hiltEntryPoint.syncManager(),
                 currentUser = user,
                 parentalControlManager = hiltEntryPoint.parentalControlManager(),
-                themeManager = themeManager
+                themeManager = hiltEntryPoint.themeManager(),
+                dynamicSettingsManager = hiltEntryPoint.dynamicSettingsManager()
             )
         }
     }

@@ -12,6 +12,8 @@ import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.UserSession
+import com.kybers.play.player.MediaManager
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.movies.MovieDetailsViewModel
@@ -21,9 +23,11 @@ import com.kybers.play.ui.movies.MoviesViewModel
 import com.kybers.play.ui.player.PlayerViewModel
 import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesViewModel
+import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.sync.SyncViewModel
 import com.kybers.play.ui.main.MainViewModel
+import com.kybers.play.ui.theme.ThemeManager
 
 class ContentViewModelFactory(
     private val application: Application,
@@ -34,7 +38,9 @@ class ContentViewModelFactory(
     private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val parentalControlManager: ParentalControlManager
+    private val parentalControlManager: ParentalControlManager,
+    private val userSession: UserSession,
+    private val mediaManager: MediaManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -46,12 +52,12 @@ class ContentViewModelFactory(
                     detailsRepository = detailsRepository,
                     externalApiService = externalApiService,
                     preferenceManager = preferenceManager,
-                    currentUser = currentUser,
+                    userSession = userSession,
                     parentalControlManager = parentalControlManager
                 ) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
-                ChannelsViewModel(application, liveRepository, currentUser, preferenceManager, syncManager, parentalControlManager) as T
+                ChannelsViewModel(application, liveRepository, currentUser, preferenceManager, syncManager, parentalControlManager, mediaManager) as T
             }
             modelClass.isAssignableFrom(MoviesViewModel::class.java) -> {
                 MoviesViewModel(vodRepository, detailsRepository, syncManager, preferenceManager, currentUser, parentalControlManager) as T
@@ -71,7 +77,8 @@ class MovieDetailsViewModelFactory(
     private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
     private val currentUser: User,
-    private val movieId: Int
+    private val movieId: Int,
+    private val mediaManager: MediaManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -83,7 +90,8 @@ class MovieDetailsViewModelFactory(
                 externalApiService = externalApiService,
                 preferenceManager = preferenceManager,
                 currentUser = currentUser,
-                movieId = movieId
+                movieId = movieId,
+                mediaManager = mediaManager
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -97,7 +105,8 @@ class SeriesDetailsViewModelFactory(
     private val detailsRepository: DetailsRepository,
     private val externalApiService: ExternalApiService,
     private val currentUser: User,
-    private val seriesId: Int
+    private val seriesId: Int,
+    private val mediaManager: MediaManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -109,7 +118,8 @@ class SeriesDetailsViewModelFactory(
                 detailsRepository = detailsRepository,
                 externalApiService = externalApiService,
                 currentUser = currentUser,
-                seriesId = seriesId
+                seriesId = seriesId,
+                mediaManager = mediaManager
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
@@ -136,12 +146,13 @@ class SettingsViewModelFactory(
     private val syncManager: SyncManager,
     private val currentUser: User,
     private val parentalControlManager: ParentalControlManager,
-    private val themeManager: com.kybers.play.ui.theme.ThemeManager? = null
+    private val themeManager: ThemeManager,
+    private val dynamicSettingsManager: DynamicSettingsManager
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(context, liveRepository, vodRepository, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager) as T
+            return SettingsViewModel(context, liveRepository, vodRepository, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager, dynamicSettingsManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
