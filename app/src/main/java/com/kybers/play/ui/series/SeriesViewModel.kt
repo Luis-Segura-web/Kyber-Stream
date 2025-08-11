@@ -9,6 +9,7 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
@@ -59,12 +60,16 @@ data class SeriesUiState(
 
 @HiltViewModel
 class SeriesViewModel @Inject constructor(
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
     @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
+
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
 
     private val _uiState = MutableStateFlow(SeriesUiState())
     val uiState: StateFlow<SeriesUiState> = _uiState.asStateFlow()

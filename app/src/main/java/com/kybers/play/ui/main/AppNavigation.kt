@@ -57,8 +57,6 @@ private val bottomBarItems = listOf(
 private fun MainScreenWithBottomNav(
     currentUserId: Int,
     user: com.kybers.play.data.local.model.User,
-    vodRepository: com.kybers.play.data.repository.VodRepository,
-    liveRepository: com.kybers.play.data.repository.LiveRepository,
     themeManager: com.kybers.play.ui.theme.ThemeManager,
     onPlayerUiStateChanged: (isFullScreen: Boolean, isPipMode: Boolean) -> Unit,
     onLogout: () -> Unit
@@ -81,8 +79,7 @@ private fun MainScreenWithBottomNav(
     val contentViewModelFactory = remember(user.id) {
         ContentViewModelFactory(
             application = hiltEntryPoint.application(),
-            vodRepository = vodRepository,
-            liveRepository = liveRepository,
+            repositoryFactory = hiltEntryPoint.repositoryFactory(),
             detailsRepository = hiltEntryPoint.detailsRepository(),
             externalApiService = hiltEntryPoint.tmdbApiService(),
             currentUser = user,
@@ -98,7 +95,7 @@ private fun MainScreenWithBottomNav(
         remember(movieId) {
             MovieDetailsViewModelFactory(
                 application = hiltEntryPoint.application(),
-                vodRepository = vodRepository,
+                repositoryFactory = hiltEntryPoint.repositoryFactory(),
                 detailsRepository = hiltEntryPoint.detailsRepository(),
                 externalApiService = hiltEntryPoint.tmdbApiService(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
@@ -114,7 +111,7 @@ private fun MainScreenWithBottomNav(
             SeriesDetailsViewModelFactory(
                 application = hiltEntryPoint.application(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
-                vodRepository = vodRepository,
+                repositoryFactory = hiltEntryPoint.repositoryFactory(),
                 detailsRepository = hiltEntryPoint.detailsRepository(),
                 externalApiService = hiltEntryPoint.tmdbApiService(),
                 currentUser = user,
@@ -128,8 +125,7 @@ private fun MainScreenWithBottomNav(
         remember {
             SettingsViewModelFactory(
                 context = hiltEntryPoint.applicationContext(),
-                liveRepository = liveRepository,
-                vodRepository = vodRepository,
+                repositoryFactory = hiltEntryPoint.repositoryFactory(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
                 syncManager = hiltEntryPoint.syncManager(),
                 currentUser = user,
@@ -311,14 +307,9 @@ fun AppNavHost(
                 }
                 uiState.user != null -> {
                     val user = requireNotNull(uiState.user)
-                    val vodRepository = uiState.vodRepository!!
-                    val liveRepository = uiState.liveRepository!!
-
                     MainScreenWithBottomNav(
                         currentUserId = userId,
                         user = user,
-                        vodRepository = vodRepository,
-                        liveRepository = liveRepository,
                         themeManager = themeManager,
                         onPlayerUiStateChanged = { _, _ -> /* Handle player UI state changes if needed */ },
                         onLogout = {

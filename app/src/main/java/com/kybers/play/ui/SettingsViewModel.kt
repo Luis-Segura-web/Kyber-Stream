@@ -15,6 +15,7 @@ import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.theme.ThemeManager
@@ -87,8 +88,7 @@ sealed class SettingsEvent {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val liveRepository: LiveRepository,
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     @CurrentUser private val currentUser: User,
@@ -96,6 +96,14 @@ class SettingsViewModel @Inject constructor(
     private val themeManager: ThemeManager,
     private val dynamicSettingsManager: DynamicSettingsManager
 ) : ViewModel() {
+
+    private val liveRepository: LiveRepository by lazy {
+        repositoryFactory.createLiveRepository(currentUser.url)
+    }
+    
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()

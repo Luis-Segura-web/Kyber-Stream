@@ -12,6 +12,7 @@ import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
@@ -62,13 +63,17 @@ data class MoviesUiState(
 
 @HiltViewModel
 class MoviesViewModel @Inject constructor(
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
     @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
+
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
 
     private val _uiState = MutableStateFlow(MoviesUiState())
     val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()

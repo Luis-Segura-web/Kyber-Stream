@@ -15,6 +15,7 @@ import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
@@ -101,13 +102,17 @@ data class ChannelsUiState(
 
 open class ChannelsViewModel @AssistedInject constructor(
     @Assisted private val application: Application,
-    private val liveRepository: LiveRepository,
+    private val repositoryFactory: RepositoryFactory,
     @CurrentUser private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val parentalControlManager: ParentalControlManager,
     val mediaManager: MediaManager
 ) : AndroidViewModel(application) {
+
+    private val liveRepository: LiveRepository by lazy {
+        repositoryFactory.createLiveRepository(currentUser.url)
+    }
 
     @AssistedFactory
     interface Factory {

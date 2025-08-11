@@ -20,6 +20,7 @@ import com.kybers.play.data.remote.model.TMDbMovieResult
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.di.TmdbApiService
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
@@ -109,7 +110,7 @@ data class UnavailableItemDetails(
 
 class MovieDetailsViewModel @AssistedInject constructor(
     @Assisted private val application: Application,
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     @TmdbApiService private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
@@ -117,6 +118,10 @@ class MovieDetailsViewModel @AssistedInject constructor(
     @Assisted private val movieId: Int,
     val mediaManager: MediaManager
 ) : AndroidViewModel(application) {
+
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
 
     @AssistedFactory
     interface Factory {

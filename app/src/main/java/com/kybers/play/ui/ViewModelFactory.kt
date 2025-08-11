@@ -9,9 +9,8 @@ import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.repository.DetailsRepository
-import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.UserRepository
-import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.di.UserSession
 import com.kybers.play.player.MediaManager
 import com.kybers.play.ui.components.ParentalControlManager
@@ -31,8 +30,7 @@ import com.kybers.play.ui.theme.ThemeManager
 
 class ContentViewModelFactory(
     private val application: Application,
-    private val vodRepository: VodRepository,
-    private val liveRepository: LiveRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     private val externalApiService: ExternalApiService,
     private val currentUser: User,
@@ -47,8 +45,7 @@ class ContentViewModelFactory(
         return when {
             modelClass.isAssignableFrom(HomeViewModel::class.java) -> {
                 HomeViewModel(
-                    vodRepository = vodRepository,
-                    liveRepository = liveRepository,
+                    repositoryFactory = repositoryFactory,
                     detailsRepository = detailsRepository,
                     externalApiService = externalApiService,
                     preferenceManager = preferenceManager,
@@ -57,13 +54,13 @@ class ContentViewModelFactory(
                 ) as T
             }
             modelClass.isAssignableFrom(ChannelsViewModel::class.java) -> {
-                ChannelsViewModel(application, liveRepository, currentUser, preferenceManager, syncManager, parentalControlManager, mediaManager) as T
+                ChannelsViewModel(application, repositoryFactory, currentUser, preferenceManager, syncManager, parentalControlManager, mediaManager) as T
             }
             modelClass.isAssignableFrom(MoviesViewModel::class.java) -> {
-                MoviesViewModel(vodRepository, detailsRepository, syncManager, preferenceManager, currentUser, parentalControlManager) as T
+                MoviesViewModel(repositoryFactory, detailsRepository, syncManager, preferenceManager, currentUser, parentalControlManager) as T
             }
             modelClass.isAssignableFrom(SeriesViewModel::class.java) -> {
-                SeriesViewModel(vodRepository, syncManager, preferenceManager, currentUser, parentalControlManager) as T
+                SeriesViewModel(repositoryFactory, syncManager, preferenceManager, currentUser, parentalControlManager) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class in ContentViewModelFactory: ${modelClass.name}")
         }
@@ -72,7 +69,7 @@ class ContentViewModelFactory(
 
 class MovieDetailsViewModelFactory(
     private val application: Application,
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
@@ -85,7 +82,7 @@ class MovieDetailsViewModelFactory(
         if (modelClass.isAssignableFrom(MovieDetailsViewModel::class.java)) {
             return MovieDetailsViewModel(
                 application = application,
-                vodRepository = vodRepository,
+                repositoryFactory = repositoryFactory,
                 detailsRepository = detailsRepository,
                 externalApiService = externalApiService,
                 preferenceManager = preferenceManager,
@@ -101,7 +98,7 @@ class MovieDetailsViewModelFactory(
 class SeriesDetailsViewModelFactory(
     private val application: Application,
     private val preferenceManager: PreferenceManager,
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     private val externalApiService: ExternalApiService,
     private val currentUser: User,
@@ -113,10 +110,10 @@ class SeriesDetailsViewModelFactory(
         if (modelClass.isAssignableFrom(SeriesDetailsViewModel::class.java)) {
             return SeriesDetailsViewModel(
                 application = application,
-                preferenceManager = preferenceManager,
-                vodRepository = vodRepository,
+                repositoryFactory = repositoryFactory,
                 detailsRepository = detailsRepository,
                 externalApiService = externalApiService,
+                preferenceManager = preferenceManager,
                 currentUser = currentUser,
                 seriesId = seriesId,
                 mediaManager = mediaManager
@@ -140,8 +137,7 @@ class PlayerViewModelFactory(private val application: Application) : ViewModelPr
 // --- ¡NUEVA FÁBRICA AÑADIDA! ---
 class SettingsViewModelFactory(
     private val context: Context,
-    private val liveRepository: LiveRepository,
-    private val vodRepository: VodRepository,
+    private val repositoryFactory: RepositoryFactory,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val currentUser: User,
@@ -152,7 +148,7 @@ class SettingsViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(context, liveRepository, vodRepository, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager, dynamicSettingsManager) as T
+            return SettingsViewModel(context, repositoryFactory, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager, dynamicSettingsManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
