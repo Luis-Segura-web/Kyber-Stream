@@ -130,31 +130,43 @@ class PlayerSelector @Inject constructor(
 
     /**
      * Obtiene el tipo de motor preferido por el usuario
-     * Usa el nuevo SettingsDataStore cuando esté disponible, con fallback al PreferenceManager
+     * Lee de PreferenceManager primero (más confiable) y usa SettingsDataStore como verificación
      */
     private suspend fun getPreferredEngineType(): EngineType {
+        // Primero leer del sistema confiable (PreferenceManager)
+        val legacyPref = preferenceManager.getPlayerPreference()
+        val legacyEngineType = when (legacyPref) {
+            "MEDIA3" -> EngineType.MEDIA3
+            "VLC" -> EngineType.VLC
+            "AUTO" -> EngineType.AUTO
+            else -> EngineType.AUTO // Valor por defecto
+        }
+        
+        Log.d(TAG, "PreferenceManager preference: $legacyPref -> $legacyEngineType")
+        
+        // Verificar si DataStore tiene el mismo valor o usar el de PreferenceManager
         return try {
             val settings = settingsDataStore.settings.first()
-            val engineType = when (settings.playerPref) {
+            val dataStoreEngineType = when (settings.playerPref) {
                 Settings.PlayerPref.MEDIA3 -> EngineType.MEDIA3
                 Settings.PlayerPref.VLC -> EngineType.VLC
                 Settings.PlayerPref.AUTO -> EngineType.AUTO
-                else -> EngineType.AUTO // Valor por defecto
+                else -> EngineType.AUTO
             }
-            Log.d(TAG, "SettingsDataStore preference: ${settings.playerPref} -> $engineType")
-            engineType
+            
+            Log.d(TAG, "SettingsDataStore preference: ${settings.playerPref} -> $dataStoreEngineType")
+            
+            // Si ambos coinciden, usar cualquiera. Si no, dar preferencia a PreferenceManager
+            if (legacyEngineType == dataStoreEngineType) {
+                Log.d(TAG, "Both sources agree on: $legacyEngineType")
+                legacyEngineType
+            } else {
+                Log.w(TAG, "Preference mismatch! Using PreferenceManager: $legacyEngineType over DataStore: $dataStoreEngineType")
+                legacyEngineType
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to read from SettingsDataStore, falling back to PreferenceManager", e)
-            // Fallback al sistema anterior
-            val legacyPref = preferenceManager.getPlayerPreference()
-            val engineType = when (legacyPref) {
-                "MEDIA3" -> EngineType.MEDIA3
-                "VLC" -> EngineType.VLC
-                "AUTO" -> EngineType.AUTO
-                else -> EngineType.AUTO // Valor por defecto
-            }
-            Log.d(TAG, "PreferenceManager fallback preference: $legacyPref -> $engineType")
-            engineType
+            Log.w(TAG, "Failed to read from SettingsDataStore, using PreferenceManager value", e)
+            legacyEngineType
         }
     }
 

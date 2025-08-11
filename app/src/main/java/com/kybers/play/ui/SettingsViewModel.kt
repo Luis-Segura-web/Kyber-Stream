@@ -253,7 +253,7 @@ class SettingsViewModel @Inject constructor(
         preferenceManager.savePlayerPreference(preference)
         Log.d("SettingsViewModel", "Saved to PreferenceManager: $preference")
         
-        // Also update new settings datastore
+        // Also update new settings datastore - make this blocking to avoid race conditions
         viewModelScope.launch {
             val playerPref = when (preference) {
                 "MEDIA3" -> Settings.PlayerPref.MEDIA3
@@ -262,18 +262,18 @@ class SettingsViewModel @Inject constructor(
             }
             Log.d("SettingsViewModel", "Updating SettingsDataStore with enum: $playerPref")
             
-            settingsDataStore.updatePlayerPreferences(
-                playerPref = playerPref,
-                stopOnBackground = preferenceManager.getStopOnBackground(),
-                enableAutoFallback = preferenceManager.getAutoFallbackEnabled()
-            )
-            
-            // Verify the save worked
             try {
+                settingsDataStore.updatePlayerPreferences(
+                    playerPref = playerPref,
+                    stopOnBackground = preferenceManager.getStopOnBackground(),
+                    enableAutoFallback = preferenceManager.getAutoFallbackEnabled()
+                )
+                
+                // Verify the save worked
                 val savedSettings = settingsDataStore.settings.first()
                 Log.d("SettingsViewModel", "Verified SettingsDataStore value: ${savedSettings.playerPref}")
             } catch (e: Exception) {
-                Log.e("SettingsViewModel", "Failed to verify SettingsDataStore save", e)
+                Log.e("SettingsViewModel", "Failed to update or verify SettingsDataStore", e)
             }
         }
         
