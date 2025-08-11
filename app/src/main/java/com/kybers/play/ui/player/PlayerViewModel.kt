@@ -14,10 +14,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    @ApplicationContext private val application: Application
-) : AndroidViewModel(application) {
+    @ApplicationContext private val context: android.content.Context
+) : AndroidViewModel(context as Application) {
 
-    private val playerManager = PlayerManager(application, viewModelScope)
+    private val playerManager = PlayerManager(context as Application, viewModelScope)
     
     // UI state for retry and error handling
     private val _playerStatus = MutableStateFlow(PlayerStatus.IDLE)
