@@ -6,13 +6,16 @@ import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.ui.components.categories.*
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Enhanced category manager with intelligent positioning, playback tracking, and comprehensive logging
  */
-class CategoryManager : ViewModel() {
+@HiltViewModel
+class CategoryManager @Inject constructor() : ViewModel() {
     
     companion object {
         private const val TAG = "CategoryManager"

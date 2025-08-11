@@ -2,11 +2,15 @@ package com.kybers.play.di
 
 import android.app.Application
 import android.content.Context
+import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.ExternalApiService
 import com.kybers.play.data.repository.DetailsRepository
+import com.kybers.play.player.MediaManager
 import com.kybers.play.ui.components.ParentalControlManager
+import com.kybers.play.ui.settings.DynamicSettingsManager
+import com.kybers.play.ui.theme.ThemeManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -28,4 +32,9 @@ interface AppDependencies {
     fun syncManager(): SyncManager
     fun parentalControlManager(): ParentalControlManager
     fun userRepository(): com.kybers.play.data.repository.UserRepository
+    fun userSession(): UserSession
+    fun mediaManager(): MediaManager
+    fun themeManager(): ThemeManager
+    fun dynamicSettingsManager(): DynamicSettingsManager
+    @CurrentUser fun currentUser(): User
 }

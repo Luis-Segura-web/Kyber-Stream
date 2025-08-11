@@ -17,6 +17,9 @@ import com.kybers.play.data.remote.model.TMDbCastMember
 import com.kybers.play.data.remote.model.TMDbTvResult
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
+import com.kybers.play.di.TmdbApiService
 import com.kybers.play.ui.player.AspectRatioMode
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.TrackInfo
@@ -25,6 +28,9 @@ import com.kybers.play.player.RetryManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -84,15 +90,25 @@ data class SeriesDetailsUiState(
     val retryMessage: String? = null
 )
 
-class SeriesDetailsViewModel(
-    application: Application,
-    private val vodRepository: VodRepository,
+class SeriesDetailsViewModel @AssistedInject constructor(
+    @Assisted private val application: Application,
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
-    private val externalApiService: ExternalApiService,
+    @TmdbApiService private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User,
-    private val seriesId: Int
+    @CurrentUser private val currentUser: User,
+    @Assisted private val seriesId: Int,
+    val mediaManager: MediaManager
 ) : AndroidViewModel(application) {
+
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
+
+    @AssistedFactory
+    interface Factory {
+        fun create(application: Application, seriesId: Int): SeriesDetailsViewModel
+    }
 
     private val _uiState = MutableStateFlow(SeriesDetailsUiState())
     val uiState: StateFlow<SeriesDetailsUiState> = _uiState.asStateFlow()
@@ -100,7 +116,6 @@ class SeriesDetailsViewModel(
     private val libVLC: LibVLC = LibVLC(application)
     val mediaPlayer: MediaPlayer = MediaPlayer(libVLC)
 
-    private val mediaManager = MediaManager()
     private lateinit var retryManager: RetryManager
 
     private var lastSaveTimeMillis: Long = 0L

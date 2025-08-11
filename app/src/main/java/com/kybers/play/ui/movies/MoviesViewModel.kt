@@ -11,6 +11,8 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.CurrentUser
+import com.kybers.play.di.RepositoryFactory
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
@@ -19,6 +21,7 @@ import com.kybers.play.ui.components.categories.CategoryEvent
 import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,6 +36,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 data class ExpandableMovieCategory(
     val category: Category,
@@ -57,14 +61,19 @@ data class MoviesUiState(
     val displayMode: DisplayMode = DisplayMode.GRID
 )
 
-class MoviesViewModel(
-    private val vodRepository: VodRepository,
+@HiltViewModel
+class MoviesViewModel @Inject constructor(
+    private val repositoryFactory: RepositoryFactory,
     private val detailsRepository: DetailsRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User,
+    @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
+
+    private val vodRepository: VodRepository by lazy {
+        repositoryFactory.createVodRepository(currentUser.url)
+    }
 
     private val _uiState = MutableStateFlow(MoviesUiState())
     val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()
