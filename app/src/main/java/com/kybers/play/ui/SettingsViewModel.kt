@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.kybers.play.core.datastore.SettingsDataStore
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -16,6 +17,7 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
 import com.kybers.play.di.RepositoryFactory
+import com.kybers.play.settings.Settings
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.theme.ThemeManager
@@ -50,6 +52,7 @@ data class SettingsUiState(
     val userInfo: UserInfo? = null,
     val lastSyncTimestamp: Long = 0,
     val syncFrequency: Int = 12,
+    val playerPreference: String = "AUTO",
     val streamFormat: String = "AUTOMATIC",
     val hwAccelerationEnabled: Boolean = true,
     val networkBuffer: String = "MEDIUM",
@@ -90,6 +93,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repositoryFactory: RepositoryFactory,
     private val preferenceManager: PreferenceManager,
+    private val settingsDataStore: SettingsDataStore,
     private val syncManager: SyncManager,
     @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager,
@@ -122,6 +126,7 @@ class SettingsViewModel @Inject constructor(
             it.copy(
                 lastSyncTimestamp = syncManager.getOldestSyncTimestamp(currentUser.id),
                 syncFrequency = preferenceManager.getSyncFrequency(),
+                playerPreference = preferenceManager.getPlayerPreference(),
                 streamFormat = preferenceManager.getStreamFormat(),
                 hwAccelerationEnabled = preferenceManager.getHwAcceleration(),
                 networkBuffer = preferenceManager.getNetworkBuffer(),
@@ -235,6 +240,28 @@ class SettingsViewModel @Inject constructor(
         
         // Reprogramar worker con nueva frecuencia
         rescheduleCacheWorker(frequencyHours)
+    }
+
+    fun onPlayerPreferenceChanged(preference: String) {
+        // Update old preference system for backward compatibility
+        preferenceManager.savePlayerPreference(preference)
+        
+        // Also update new settings datastore
+        viewModelScope.launch {
+            val playerPref = when (preference) {
+                "MEDIA3" -> Settings.PlayerPref.MEDIA3
+                "VLC" -> Settings.PlayerPref.VLC
+                else -> Settings.PlayerPref.AUTO
+            }
+            settingsDataStore.updatePlayerPreferences(
+                playerPref = playerPref,
+                stopOnBackground = preferenceManager.getStopOnBackground(),
+                enableAutoFallback = preferenceManager.getAutoFallbackEnabled()
+            )
+        }
+        
+        _uiState.update { it.copy(playerPreference = preference) }
+        notifyPlayerSettingsChanged()
     }
 
     private fun rescheduleCacheWorker(frequencyHours: Int) {
