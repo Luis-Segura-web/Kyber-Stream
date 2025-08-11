@@ -14,12 +14,16 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.UserInfo
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.CurrentUser
 import com.kybers.play.ui.components.ParentalControlManager
+import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.theme.ThemeManager
 import com.kybers.play.ui.theme.ThemeConfig
 import com.kybers.play.ui.theme.ThemeColor
 import com.kybers.play.ui.theme.ThemeMode
 import com.kybers.play.work.CacheWorker
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,6 +39,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 /**
  * Data class que representa el estado completo de la UI de la pantalla de Ajustes.
@@ -79,18 +84,18 @@ sealed class SettingsEvent {
 /**
  * ViewModel para la pantalla de Ajustes.
  */
-class SettingsViewModel(
-    private val context: Context,
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val liveRepository: LiveRepository,
     private val vodRepository: VodRepository,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val currentUser: User,
+    @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager,
-    private val themeManager: ThemeManager? = null
+    private val themeManager: ThemeManager,
+    private val dynamicSettingsManager: DynamicSettingsManager
 ) : ViewModel() {
-
-    private val dynamicSettingsManager = DynamicSettingsManager(context, preferenceManager)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()

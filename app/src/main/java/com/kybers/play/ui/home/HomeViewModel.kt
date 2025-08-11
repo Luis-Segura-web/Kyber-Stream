@@ -13,7 +13,10 @@ import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.repository.DetailsRepository
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.TmdbApiService
+import com.kybers.play.di.UserSession
 import com.kybers.play.ui.components.ParentalControlManager
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 sealed class HomeContentItem {
     data class MovieItem(val movie: Movie) : HomeContentItem()
@@ -41,34 +45,42 @@ data class HomeUiState(
     val carousels: List<HomeCarousel> = emptyList()
 )
 
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val vodRepository: VodRepository,
     private val liveRepository: LiveRepository,
     private val detailsRepository: DetailsRepository,
-    private val externalApiService: ExternalApiService,
+    @TmdbApiService private val externalApiService: ExternalApiService,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User,
+    private val userSession: UserSession,
     private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    
+    private val currentUser: User?
+        get() = userSession.getCurrentUser()
 
     init {
-        loadAllHomeContent()
-        
-        // React to parental control changes
-        viewModelScope.launch {
-            parentalControlManager.blockedCategoriesState.collect { _ ->
-                // Reload content when blocked categories change
-                loadAllHomeContent()
+        // Only load content if we have a current user
+        currentUser?.let {
+            loadAllHomeContent()
+            
+            // React to parental control changes
+            viewModelScope.launch {
+                parentalControlManager.blockedCategoriesState.collect { _ ->
+                    // Reload content when blocked categories change
+                    loadAllHomeContent()
+                }
             }
         }
     }
 
     private fun loadAllHomeContent() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, userName = currentUser.profileName) }
+            val user = currentUser ?: return@launch
+            _uiState.update { it.copy(isLoading = true, userName = user.profileName) }
 
             try {
                 coroutineScope {
@@ -120,20 +132,21 @@ class HomeViewModel(
     }
 
     private suspend fun loadMixedFavorites(): List<HomeContentItem> {
+        val user = currentUser ?: return emptyList()
         val favMovieIds = preferenceManager.getFavoriteMovieIds()
         val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
         
         val favorites = mutableListOf<HomeContentItem>()
         
         if (favMovieIds.isNotEmpty()) {
-            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+            val allMovies = vodRepository.getAllMovies(user.id).first()
                 .filter { favMovieIds.contains(it.streamId.toString()) }
             val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
             favorites.addAll(filteredMovies.map { HomeContentItem.MovieItem(it) })
         }
         
         if (favSeriesIds.isNotEmpty()) {
-            val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+            val allSeries = vodRepository.getAllSeries(user.id).first()
                 .filter { favSeriesIds.contains(it.seriesId.toString()) }
             val filteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
             favorites.addAll(filteredSeries.map { HomeContentItem.SeriesItem(it) })
@@ -143,12 +156,13 @@ class HomeViewModel(
     }
 
     private suspend fun loadMixedContinueWatching(): List<HomeContentItem> {
+        val user = currentUser ?: return emptyList()
         val limit = preferenceManager.getRecentlyWatchedLimit()
         val moviePositions = preferenceManager.getAllPlaybackPositions()
         val continueWatching = mutableListOf<HomeContentItem>()
         
         if (moviePositions.isNotEmpty()) {
-            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+            val allMovies = vodRepository.getAllMovies(user.id).first()
             val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
             
             moviePositions
@@ -164,10 +178,11 @@ class HomeViewModel(
     }
 
     private suspend fun loadMixedRecentContent(): List<HomeContentItem> {
+        val user = currentUser ?: return emptyList()
         val recentContent = mutableListOf<HomeContentItem>()
         
         // Get recent movies
-        val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val allMovies = vodRepository.getAllMovies(user.id).first()
         val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
         val recentMovies = filteredMovies
             .sortedByDescending { it.added }
@@ -175,7 +190,7 @@ class HomeViewModel(
             .map { HomeContentItem.MovieItem(it) }
         
         // Get recent series
-        val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val allSeries = vodRepository.getAllSeries(user.id).first()
         val filteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
         val recentSeries = filteredSeries
             .sortedByDescending { it.lastModified }
@@ -197,7 +212,8 @@ class HomeViewModel(
     }
 
     private suspend fun loadTrendingMoviesWeek(): List<HomeContentItem.MovieItem> {
-        val localMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val localMovies = vodRepository.getAllMovies(user.id).first()
         val filteredMovies = parentalControlManager.filterContentByCategory(localMovies) { it.categoryId }
         val localTmdbIds = filteredMovies.mapNotNull { it.tmdbId?.toIntOrNull() }.toSet()
         
@@ -222,7 +238,8 @@ class HomeViewModel(
     }
 
     private suspend fun loadTrendingSeriesWeek(): List<HomeContentItem.SeriesItem> {
-        val localSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val localSeries = vodRepository.getAllSeries(user.id).first()
         val filteredSeries = parentalControlManager.filterContentByCategory(localSeries) { it.categoryId }
         val localTmdbIds = filteredSeries.mapNotNull { it.tmdbId?.toIntOrNull() }.toSet()
         
@@ -247,7 +264,8 @@ class HomeViewModel(
     }
 
     private suspend fun loadBannerContent(): List<Pair<Movie, String?>> {
-        val localMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val localMovies = vodRepository.getAllMovies(user.id).first()
         
         // Apply parental control filtering using ParentalControlManager
         val filteredMovies = parentalControlManager.filterContentByCategory(localMovies) { it.categoryId }
@@ -278,10 +296,11 @@ class HomeViewModel(
     }
 
     private suspend fun loadContinueMovies(): List<HomeContentItem.MovieItem> {
+        val user = currentUser ?: return emptyList()
         val limit = preferenceManager.getRecentlyWatchedLimit()
         val moviePositions = preferenceManager.getAllPlaybackPositions()
         return if (moviePositions.isNotEmpty()) {
-            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+            val allMovies = vodRepository.getAllMovies(user.id).first()
             
             // Apply parental control filtering using ParentalControlManager
             val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
@@ -295,14 +314,15 @@ class HomeViewModel(
     }
 
     private suspend fun loadLiveNow(): List<HomeContentItem.LiveChannelItem> {
-        val channels = liveRepository.getRawLiveStreams(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val channels = liveRepository.getRawLiveStreams(user.id).first()
         
         // Apply parental control filtering using ParentalControlManager
         val filteredChannels = parentalControlManager.filterContentByCategory(channels) { it.categoryId }
         
         if (filteredChannels.isEmpty()) return emptyList()
 
-        val epgMap = liveRepository.getAllEpgMapForUser(currentUser.id)
+        val epgMap = liveRepository.getAllEpgMapForUser(user.id)
         val enrichedChannels = liveRepository.enrichChannelsWithEpg(filteredChannels, epgMap)
 
         return enrichedChannels
@@ -313,7 +333,8 @@ class HomeViewModel(
     }
 
     private suspend fun loadRecentlyAddedMovies(): List<HomeContentItem.MovieItem> {
-        val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val allMovies = vodRepository.getAllMovies(user.id).first()
         
         // Apply parental control filtering using ParentalControlManager
         val filteredMovies = parentalControlManager.filterContentByCategory(allMovies) { it.categoryId }
@@ -325,7 +346,8 @@ class HomeViewModel(
     }
 
     private suspend fun loadRecentlyAddedSeries(): List<HomeContentItem.SeriesItem> {
-        val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+        val user = currentUser ?: return emptyList()
+        val allSeries = vodRepository.getAllSeries(user.id).first()
         
         // Apply parental control filtering using ParentalControlManager
         val filteredSeries = parentalControlManager.filterContentByCategory(allSeries) { it.categoryId }
@@ -337,9 +359,10 @@ class HomeViewModel(
     }
 
     private suspend fun loadFavoriteMovies(): List<HomeContentItem.MovieItem> {
+        val user = currentUser ?: return emptyList()
         val favMovieIds = preferenceManager.getFavoriteMovieIds()
         return if (favMovieIds.isNotEmpty()) {
-            val allMovies = vodRepository.getAllMovies(currentUser.id).first()
+            val allMovies = vodRepository.getAllMovies(user.id).first()
                 .filter { favMovieIds.contains(it.streamId.toString()) }
             
             // Apply parental control filtering using ParentalControlManager
@@ -350,9 +373,10 @@ class HomeViewModel(
     }
 
     private suspend fun loadFavoriteSeries(): List<HomeContentItem.SeriesItem> {
+        val user = currentUser ?: return emptyList()
         val favSeriesIds = preferenceManager.getFavoriteSeriesIds()
         return if (favSeriesIds.isNotEmpty()) {
-            val allSeries = vodRepository.getAllSeries(currentUser.id).first()
+            val allSeries = vodRepository.getAllSeries(user.id).first()
                 .filter { favSeriesIds.contains(it.seriesId.toString()) }
             
             // Apply parental control filtering using ParentalControlManager

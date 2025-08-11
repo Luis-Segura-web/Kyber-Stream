@@ -82,11 +82,13 @@ object UserModule {
 
     /**
      * Provides the current logged-in user.
-     * Returns null if no user is logged in.
+     * For ViewModels that are already using @Inject constructor, we can inject User directly.
+     * This assumes the UserSession has been initialized with a valid user.
      */
     @Provides
     @CurrentUser
-    fun provideCurrentUser(userSession: UserSession): User? {
-        return userSession.getCurrentUser()
+    fun provideCurrentUser(userSession: UserSession): User {
+        return userSession.getCurrentUser() 
+            ?: throw IllegalStateException("No user is currently logged in")
     }
 }

@@ -3,6 +3,7 @@ package com.kybers.play.di
 import android.content.Context
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.player.MediaManager
+import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.theme.ThemeManager
 import dagger.Module
 import dagger.Provides
@@ -27,5 +28,13 @@ object ManagerModule {
         preferenceManager: PreferenceManager
     ): ThemeManager {
         return ThemeManager(preferenceManager)
+    }
+
+    @Provides
+    fun provideDynamicSettingsManager(
+        @ApplicationContext context: Context,
+        preferenceManager: PreferenceManager
+    ): DynamicSettingsManager {
+        return DynamicSettingsManager(context, preferenceManager)
     }
 }

@@ -8,6 +8,7 @@ import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.repository.VodRepository
+import com.kybers.play.di.CurrentUser
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
 import com.kybers.play.ui.components.ParentalControlManager
@@ -61,7 +62,7 @@ class SeriesViewModel @Inject constructor(
     private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
-    private val currentUser: User,
+    @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager
 ) : ViewModel() {
 

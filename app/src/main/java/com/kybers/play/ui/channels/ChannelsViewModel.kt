@@ -14,6 +14,7 @@ import com.kybers.play.data.remote.model.Category
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
 import com.kybers.play.data.repository.LiveRepository
+import com.kybers.play.di.CurrentUser
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.components.DisplayMode
 import com.kybers.play.ui.components.toDisplayMode
@@ -28,6 +29,9 @@ import com.kybers.play.ui.player.toAspectRatioMode
 import com.kybers.play.ui.player.toSortOrder
 import com.kybers.play.player.MediaManager
 import com.kybers.play.player.RetryManager
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -46,6 +50,7 @@ import org.videolan.libvlc.MediaPlayer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 data class ExpandableCategory(
     val category: Category,
@@ -94,20 +99,25 @@ data class ChannelsUiState(
     val displayMode: DisplayMode = DisplayMode.LIST
 )
 
-open class ChannelsViewModel(
-    application: Application,
+open class ChannelsViewModel @AssistedInject constructor(
+    @Assisted private val application: Application,
     private val liveRepository: LiveRepository,
-    private val currentUser: User,
+    @CurrentUser private val currentUser: User,
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
-    private val parentalControlManager: ParentalControlManager
+    private val parentalControlManager: ParentalControlManager,
+    val mediaManager: MediaManager
 ) : AndroidViewModel(application) {
+
+    @AssistedFactory
+    interface Factory {
+        fun create(application: Application): ChannelsViewModel
+    }
 
     private lateinit var libVLC: LibVLC
     lateinit var mediaPlayer: MediaPlayer
         private set
 
-    private val mediaManager = MediaManager()
     private lateinit var retryManager: RetryManager
 
     private val _uiState = MutableStateFlow(ChannelsUiState())
