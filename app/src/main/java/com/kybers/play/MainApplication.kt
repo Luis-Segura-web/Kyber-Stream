@@ -13,28 +13,20 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
-import com.kybers.play.data.local.AppDatabase
 import com.kybers.play.data.preferences.PreferenceManager
-import com.kybers.play.data.preferences.SyncManager
-import com.kybers.play.data.remote.ExternalApiRetrofitClient
-import com.kybers.play.data.remote.ExternalApiService
-import com.kybers.play.data.remote.RetrofitClient
-import com.kybers.play.data.repository.DetailsRepository
-import com.kybers.play.data.repository.LiveRepository
-import com.kybers.play.data.repository.UserRepository
-import com.kybers.play.data.repository.VodRepository
-import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.work.CacheWorker
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
+@HiltAndroidApp
 class MainApplication : Application(), androidx.work.Configuration.Provider, ImageLoaderFactory {
 
-    lateinit var container: AppContainer
-        private set
+    @Inject
+    lateinit var preferenceManager: PreferenceManager
 
     override fun onCreate() {
         super.onCreate()
         setDefaultLocale()
-        container = AppContainer(this)
         scheduleCacheWorker()
     }
 
@@ -75,7 +67,7 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
     }
 
     private fun scheduleCacheWorker() {
-        val userFrequency = container.preferenceManager.getSyncFrequency()
+        val userFrequency = preferenceManager.getSyncFrequency()
         
         if (userFrequency == 0) {
             Log.d("MainApplication", "Sincronización automática deshabilitada por el usuario")
@@ -94,49 +86,5 @@ class MainApplication : Application(), androidx.work.Configuration.Provider, Ima
             syncRequest
         )
         Log.d("MainApplication", "CacheWorker programado para ejecutarse cada $userFrequency horas según configuración del usuario")
-    }
-}
-
-class AppContainer(private val context: Context) {
-
-    private val database by lazy { AppDatabase.getDatabase(context) }
-    
-    // --- ¡CAMBIO! Hacemos público el servicio de TMDB ---
-    val tmdbApiService: ExternalApiService by lazy { ExternalApiRetrofitClient.createTMDbService() }
-
-    val userRepository by lazy { UserRepository(database.userDao()) }
-    val preferenceManager by lazy { PreferenceManager(context) }
-    val syncManager by lazy { SyncManager(context, preferenceManager) }
-    val parentalControlManager by lazy { ParentalControlManager(preferenceManager) }
-
-    val detailsRepository by lazy {
-        DetailsRepository(
-            tmdbApiService = tmdbApiService,
-            movieDetailsCacheDao = database.movieDetailsCacheDao(),
-            seriesDetailsCacheDao = database.seriesDetailsCacheDao(),
-            actorDetailsCacheDao = database.actorDetailsCacheDao(),
-            episodeDetailsCacheDao = database.episodeDetailsCacheDao()
-        )
-    }
-
-    fun createLiveRepository(baseUrl: String): LiveRepository {
-        val xtreamApiService = RetrofitClient.create(baseUrl)
-        return LiveRepository(
-            xtreamApiService = xtreamApiService,
-            liveStreamDao = database.liveStreamDao(),
-            epgEventDao = database.epgEventDao(),
-            categoryCacheDao = database.categoryCacheDao()
-        )
-    }
-
-    fun createVodRepository(baseUrl: String): VodRepository {
-        val xtreamApiService = RetrofitClient.create(baseUrl)
-        return VodRepository(
-            xtreamApiService = xtreamApiService,
-            movieDao = database.movieDao(),
-            seriesDao = database.seriesDao(),
-            episodeDao = database.episodeDao(),
-            categoryCacheDao = database.categoryCacheDao()
-        )
     }
 }

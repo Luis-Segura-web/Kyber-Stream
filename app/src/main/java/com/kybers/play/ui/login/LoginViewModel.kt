@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 /**
  * Represents the possible states of the Login screen UI.
@@ -38,7 +40,8 @@ sealed interface LoginUiState {
  *
  * @param userRepository The repository to access user data.
  */
-class LoginViewModel(private val userRepository: UserRepository) : ViewModel() {
+@HiltViewModel
+class LoginViewModel @Inject constructor(private val userRepository: UserRepository) : ViewModel() {
 
     /**
      * A StateFlow that emits the current state of the login screen.

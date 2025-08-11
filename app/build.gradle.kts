@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.hilt)
 }
 
 kotlin {
@@ -121,6 +122,11 @@ dependencies {
 
     // --- CARGA DE IMÁGENES ---
     implementation(libs.coil.compose)
+
+    // --- DEPENDENCY INJECTION ---
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.navigation.compose)
 
     // --- TESTING ---
     testImplementation(libs.junit)
