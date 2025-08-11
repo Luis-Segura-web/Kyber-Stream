@@ -28,4 +28,5 @@ interface AppDependencies {
     fun syncManager(): SyncManager
     fun parentalControlManager(): ParentalControlManager
     fun userRepository(): com.kybers.play.data.repository.UserRepository
+    fun userSession(): UserSession
 }

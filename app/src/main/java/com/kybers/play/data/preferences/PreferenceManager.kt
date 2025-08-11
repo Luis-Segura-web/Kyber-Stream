@@ -52,6 +52,9 @@ class PreferenceManager(context: Context) {
         private const val KEY_DISPLAY_MODE_CHANNELS = "display_mode_channels"
         private const val KEY_DISPLAY_MODE_MOVIES = "display_mode_movies"
         private const val KEY_DISPLAY_MODE_SERIES = "display_mode_series"
+        
+        // --- NUEVA CLAVE PARA USUARIO ACTUAL ---
+        private const val KEY_CURRENT_USER_ID = "current_user_id"
     }
 
     // --- Métodos existentes (sin cambios) ---
@@ -248,4 +251,12 @@ class PreferenceManager(context: Context) {
     fun isSerisFavorite(seriesId: Int): Boolean {
         return getFavoriteSeriesIds().contains(seriesId.toString())
     }
+    
+    // --- MÉTODOS PARA USUARIO ACTUAL ---
+    
+    fun saveCurrentUserId(userId: Int) = sharedPreferences.edit().putInt(KEY_CURRENT_USER_ID, userId).apply()
+    
+    fun getCurrentUserId(): Int = sharedPreferences.getInt(KEY_CURRENT_USER_ID, -1)
+    
+    fun clearCurrentUserId() = sharedPreferences.edit().remove(KEY_CURRENT_USER_ID).apply()
 }

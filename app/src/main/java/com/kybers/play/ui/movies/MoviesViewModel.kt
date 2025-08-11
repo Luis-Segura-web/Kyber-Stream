@@ -19,6 +19,7 @@ import com.kybers.play.ui.components.categories.CategoryEvent
 import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,6 +34,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 data class ExpandableMovieCategory(
     val category: Category,
@@ -57,7 +59,8 @@ data class MoviesUiState(
     val displayMode: DisplayMode = DisplayMode.GRID
 )
 
-class MoviesViewModel(
+@HiltViewModel
+class MoviesViewModel @Inject constructor(
     private val vodRepository: VodRepository,
     private val detailsRepository: DetailsRepository,
     private val syncManager: SyncManager,

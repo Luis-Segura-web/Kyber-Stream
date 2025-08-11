@@ -16,6 +16,7 @@ import com.kybers.play.ui.components.categories.CategoryEvent
 import com.kybers.play.ui.components.categories.ScreenType
 import com.kybers.play.ui.player.SortOrder
 import com.kybers.play.ui.player.toSortOrder
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 // Data class para representar una categoría de series que se puede expandir.
 data class ExpandableSeriesCategory(
@@ -54,7 +56,8 @@ data class SeriesUiState(
     val displayMode: DisplayMode = DisplayMode.GRID
 )
 
-class SeriesViewModel(
+@HiltViewModel
+class SeriesViewModel @Inject constructor(
     private val vodRepository: VodRepository,
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
