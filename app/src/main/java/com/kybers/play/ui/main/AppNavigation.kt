@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -208,7 +209,7 @@ fun AppNavHost(
         }
         composable(Screen.Login.route) {
             val loginViewModelFactory = remember {
-                LoginViewModelFactory(appContainer.userRepository)
+                LoginViewModelFactory(appContainer.userRepository, appContainer.syncManager)
             }
             val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)
             LoginScreen(

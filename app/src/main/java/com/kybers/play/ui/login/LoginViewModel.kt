@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.repository.UserRepository
+import com.kybers.play.data.preferences.SyncManager
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -41,7 +42,10 @@ sealed interface LoginUiState {
  * @param userRepository The repository to access user data.
  */
 @HiltViewModel
-class LoginViewModel @Inject constructor(private val userRepository: UserRepository) : ViewModel() {
+class LoginViewModel @Inject constructor(
+    private val userRepository: UserRepository,
+    private val syncManager: SyncManager
+) : ViewModel() {
 
     /**
      * A StateFlow that emits the current state of the login screen.
@@ -95,5 +99,14 @@ class LoginViewModel @Inject constructor(private val userRepository: UserReposit
         viewModelScope.launch {
             userRepository.delete(user)
         }
+    }
+
+    /**
+     * Checks if sync is needed for the given user.
+     * @param userId The user ID to check
+     * @return true if sync is needed, false otherwise
+     */
+    fun isSyncNeeded(userId: Int): Boolean {
+        return syncManager.isSyncNeeded(userId)
     }
 }

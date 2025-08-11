@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -28,7 +27,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.kybers.play.MainApplication
 import com.kybers.play.data.local.model.User
 import com.kybers.play.ui.main.Screen
 
@@ -37,14 +35,12 @@ fun LoginScreen(
     navController: NavController,
     viewModel: LoginViewModel
 ) {
-    val context = LocalContext.current
-    val syncManager = (context.applicationContext as MainApplication).container.syncManager
     val uiState by viewModel.uiState.collectAsState()
     var showAddUserForm by remember { mutableStateOf(false) }
 
     fun onUserSelected(user: User) {
         Log.d("LoginScreen", "Usuario seleccionado: ${user.profileName} (ID: ${user.id})")
-        if (syncManager.isSyncNeeded(user.id)) {
+        if (viewModel.isSyncNeeded(user.id)) {
             Log.d("LoginScreen", "Sincronización necesaria para userId: ${user.id}")
             navController.navigate(Screen.Sync.createRoute(user.id))
         } else {

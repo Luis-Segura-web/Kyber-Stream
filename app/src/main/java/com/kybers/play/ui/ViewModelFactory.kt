@@ -26,11 +26,14 @@ import com.kybers.play.ui.sync.SyncViewModel
 import com.kybers.play.ui.main.MainViewModel
 import com.kybers.play.AppContainer
 
-class LoginViewModelFactory(private val userRepository: UserRepository) : ViewModelProvider.Factory {
+class LoginViewModelFactory(
+    private val userRepository: UserRepository,
+    private val syncManager: SyncManager
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return LoginViewModel(userRepository) as T
+            return LoginViewModel(userRepository, syncManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
