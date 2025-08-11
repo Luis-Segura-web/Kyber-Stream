@@ -1,6 +1,7 @@
 package com.kybers.play.data.repository
 
 import android.util.Log
+import com.kybers.play.core.epg.EpgCacheManager
 import com.kybers.play.data.local.CategoryCacheDao
 import com.kybers.play.data.local.EpgEventDao
 import com.kybers.play.data.local.LiveStreamDao
@@ -16,14 +17,18 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlin.io.use
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
-class LiveRepository(
+class LiveRepository @Inject constructor(
     xtreamApiService: XtreamApiService,
     private val liveStreamDao: LiveStreamDao,
     private val epgEventDao: EpgEventDao,
-    private val categoryCacheDao: CategoryCacheDao
+    private val categoryCacheDao: CategoryCacheDao,
+    private val epgCacheManager: EpgCacheManager
 ) : BaseContentRepository(xtreamApiService) {
 
     private val moshi: Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
@@ -72,13 +77,17 @@ class LiveRepository(
         return emptyList()
     }
 
+    /**
+     * --- ¡FUNCIÓN MEJORADA CON SYNCMANAGER! ---
+     * Verifica si los datos EPG están obsoletos usando lógica mejorada.
+     */
     suspend fun isEpgDataStale(userId: Int): Boolean {
         val latestTimestamp = epgEventDao.getLatestStopTimestamp(userId)
-            ?: return true
-
+        
+        // Para compatibilidad, mantenemos la lógica original pero con mejor logging
         val twentyFourHoursFromNowInSeconds = (System.currentTimeMillis() / 1000) + TimeUnit.HOURS.toSeconds(24)
 
-        val isStale = latestTimestamp < twentyFourHoursFromNowInSeconds
+        val isStale = latestTimestamp == null || latestTimestamp < twentyFourHoursFromNowInSeconds
         if (isStale) {
             Log.d("LiveRepository", "EPG DESACTUALIZADA. El último programa termina antes del umbral de 24 horas.")
         } else {
@@ -93,6 +102,45 @@ class LiveRepository(
         return epgEventDao.getAllEventsForUser(userId).groupBy { it.channelId }
     }
 
+    /**
+     * --- ¡MÉTODO OPTIMIZADO CON CACHE! ---
+     * Enriquece los canales con información EPG usando cache inteligente para mejor performance.
+     */
+    suspend fun enrichChannelsWithEpg(channels: List<LiveStream>, userId: Int): List<LiveStream> {
+        if (channels.isEmpty()) return channels
+        
+        return coroutineScope {
+            val channelIds = channels.map { it.streamId }
+            
+            // Obtener eventos actuales para todos los canales en una sola consulta
+            val currentEventsDeferred = async { 
+                epgCacheManager.getCurrentEventsForChannels(channelIds, userId) 
+            }
+            
+            // Obtener próximos eventos
+            val nextEventsDeferred = async {
+                val currentTime = System.currentTimeMillis() / 1000
+                epgEventDao.getNextEventsForChannels(channelIds, userId, currentTime)
+                    .associateBy { it.channelId }
+            }
+            
+            val currentEventsMap = currentEventsDeferred.await()
+            val nextEventsMap = nextEventsDeferred.await()
+            
+            // Enriquecer cada canal con su información EPG
+            channels.map { stream ->
+                stream.copy().apply {
+                    currentEpgEvent = currentEventsMap[stream.streamId]
+                    nextEpgEvent = nextEventsMap[stream.streamId]
+                }
+            }
+        }
+    }
+
+    /**
+     * --- ¡MÉTODO ORIGINAL MANTENIDO PARA COMPATIBILIDAD! ---
+     * Versión anterior del método para casos donde se pase el mapa EPG directamente.
+     */
     fun enrichChannelsWithEpg(channels: List<LiveStream>, epgMap: Map<Int, List<EpgEvent>>): List<LiveStream> {
         val currentTime = System.currentTimeMillis() / 1000
         return channels.map { stream ->
@@ -103,6 +151,41 @@ class LiveRepository(
             }
             stream
         }
+    }
+
+    /**
+     * --- ¡NUEVA FUNCIÓN OPTIMIZADA! ---
+     * Obtiene información EPG para un canal específico de forma eficiente.
+     */
+    suspend fun getChannelEpgInfo(channelId: Int, userId: Int): Pair<EpgEvent?, EpgEvent?> {
+        return epgCacheManager.getCurrentAndNextEventsForChannel(channelId, userId)
+    }
+
+    /**
+     * --- ¡NUEVA FUNCIÓN PARA BÚSQUEDA EPG! ---
+     * Busca eventos EPG por título.
+     */
+    suspend fun searchEpgEvents(userId: Int, searchQuery: String, limit: Int = 50): List<EpgEvent> {
+        val currentTime = System.currentTimeMillis() / 1000
+        return epgEventDao.searchEventsByTitle(userId, searchQuery, currentTime, limit)
+    }
+
+    /**
+     * --- ¡NUEVA FUNCIÓN PARA ESTADÍSTICAS EPG! ---
+     * Obtiene estadísticas de cobertura EPG.
+     */
+    suspend fun getEpgCoverageInfo(userId: Int): EpgCoverageInfo? {
+        val stats = epgEventDao.getEpgCoverageStats(userId) ?: return null
+        val totalChannels = liveStreamDao.getAllLiveStreams(userId).first().size
+        
+        return EpgCoverageInfo(
+            totalChannels = totalChannels,
+            channelsWithEpg = stats.channelsWithEpg,
+            totalEvents = stats.totalEvents,
+            coveragePercentage = if (totalChannels > 0) (stats.channelsWithEpg * 100f) / totalChannels else 0f,
+            earliestEventTime = stats.earliestEvent,
+            latestEventTime = stats.latestEvent
+        )
     }
 
     suspend fun cacheLiveStreams(user: String, pass: String, userId: Int) {
@@ -138,6 +221,10 @@ class LiveRepository(
                 response.body()?.byteStream()?.use { input ->
                     val allEpgEvents = XmlTvParser.parse(input, epgIdToStreamIdsMap, userId)
                     epgEventDao.replaceAll(allEpgEvents, userId)
+                    
+                    // Invalidar cache después de actualizar datos EPG
+                    epgCacheManager.invalidateUserCache(userId)
+                    
                     Log.d("LiveRepository", "EPG cacheada. Se procesaron ${allEpgEvents.size} eventos.")
                 }
             }
@@ -145,4 +232,24 @@ class LiveRepository(
             Log.e("LiveRepository", "Error al cachear datos de EPG", e)
         }
     }
+
+    /**
+     * --- ¡NUEVA FUNCIÓN PARA INVALIDAR CACHE EPG! ---
+     * Invalida el cache EPG cuando se actualiza la información.
+     */
+    suspend fun invalidateEpgCache(userId: Int) {
+        epgCacheManager.invalidateUserCache(userId)
+    }
 }
+
+/**
+ * Información de cobertura EPG.
+ */
+data class EpgCoverageInfo(
+    val totalChannels: Int,
+    val channelsWithEpg: Int,
+    val totalEvents: Int,
+    val coveragePercentage: Float,
+    val earliestEventTime: Long,
+    val latestEventTime: Long
+)

@@ -1,5 +1,6 @@
 package com.kybers.play.di
 
+import com.kybers.play.core.epg.EpgCacheManager
 import com.kybers.play.data.local.*
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.LiveRepository
@@ -17,7 +18,8 @@ class RepositoryFactory @Inject constructor(
     private val categoryCacheDao: CategoryCacheDao,
     private val movieDao: MovieDao,
     private val seriesDao: SeriesDao,
-    private val episodeDao: EpisodeDao
+    private val episodeDao: EpisodeDao,
+    private val epgCacheManager: EpgCacheManager
 ) {
     
     fun createLiveRepository(baseUrl: String): LiveRepository {
@@ -26,7 +28,8 @@ class RepositoryFactory @Inject constructor(
             xtreamApiService = xtreamApiService,
             liveStreamDao = liveStreamDao,
             epgEventDao = epgEventDao,
-            categoryCacheDao = categoryCacheDao
+            categoryCacheDao = categoryCacheDao,
+            epgCacheManager = epgCacheManager
         )
     }
 

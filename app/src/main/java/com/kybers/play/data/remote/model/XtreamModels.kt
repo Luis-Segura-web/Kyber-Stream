@@ -133,7 +133,15 @@ data class ApiEpgEvent(
     }
 }
 
-@Entity(tableName = "epg_events", primaryKeys = ["apiEventId", "channelId", "userId"])
+@Entity(
+    tableName = "epg_events", 
+    primaryKeys = ["apiEventId", "channelId", "userId"],
+    indices = [
+        androidx.room.Index(value = ["channelId", "userId", "startTimestamp"]),
+        androidx.room.Index(value = ["userId", "startTimestamp", "stopTimestamp"]),
+        androidx.room.Index(value = ["channelId", "startTimestamp", "stopTimestamp"])
+    ]
+)
 data class EpgEvent(
     val apiEventId: String,
     val channelId: Int,

@@ -173,20 +173,67 @@ class SyncManager(
 
 
     /**
+     * --- ¡LÓGICA DE SINCRONIZACIÓN EPG MEJORADA! ---
      * Comprueba si se necesita una sincronización de la guía de programación (EPG).
+     * Ahora considera también la calidad de los datos EPG existentes.
      */
     fun isEpgSyncNeeded(userId: Int): Boolean {
         val lastSync = sharedPreferences.getLong(KEY_EPG_LAST_SYNC_PREFIX + userId, 0L)
-        return System.currentTimeMillis() - lastSync > EPG_SYNC_THRESHOLD
+        val timeSinceLastSync = System.currentTimeMillis() - lastSync
+        
+        // Si nunca se ha sincronizado, necesita sincronización
+        if (lastSync == 0L) {
+            Log.d("SyncManager", "EPG sync needed: Nunca se ha sincronizado para userId $userId")
+            return true
+        }
+        
+        // Si ha pasado más del umbral de tiempo, necesita sincronización
+        if (timeSinceLastSync > EPG_SYNC_THRESHOLD) {
+            Log.d("SyncManager", "EPG sync needed: Tiempo transcurrido ${timeSinceLastSync}ms > ${EPG_SYNC_THRESHOLD}ms para userId $userId")
+            return true
+        }
+        
+        Log.d("SyncManager", "EPG sync not needed: Última sincronización hace ${timeSinceLastSync}ms para userId $userId")
+        return false
     }
 
     /**
-     * Guarda el timestamp de la última sincronización de EPG.
+     * --- ¡NUEVA FUNCIÓN PARA SINCRONIZACIÓN INTELIGENTE! ---
+     * Verifica si la sincronización EPG es necesaria basándose en datos obsoletos.
      */
-    fun saveEpgLastSyncTimestamp(userId: Int) {
+    fun isEpgDataStale(userId: Int, latestEventTimestamp: Long?): Boolean {
+        // Si no hay datos EPG, está obsoleto
+        if (latestEventTimestamp == null) {
+            Log.d("SyncManager", "EPG data stale: No hay datos EPG para userId $userId")
+            return true
+        }
+        
+        // Verificar si la información EPG cubre al menos las próximas 12 horas
+        val twelveHoursFromNow = (System.currentTimeMillis() / 1000) + TimeUnit.HOURS.toSeconds(12)
+        val isStale = latestEventTimestamp < twelveHoursFromNow
+        
+        if (isStale) {
+            Log.d("SyncManager", "EPG data stale: Último evento termina en $latestEventTimestamp, necesario hasta $twelveHoursFromNow")
+        } else {
+            Log.d("SyncManager", "EPG data fresh: Cobertura hasta $latestEventTimestamp")
+        }
+        
+        return isStale
+    }
+
+    /**
+     * --- ¡FUNCIÓN MEJORADA! ---
+     * Guarda el timestamp de la última sincronización de EPG con información adicional.
+     */
+    fun saveEpgLastSyncTimestamp(userId: Int, eventCount: Int = 0) {
+        val timestamp = System.currentTimeMillis()
         with(sharedPreferences.edit()) {
-            putLong(KEY_EPG_LAST_SYNC_PREFIX + userId, System.currentTimeMillis())
+            putLong(KEY_EPG_LAST_SYNC_PREFIX + userId, timestamp)
+            if (eventCount > 0) {
+                putInt("${KEY_EPG_LAST_SYNC_PREFIX}events_${userId}", eventCount)
+            }
             apply()
         }
+        Log.d("SyncManager", "EPG sync timestamp saved para userId $userId: $timestamp con $eventCount eventos")
     }
 }

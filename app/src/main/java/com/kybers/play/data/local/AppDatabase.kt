@@ -31,7 +31,7 @@ import com.kybers.play.data.remote.model.Episode
         EpisodeDetailsCache::class,
         CategoryCache::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
