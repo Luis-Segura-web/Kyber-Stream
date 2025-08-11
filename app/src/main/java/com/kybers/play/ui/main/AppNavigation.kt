@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import dagger.hilt.android.EntryPointAccessors
+import com.kybers.play.ui.ContentViewModelFactory
+import com.kybers.play.ui.MovieDetailsViewModelFactory
+import com.kybers.play.ui.SeriesDetailsViewModelFactory
+import com.kybers.play.ui.SettingsViewModelFactory
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(

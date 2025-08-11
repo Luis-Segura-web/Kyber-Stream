@@ -1,5 +1,6 @@
 package com.kybers.play.di
 
+import android.app.Application
 import android.content.Context
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager

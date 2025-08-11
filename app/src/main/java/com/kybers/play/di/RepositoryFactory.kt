@@ -4,13 +4,13 @@ import com.kybers.play.data.local.*
 import com.kybers.play.data.remote.RetrofitClient
 import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
-import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Factory to create repositories that require dynamic base URLs
  */
-@ViewModelScoped
+@Singleton
 class RepositoryFactory @Inject constructor(
     private val liveStreamDao: LiveStreamDao,
     private val epgEventDao: EpgEventDao,
