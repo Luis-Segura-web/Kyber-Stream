@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
+    id("com.google.protobuf") version "0.9.4"
 }
 
 kotlin {
@@ -75,6 +76,21 @@ android {
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
 }
 
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.5"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                register("java") {
+                    option("lite")
+                }
+            }
+        }
+    }
+}
+
 dependencies {
     // --- CORE & UI ---
     implementation(libs.androidx.core.ktx)
@@ -127,6 +143,13 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    
+    // --- SECURITY ---
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
+    // --- DATASTORE ---
+    implementation("androidx.datastore:datastore:1.1.1")
+    implementation("com.google.protobuf:protobuf-javalite:3.25.5")
 
     // --- TESTING ---
     testImplementation(libs.junit)
