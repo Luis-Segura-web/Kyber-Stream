@@ -8,8 +8,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.kybers.play.player.PlayerManager
 import org.videolan.libvlc.MediaPlayer
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 
-class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class PlayerViewModel @Inject constructor(
+    @ApplicationContext private val application: Application
+) : AndroidViewModel(application) {
 
     private val playerManager = PlayerManager(application, viewModelScope)
     

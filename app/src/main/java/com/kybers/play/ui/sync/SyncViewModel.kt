@@ -7,6 +7,7 @@ import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
 import com.kybers.play.data.repository.UserRepository
+import com.kybers.play.di.RepositoryFactory
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 /**
  * Representa los diferentes estados del proceso de sincronización de datos.
@@ -34,11 +37,12 @@ sealed class SyncState {
  * ViewModel para la SyncScreen. Ahora utiliza la información devuelta por el
  * repositorio de forma más eficiente, evitando consultas innecesarias a la base de datos.
  */
-class SyncViewModel(
+@HiltViewModel
+class SyncViewModel @Inject constructor(
     private val syncManager: SyncManager,
     private val preferenceManager: PreferenceManager,
     private val userRepository: UserRepository,
-    private val appContainer: com.kybers.play.AppContainer
+    private val repositoryFactory: RepositoryFactory
 ) : ViewModel() {
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
@@ -59,8 +63,8 @@ class SyncViewModel(
                 Log.d("SyncViewModel", "Usuario encontrado: ${user.profileName}")
                 
                 // Create repositories with the user's URL
-                val vodRepository = appContainer.createVodRepository(user.url)
-                val liveRepository = appContainer.createLiveRepository(user.url)
+                val vodRepository = repositoryFactory.createVodRepository(user.url)
+                val liveRepository = repositoryFactory.createLiveRepository(user.url)
                 
                 val vodSyncJob = async {
                     _syncState.update { SyncState.SyncingMovies }
