@@ -139,8 +139,7 @@ class PlayerSelector @Inject constructor(
      * Crea una instancia del motor Media3
      */
     private suspend fun createMedia3Engine(): PlayerEngine {
-        // TODO: Implementar cuando se agregue Media3
-        throw UnsupportedOperationException("Media3 engine not yet implemented")
+        return Media3Engine(application, preferenceManager)
     }
 
     /**

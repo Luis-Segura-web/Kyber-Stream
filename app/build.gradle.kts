@@ -135,6 +135,14 @@ dependencies {
 
     // --- REPRODUCTOR DE VIDEO ---
     implementation(libs.libvlc.all)
+    
+    // --- MEDIA3 (EXOPLAYER) ---
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-cast:1.4.1")
 
     // --- CARGA DE IMÁGENES ---
     implementation(libs.coil.compose)
