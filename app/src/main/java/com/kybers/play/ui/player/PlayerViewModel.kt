@@ -81,9 +81,12 @@ class PlayerViewModel @Inject constructor(
      * Play media using PlayerManager
      */
     fun playMedia(url: String) {
+        android.util.Log.d("PlayerViewModel", "🎬 INICIO REPRODUCCIÓN - URL: ${url.takeLast(30)}...")
+        android.util.Log.d("PlayerViewModel", "🎬 Delegando reproducción a PlayerManager...")
         _playerStatus.value = PlayerStatus.LOADING
         _errorMessage.value = null
         playerManager.playMedia(url)
+        android.util.Log.d("PlayerViewModel", "🎬 Llamada a PlayerManager.playMedia() completada")
     }
     
     /**
