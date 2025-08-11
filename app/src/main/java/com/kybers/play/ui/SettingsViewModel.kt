@@ -182,9 +182,6 @@ class SettingsViewModel @Inject constructor(
             android.util.Log.d("SettingsViewModel", "- Live: ${liveCategories.size} categorías")
             android.util.Log.d("SettingsViewModel", "- Movies: ${movieCategories.size} categorías")
             android.util.Log.d("SettingsViewModel", "- Series: ${seriesCategories.size} categorías")
-            liveCategories.forEach { category ->
-                android.util.Log.d("SettingsViewModel", "Live categoria: ${category.categoryName} (ID: ${category.categoryId})")
-            }
 
             _uiState.update {
                 it.copy(
