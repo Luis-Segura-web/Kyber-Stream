@@ -76,7 +76,7 @@ private fun MainScreenWithBottomNav(
     // Create factories for each ViewModel type
     val contentViewModelFactory = remember(user.id) {
         com.kybers.play.ui.ContentViewModelFactory(
-            application = hiltEntryPoint.applicationContext() as android.app.Application,
+            application = hiltEntryPoint.application(),
             vodRepository = vodRepository,
             liveRepository = liveRepository,
             detailsRepository = hiltEntryPoint.detailsRepository(),
