@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.kybers.play.core.datastore.SettingsDataStore
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -16,6 +17,7 @@ import com.kybers.play.data.repository.LiveRepository
 import com.kybers.play.data.repository.VodRepository
 import com.kybers.play.di.CurrentUser
 import com.kybers.play.di.RepositoryFactory
+import com.kybers.play.settings.Settings
 import com.kybers.play.ui.components.ParentalControlManager
 import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.theme.ThemeManager
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -50,6 +53,7 @@ data class SettingsUiState(
     val userInfo: UserInfo? = null,
     val lastSyncTimestamp: Long = 0,
     val syncFrequency: Int = 12,
+    val playerPreference: String = "AUTO",
     val streamFormat: String = "AUTOMATIC",
     val hwAccelerationEnabled: Boolean = true,
     val networkBuffer: String = "MEDIUM",
@@ -90,6 +94,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repositoryFactory: RepositoryFactory,
     private val preferenceManager: PreferenceManager,
+    private val settingsDataStore: SettingsDataStore,
     private val syncManager: SyncManager,
     @CurrentUser private val currentUser: User,
     private val parentalControlManager: ParentalControlManager,
@@ -118,10 +123,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun loadInitialSettings() {
+        val playerPreference = preferenceManager.getPlayerPreference()
+        Log.d("SettingsViewModel", "Loading initial player preference: $playerPreference")
+        
         _uiState.update {
             it.copy(
                 lastSyncTimestamp = syncManager.getOldestSyncTimestamp(currentUser.id),
                 syncFrequency = preferenceManager.getSyncFrequency(),
+                playerPreference = playerPreference,
                 streamFormat = preferenceManager.getStreamFormat(),
                 hwAccelerationEnabled = preferenceManager.getHwAcceleration(),
                 networkBuffer = preferenceManager.getNetworkBuffer(),
@@ -235,6 +244,41 @@ class SettingsViewModel @Inject constructor(
         
         // Reprogramar worker con nueva frecuencia
         rescheduleCacheWorker(frequencyHours)
+    }
+
+    fun onPlayerPreferenceChanged(preference: String) {
+        Log.d("SettingsViewModel", "Player preference changed to: $preference")
+        
+        // Update old preference system for backward compatibility
+        preferenceManager.savePlayerPreference(preference)
+        Log.d("SettingsViewModel", "Saved to PreferenceManager: $preference")
+        
+        // Also update new settings datastore - make this blocking to avoid race conditions
+        viewModelScope.launch {
+            val playerPref = when (preference) {
+                "MEDIA3" -> Settings.PlayerPref.MEDIA3
+                "VLC" -> Settings.PlayerPref.VLC
+                else -> Settings.PlayerPref.AUTO
+            }
+            Log.d("SettingsViewModel", "Updating SettingsDataStore with enum: $playerPref")
+            
+            try {
+                settingsDataStore.updatePlayerPreferences(
+                    playerPref = playerPref,
+                    stopOnBackground = preferenceManager.getStopOnBackground(),
+                    enableAutoFallback = preferenceManager.getAutoFallbackEnabled()
+                )
+                
+                // Verify the save worked
+                val savedSettings = settingsDataStore.settings.first()
+                Log.d("SettingsViewModel", "Verified SettingsDataStore value: ${savedSettings.playerPref}")
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "Failed to update or verify SettingsDataStore", e)
+            }
+        }
+        
+        _uiState.update { it.copy(playerPreference = preference) }
+        notifyPlayerSettingsChanged()
     }
 
     private fun rescheduleCacheWorker(frequencyHours: Int) {

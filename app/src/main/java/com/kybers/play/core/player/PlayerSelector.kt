@@ -2,7 +2,11 @@ package com.kybers.play.core.player
 
 import android.app.Application
 import android.util.Log
+import com.kybers.play.core.datastore.SettingsDataStore
 import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.settings.Settings
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -13,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class PlayerSelector @Inject constructor(
     private val application: Application,
-    private val preferenceManager: PreferenceManager
+    private val preferenceManager: PreferenceManager,
+    private val settingsDataStore: SettingsDataStore
 ) {
     
     companion object {
@@ -118,20 +123,50 @@ class PlayerSelector @Inject constructor(
     /**
      * Determina si se debe intentar fallback automático
      */
-    private fun shouldAttemptFallback(failedEngine: EngineType): Boolean {
-        val autoFallbackEnabled = preferenceManager.getAutoFallbackEnabled()
-        return autoFallbackEnabled && !fallbackAttempted
+    private suspend fun shouldAttemptFallback(failedEngine: EngineType): Boolean {
+        val settings = settingsDataStore.settings.first()
+        return settings.enableAutoFallback && !fallbackAttempted
     }
 
     /**
      * Obtiene el tipo de motor preferido por el usuario
+     * Lee de PreferenceManager primero (más confiable) y usa SettingsDataStore como verificación
      */
-    private fun getPreferredEngineType(): EngineType {
-        return when (preferenceManager.getPlayerPref()) {
+    private suspend fun getPreferredEngineType(): EngineType {
+        // Primero leer del sistema confiable (PreferenceManager)
+        val legacyPref = preferenceManager.getPlayerPreference()
+        val legacyEngineType = when (legacyPref) {
             "MEDIA3" -> EngineType.MEDIA3
             "VLC" -> EngineType.VLC
             "AUTO" -> EngineType.AUTO
             else -> EngineType.AUTO // Valor por defecto
+        }
+        
+        Log.d(TAG, "PreferenceManager preference: $legacyPref -> $legacyEngineType")
+        
+        // Verificar si DataStore tiene el mismo valor o usar el de PreferenceManager
+        return try {
+            val settings = settingsDataStore.settings.first()
+            val dataStoreEngineType = when (settings.playerPref) {
+                Settings.PlayerPref.MEDIA3 -> EngineType.MEDIA3
+                Settings.PlayerPref.VLC -> EngineType.VLC
+                Settings.PlayerPref.AUTO -> EngineType.AUTO
+                else -> EngineType.AUTO
+            }
+            
+            Log.d(TAG, "SettingsDataStore preference: ${settings.playerPref} -> $dataStoreEngineType")
+            
+            // Si ambos coinciden, usar cualquiera. Si no, dar preferencia a PreferenceManager
+            if (legacyEngineType == dataStoreEngineType) {
+                Log.d(TAG, "Both sources agree on: $legacyEngineType")
+                legacyEngineType
+            } else {
+                Log.w(TAG, "Preference mismatch! Using PreferenceManager: $legacyEngineType over DataStore: $dataStoreEngineType")
+                legacyEngineType
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read from SettingsDataStore, using PreferenceManager value", e)
+            legacyEngineType
         }
     }
 
@@ -175,11 +210,4 @@ class PlayerSelector @Inject constructor(
         val type: EngineType,
         val wasFallback: Boolean
     )
-}
-
-/**
- * Extensión para PreferenceManager para configuraciones específicas del reproductor
- */
-private fun PreferenceManager.getPlayerPref(): String {
-    return getPlayerPreference()
 }

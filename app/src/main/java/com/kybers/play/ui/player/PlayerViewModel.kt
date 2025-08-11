@@ -14,10 +14,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    @ApplicationContext private val context: android.content.Context
+    @ApplicationContext private val context: android.content.Context,
+    private val preferenceManager: com.kybers.play.data.preferences.PreferenceManager
 ) : AndroidViewModel(context as Application) {
 
-    private val playerManager = PlayerManager(context as Application, viewModelScope)
+    private val playerManager = PlayerManager(context as Application, viewModelScope, preferenceManager)
     
     // UI state for retry and error handling
     private val _playerStatus = MutableStateFlow(PlayerStatus.IDLE)
@@ -80,9 +81,13 @@ class PlayerViewModel @Inject constructor(
      * Play media using PlayerManager
      */
     fun playMedia(url: String) {
+        android.util.Log.d("PlayerViewModel", "=== PLAYERVIEWMODEL.playMedia() ===")
+        android.util.Log.d("PlayerViewModel", "URL: " + url.takeLast(30) + "...")
+        android.util.Log.d("PlayerViewModel", "Llamando a PlayerManager...")
         _playerStatus.value = PlayerStatus.LOADING
         _errorMessage.value = null
         playerManager.playMedia(url)
+        android.util.Log.d("PlayerViewModel", "PlayerManager.playMedia() completado")
     }
     
     /**

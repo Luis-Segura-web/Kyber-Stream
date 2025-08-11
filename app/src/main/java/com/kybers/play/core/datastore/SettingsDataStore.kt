@@ -6,6 +6,7 @@ import androidx.datastore.core.Serializer
 import androidx.datastore.dataStore
 import com.google.protobuf.InvalidProtocolBufferException
 import com.kybers.play.settings.Settings
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -46,7 +47,7 @@ private val Context.settingsDataStore: DataStore<Settings> by dataStore(
  */
 @Singleton
 class SettingsDataStore @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     
     private val dataStore = context.settingsDataStore

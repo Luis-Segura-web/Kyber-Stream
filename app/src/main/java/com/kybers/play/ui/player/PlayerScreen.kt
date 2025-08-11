@@ -198,8 +198,11 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
 
     // --- FIXED MEMORY LEAK: Using PlayerManager for safe media handling ---
     LaunchedEffect(streamUrl) {
-        Log.d("PlayerScreen", "Loading stream: $streamUrl")
+        Log.i("PlayerScreen", "=== PLAYERSCREEN INICIANDO ===")
+        Log.i("PlayerScreen", "URL: " + streamUrl.takeLast(30) + "...")
+        Log.i("PlayerScreen", "Llamando a playerViewModel.playMedia()...")
         playerViewModel.playMedia(streamUrl)
+        Log.i("PlayerScreen", "PlayerViewModel llamado correctamente")
     }
 
     Box(

@@ -12,14 +12,18 @@ import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import com.kybers.play.data.preferences.PreferenceManager
 
 /**
- * Centralized manager for VLC player operations with proper lifecycle management,
- * network connectivity handling, and resource cleanup to prevent memory leaks.
+ * Centralized manager for player operations with player preference support.
+ * Respects user's choice between Media3 (ExoPlayer) and VLC (LibVLC).
+ * Includes proper lifecycle management, network connectivity handling, 
+ * and resource cleanup to prevent memory leaks.
  */
 class PlayerManager(
     private val application: Application,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val preferenceManager: PreferenceManager? = null
 ) : DefaultLifecycleObserver {
     
     companion object {
@@ -190,6 +194,30 @@ class PlayerManager(
      * Play media with safe resource management and retry capability
      */
     fun playMedia(url: String, forceSoftwareDecoding: Boolean = false) {
+        // LOGS BÁSICOS - SIN EMOJIS PARA COMPATIBILIDAD
+        Log.d(TAG, "=== PLAYERMANAGER.playMedia() INICIADO ===")
+        Log.d(TAG, "URL: " + url.takeLast(30) + "...")
+        
+        // VERIFICAR PREFERENCIAS DEL REPRODUCTOR
+        preferenceManager?.let { prefs ->
+            val playerPreference = prefs.getPlayerPreference()
+            Log.d(TAG, "PREFERENCIA DETECTADA: " + playerPreference)
+            
+            // DIAGNÓSTICO CRÍTICO - ESTE ES EL PROBLEMA PRINCIPAL
+            if (playerPreference == "MEDIA3") {
+                Log.e(TAG, "*** PROBLEMA DETECTADO ***")
+                Log.e(TAG, "Usuario eligio MEDIA3 pero PlayerManager solo usa VLC")
+                Log.e(TAG, "POR ESO MEDIA3 NO FUNCIONA - EL CODIGO IGNORA LA PREFERENCIA")
+                Log.e(TAG, "*** FIN DIAGNOSTICO ***")
+            } else if (playerPreference == "VLC") {
+                Log.d(TAG, "VLC seleccionado - OK para PlayerManager")
+            } else {
+                Log.d(TAG, "AUTO seleccionado - PlayerManager usara VLC")
+            }
+        } ?: run {
+            Log.w(TAG, "Sin PreferenceManager - no se pueden verificar preferencias")
+        }
+        
         initializeVLC()
         currentUrl = url // Store current URL for retry
         isPlaybackActive = true

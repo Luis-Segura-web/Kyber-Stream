@@ -150,6 +150,18 @@ fun SettingsScreen(
                 // --- SECCIÓN: AJUSTES DEL REPRODUCTOR ---
                 item {
                     SettingsCard(title = "Ajustes del Reproductor") {
+                        DropdownSettingItem(
+                            icon = Icons.Default.PlayArrow, 
+                            title = "Reproductor Preferido", 
+                            options = mapOf(
+                                "AUTO" to "Automático (recomendado)",
+                                "MEDIA3" to "Media3 (ExoPlayer)", 
+                                "VLC" to "VLC (LibVLC)"
+                            ), 
+                            selectedKey = uiState.playerPreference, 
+                            onOptionSelected = { viewModel.onPlayerPreferenceChanged(it) }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         DropdownSettingItem(icon = Icons.Default.Tune, title = "Formato de Stream", options = mapOf("AUTOMATIC" to "Automático", "TS" to "MPEG-TS (.ts)", "HLS" to "HLS (.m3u8)"), selectedKey = uiState.streamFormat, onOptionSelected = { viewModel.onStreamFormatChanged(it) })
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         DropdownSettingItem(icon = Icons.Default.NetworkCell, title = "Tamaño del Búfer de Red", options = mapOf("SMALL" to "Pequeño", "MEDIUM" to "Mediano", "LARGE" to "Grande"), selectedKey = uiState.networkBuffer, onOptionSelected = { viewModel.onNetworkBufferChanged(it) })

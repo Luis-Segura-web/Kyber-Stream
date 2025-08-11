@@ -127,6 +127,7 @@ private fun MainScreenWithBottomNav(
                 context = hiltEntryPoint.applicationContext(),
                 repositoryFactory = hiltEntryPoint.repositoryFactory(),
                 preferenceManager = hiltEntryPoint.preferenceManager(),
+                settingsDataStore = hiltEntryPoint.settingsDataStore(),
                 syncManager = hiltEntryPoint.syncManager(),
                 currentUser = user,
                 parentalControlManager = hiltEntryPoint.parentalControlManager(),
