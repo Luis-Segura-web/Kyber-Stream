@@ -24,20 +24,6 @@ import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.sync.SyncViewModel
 import com.kybers.play.ui.main.MainViewModel
-import com.kybers.play.AppContainer
-
-class LoginViewModelFactory(
-    private val userRepository: UserRepository,
-    private val syncManager: SyncManager
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return LoginViewModel(userRepository, syncManager) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
 
 class ContentViewModelFactory(
     private val application: Application,
@@ -131,21 +117,6 @@ class SeriesDetailsViewModelFactory(
 }
 
 
-class SyncViewModelFactory(
-    private val syncManager: SyncManager,
-    private val preferenceManager: PreferenceManager,
-    private val userRepository: UserRepository,
-    private val appContainer: com.kybers.play.AppContainer
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SyncViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return SyncViewModel(syncManager, preferenceManager, userRepository, appContainer) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
-
 class PlayerViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
@@ -171,19 +142,6 @@ class SettingsViewModelFactory(
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return SettingsViewModel(context, liveRepository, vodRepository, preferenceManager, syncManager, currentUser, parentalControlManager, themeManager) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
-
-class MainViewModelFactory(
-    private val appContainer: AppContainer,
-    private val userId: Int
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return MainViewModel(appContainer, userId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

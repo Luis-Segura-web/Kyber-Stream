@@ -3,6 +3,7 @@ package com.kybers.play.ui.main
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -10,13 +11,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.kybers.play.ui.ContentViewModelFactory
-import com.kybers.play.ui.MovieDetailsViewModelFactory
-import com.kybers.play.ui.SeriesDetailsViewModelFactory
-import com.kybers.play.ui.SettingsViewModelFactory
-import com.kybers.play.ui.LoginViewModelFactory
-import com.kybers.play.ui.SyncViewModelFactory
-import com.kybers.play.ui.MainViewModelFactory
 import com.kybers.play.ui.main.MainViewModel
 import com.kybers.play.ui.channels.ChannelsScreen
 import com.kybers.play.ui.channels.ChannelsViewModel
@@ -45,6 +39,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
+import dagger.hilt.android.EntryPointAccessors
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(
@@ -56,11 +51,11 @@ private val bottomBarItems = listOf(
 
 @Composable
 private fun MainScreenWithBottomNav(
-    contentViewModelFactory: ContentViewModelFactory,
-    movieDetailsViewModelFactoryProvider: @Composable (Int) -> MovieDetailsViewModelFactory,
-    seriesDetailsViewModelFactoryProvider: @Composable (Int) -> SeriesDetailsViewModelFactory,
-    settingsViewModelFactoryProvider: @Composable () -> SettingsViewModelFactory,
     currentUserId: Int,
+    user: com.kybers.play.data.local.model.User,
+    vodRepository: com.kybers.play.data.repository.VodRepository,
+    liveRepository: com.kybers.play.data.repository.LiveRepository,
+    themeManager: com.kybers.play.ui.theme.ThemeManager,
     onPlayerUiStateChanged: (isFullScreen: Boolean, isPipMode: Boolean) -> Unit,
     onLogout: () -> Unit
 ) {
@@ -70,6 +65,71 @@ private fun MainScreenWithBottomNav(
 
     var isPlayerFullScreen by remember { mutableStateOf(false) }
     var isPlayerInPipMode by remember { mutableStateOf(false) }
+
+    // Get dependencies from Hilt using EntryPoint
+    val context = LocalContext.current
+    val hiltEntryPoint = EntryPointAccessors.fromApplication(
+        context.applicationContext,
+        com.kybers.play.di.AppDependencies::class.java
+    )
+
+    // Create factories for each ViewModel type
+    val contentViewModelFactory = remember(user.id) {
+        ContentViewModelFactory(
+            application = hiltEntryPoint.application(),
+            vodRepository = vodRepository,
+            liveRepository = liveRepository,
+            detailsRepository = hiltEntryPoint.detailsRepository(),
+            externalApiService = hiltEntryPoint.tmdbApiService(),
+            currentUser = user,
+            preferenceManager = hiltEntryPoint.preferenceManager(),
+            syncManager = hiltEntryPoint.syncManager(),
+            parentalControlManager = hiltEntryPoint.parentalControlManager()
+        )
+    }
+
+    val movieDetailsViewModelFactoryProvider = @Composable { movieId: Int ->
+        remember(movieId) {
+            MovieDetailsViewModelFactory(
+                application = hiltEntryPoint.application(),
+                vodRepository = vodRepository,
+                detailsRepository = hiltEntryPoint.detailsRepository(),
+                externalApiService = hiltEntryPoint.tmdbApiService(),
+                preferenceManager = hiltEntryPoint.preferenceManager(),
+                currentUser = user,
+                movieId = movieId
+            )
+        }
+    }
+
+    val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
+        remember(seriesId) {
+            SeriesDetailsViewModelFactory(
+                application = hiltEntryPoint.application(),
+                preferenceManager = hiltEntryPoint.preferenceManager(),
+                vodRepository = vodRepository,
+                detailsRepository = hiltEntryPoint.detailsRepository(),
+                externalApiService = hiltEntryPoint.tmdbApiService(),
+                currentUser = user,
+                seriesId = seriesId
+            )
+        }
+    }
+
+    val settingsViewModelFactoryProvider = @Composable {
+        remember {
+            SettingsViewModelFactory(
+                context = hiltEntryPoint.applicationContext(),
+                liveRepository = liveRepository,
+                vodRepository = vodRepository,
+                preferenceManager = hiltEntryPoint.preferenceManager(),
+                syncManager = hiltEntryPoint.syncManager(),
+                currentUser = user,
+                parentalControlManager = hiltEntryPoint.parentalControlManager(),
+                themeManager = themeManager
+            )
+        }
+    }
 
     val isBottomBarVisible = bottomBarItems.any { it.route == currentDestination?.route } && !isPlayerFullScreen && !isPlayerInPipMode
 
@@ -199,8 +259,6 @@ private fun MainScreenWithBottomNav(
 fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    appContainer: com.kybers.play.AppContainer,
-    application: android.app.Application,
     themeManager: com.kybers.play.ui.theme.ThemeManager
 ) {
     NavHost(navController, startDestination = Screen.Splash.route, modifier) {
@@ -208,10 +266,7 @@ fun AppNavHost(
             SplashScreen(navController = navController)
         }
         composable(Screen.Login.route) {
-            val loginViewModelFactory = remember {
-                LoginViewModelFactory(appContainer.userRepository, appContainer.syncManager)
-            }
-            val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)
+            val loginViewModel: LoginViewModel = hiltViewModel()
             LoginScreen(
                 navController = navController,
                 viewModel = loginViewModel
@@ -223,15 +278,7 @@ fun AppNavHost(
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
             
-            val syncViewModelFactory = remember(userId) {
-                SyncViewModelFactory(
-                    syncManager = appContainer.syncManager,
-                    preferenceManager = appContainer.preferenceManager,
-                    userRepository = appContainer.userRepository,
-                    appContainer = appContainer
-                )
-            }
-            val viewModel: SyncViewModel = viewModel(factory = syncViewModelFactory)
+            val viewModel: SyncViewModel = hiltViewModel()
             SyncScreen(
                 navController = navController,
                 viewModel = viewModel,
@@ -244,10 +291,7 @@ fun AppNavHost(
         ) { backStackEntry ->
             val userId = backStackEntry.arguments?.getInt("userId") ?: 0
 
-            val mainViewModelFactory = remember(userId) {
-                MainViewModelFactory(appContainer = appContainer, userId = userId)
-            }
-            val mainViewModel: MainViewModel = viewModel(factory = mainViewModelFactory)
+            val mainViewModel: MainViewModel = hiltViewModel()
             val uiState by mainViewModel.uiState.collectAsState()
 
             when {
@@ -261,69 +305,12 @@ fun AppNavHost(
                     val vodRepository = uiState.vodRepository!!
                     val liveRepository = uiState.liveRepository!!
 
-                    val contentViewModelFactory = remember(user.id) {
-                        ContentViewModelFactory(
-                            application = application,
-                            vodRepository = vodRepository,
-                            liveRepository = liveRepository,
-                            detailsRepository = appContainer.detailsRepository,
-                            externalApiService = appContainer.tmdbApiService,
-                            currentUser = user,
-                            preferenceManager = appContainer.preferenceManager,
-                            syncManager = appContainer.syncManager,
-                            parentalControlManager = appContainer.parentalControlManager
-                        )
-                    }
-
-                    val movieDetailsViewModelFactoryProvider = @Composable { movieId: Int ->
-                        remember(movieId) {
-                            MovieDetailsViewModelFactory(
-                                application = application,
-                                vodRepository = vodRepository,
-                                detailsRepository = appContainer.detailsRepository,
-                                externalApiService = appContainer.tmdbApiService,
-                                preferenceManager = appContainer.preferenceManager,
-                                currentUser = user,
-                                movieId = movieId
-                            )
-                        }
-                    }
-
-                    val seriesDetailsViewModelFactoryProvider = @Composable { seriesId: Int ->
-                        remember(seriesId) {
-                            SeriesDetailsViewModelFactory(
-                                application = application,
-                                preferenceManager = appContainer.preferenceManager,
-                                vodRepository = vodRepository,
-                                detailsRepository = appContainer.detailsRepository,
-                                externalApiService = appContainer.tmdbApiService,
-                                currentUser = user,
-                                seriesId = seriesId
-                            )
-                        }
-                    }
-
-                    val settingsViewModelFactoryProvider = @Composable {
-                        remember {
-                            SettingsViewModelFactory(
-                                context = application,
-                                liveRepository = liveRepository,
-                                vodRepository = vodRepository,
-                                preferenceManager = appContainer.preferenceManager,
-                                syncManager = appContainer.syncManager,
-                                currentUser = user,
-                                parentalControlManager = appContainer.parentalControlManager,
-                                themeManager = themeManager
-                            )
-                        }
-                    }
-
                     MainScreenWithBottomNav(
-                        contentViewModelFactory = contentViewModelFactory,
-                        movieDetailsViewModelFactoryProvider = movieDetailsViewModelFactoryProvider,
-                        seriesDetailsViewModelFactoryProvider = seriesDetailsViewModelFactoryProvider,
-                        settingsViewModelFactoryProvider = settingsViewModelFactoryProvider,
                         currentUserId = userId,
+                        user = user,
+                        vodRepository = vodRepository,
+                        liveRepository = liveRepository,
+                        themeManager = themeManager,
                         onPlayerUiStateChanged = { _, _ -> /* Handle player UI state changes if needed */ },
                         onLogout = {
                             navController.navigate(Screen.Splash.route) {

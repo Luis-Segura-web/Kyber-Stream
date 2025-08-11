@@ -8,10 +8,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.kybers.play.player.PlayerManager
 import org.videolan.libvlc.MediaPlayer
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 
-class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class PlayerViewModel @Inject constructor(
+    @ApplicationContext private val context: android.content.Context
+) : AndroidViewModel(context as Application) {
 
-    private val playerManager = PlayerManager(application, viewModelScope)
+    private val playerManager = PlayerManager(context as Application, viewModelScope)
     
     // UI state for retry and error handling
     private val _playerStatus = MutableStateFlow(PlayerStatus.IDLE)

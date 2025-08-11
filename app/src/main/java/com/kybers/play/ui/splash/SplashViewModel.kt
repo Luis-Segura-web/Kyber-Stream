@@ -1,6 +1,15 @@
 package com.kybers.play.ui.splash
 
-// This ViewModel is no longer used in the new navigation flow
-// as SplashActivity now navigates directly to LoginActivity.
-// This file can be deleted, along with the SplashViewModelFactory
-// in ViewModelFactory.kt, to clean up the project.
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
+/**
+ * ViewModel for the splash screen.
+ * This ViewModel is kept for potential future use but currently
+ * the splash screen navigates directly without complex logic.
+ */
+@HiltViewModel
+class SplashViewModel @Inject constructor() : ViewModel() {
+    // Simple ViewModel with no dependencies
+}
