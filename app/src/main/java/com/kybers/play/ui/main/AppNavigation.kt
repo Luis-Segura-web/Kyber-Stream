@@ -90,7 +90,7 @@ private fun MainScreenWithBottomNav(
 
     val movieDetailsViewModelFactoryProvider = @Composable { movieId: Int ->
         remember(movieId) {
-            com.kybers.play.ui.MovieDetailsViewModelFactory(
+            MovieDetailsViewModelFactory(
                 application = hiltEntryPoint.application(),
                 vodRepository = vodRepository,
                 detailsRepository = hiltEntryPoint.detailsRepository(),
