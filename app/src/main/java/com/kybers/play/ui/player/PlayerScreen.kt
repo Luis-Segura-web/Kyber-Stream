@@ -135,7 +135,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
             }
     ) {
         PlayerHost(
-            playerEngine = playerViewModel.mediaPlayer,
+            playerEngine = playerViewModel.getCurrentEngine(),
             modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f),
