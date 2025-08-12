@@ -39,12 +39,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import org.videolan.libvlc.Media
-import org.videolan.libvlc.MediaPlayer
 
 @Composable
 fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitle: String) {
@@ -52,8 +49,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     val activity = context as? Activity
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    val mediaPlayer = playerViewModel.mediaPlayer
-    
     // Collect retry state from ViewModel
     val playerStatus by playerViewModel.playerStatus.collectAsState()
     val retryAttempt by playerViewModel.retryAttempt.collectAsState()
@@ -95,37 +90,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         }
     }
 
-    DisposableEffect(Unit) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        val vlcListener = MediaPlayer.EventListener { event ->
-            when (event.type) {
-                MediaPlayer.Event.Playing -> isPlaying = true
-                MediaPlayer.Event.Paused -> isPlaying = false
-                MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> isPlaying = false
-                MediaPlayer.Event.TimeChanged -> {
-                    currentPosition = event.timeChanged
-                    duration = mediaPlayer.length
-                }
-                MediaPlayer.Event.Buffering -> Log.d("PlayerScreen", "VLC Event: Buffering (Progress: ${event.buffering}%)")
-                MediaPlayer.Event.EncounteredError -> Log.e("PlayerScreen", "VLC Event: Error encountered!")
-            }
-        }
-        mediaPlayer.setEventListener(vlcListener)
-
-        onDispose {
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            mediaPlayer.setEventListener(null)
-            if (originalBrightness >= 0) {
-                activity?.window?.let { window ->
-                    val layoutParams = window.attributes
-                    layoutParams.screenBrightness = originalBrightness
-                    window.attributes = layoutParams
-                }
-            }
-            Log.d("PlayerScreen", "DisposableEffect: Player resources released.")
-        }
-    }
-
 
     BackHandler(enabled = isFullScreen) {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -149,36 +113,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         }
     }
 
-    var currentAspectRatioIndex by remember { mutableIntStateOf(0) }
-    val aspectRatioModes = remember { listOf("FIT_SCREEN", "FILL_SCREEN", "16:9", "4:3") }
-
-    fun toggleAspectRatio() {
-        currentAspectRatioIndex = (currentAspectRatioIndex + 1) % aspectRatioModes.size
-        val nextMode = aspectRatioModes[currentAspectRatioIndex]
-        when (nextMode) {
-            "FIT_SCREEN" -> {
-                mediaPlayer.setAspectRatio(null)
-                mediaPlayer.setScale(0.0f)
-            }
-            "FILL_SCREEN" -> {
-                mediaPlayer.setAspectRatio(null)
-                mediaPlayer.setScale(1.0f)
-            }
-            "16:9" -> {
-                mediaPlayer.setAspectRatio("16:9")
-                mediaPlayer.setScale(0.0f)
-            }
-            "4:3" -> {
-                mediaPlayer.setAspectRatio("4:3")
-                mediaPlayer.setScale(0.0f)
-            }
-        }
-    }
-
-    val onSeek: (Long) -> Unit = { position ->
-        mediaPlayer.time = position
-    }
-
     val onAnyInteraction: () -> Unit = {
         controlsVisible = true
     }
@@ -200,21 +134,25 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 detectTapGestures(onTap = { controlsVisible = !controlsVisible })
             }
     ) {
-        VLCPlayer(
-            mediaPlayer = mediaPlayer,
+        PlayerHost(
+            playerEngine = playerViewModel.mediaPlayer,
             modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-        )
-
-        AnimatedVisibility(
-            visible = controlsVisible,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
+                .aspectRatio(16f / 9f),
+            playerStatus = playerStatus,
+            onEnterPipMode = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val aspectRatio = Rational(16, 9)
+                    val pipParams = PictureInPictureParams.Builder()
+                        .setAspectRatio(aspectRatio)
+                        .build()
+                    activity?.enterPictureInPictureMode(pipParams)
+                }
+            }
+        ) { isVisible, onAnyInteraction, onRequestPipMode ->
             PlayerControls(
                 modifier = Modifier.fillMaxSize(),
-                isVisible = true,
+                isVisible = isVisible,
                 isPlaying = isPlaying,
                 isMuted = isMuted,
                 isFavorite = false,
@@ -233,9 +171,7 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                         activity?.finish()
                     }
                 },
-                onPlayPause = {
-                    if (mediaPlayer.isPlaying) mediaPlayer.pause() else mediaPlayer.play()
-                },
+                onPlayPause = { /* No action */ },
                 onNext = { /* No action */ },
                 onPrevious = { /* No action */ },
                 onToggleMute = {
@@ -257,10 +193,10 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 onSelectSubtitleTrack = {},
                 onSelectVideoTrack = {},
                 onPictureInPicture = ::enterPictureInPictureMode,
-                onToggleAspectRatio = ::toggleAspectRatio,
+                onToggleAspectRatio = { /* No action */ },
                 currentPosition = currentPosition,
                 duration = duration,
-                onSeek = onSeek,
+                onSeek = { /* No action */ },
                 onAnyInteraction = onAnyInteraction,
                 // Enhanced retry parameters
                 playerStatus = playerStatus,

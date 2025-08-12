@@ -6,19 +6,21 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import com.kybers.play.ui.PlayerViewModelFactory
 import com.kybers.play.ui.theme.IPTVAppTheme
 import com.kybers.play.ui.theme.rememberThemeManager
 import android.util.Log // Importación necesaria para Log
 import dagger.hilt.android.AndroidEntryPoint
+import com.kybers.play.player.MediaManager
+import com.kybers.play.data.preferences.PreferenceManager
+import android.content.Context
+import androidx.lifecycle.ViewModelProvider
 
 @AndroidEntryPoint
 class PlayerActivity : ComponentActivity() {
 
-    // Ahora PlayerViewModel puede usar inyección de dependencias directamente
-    private val playerViewModel: PlayerViewModel by viewModels()
+    private lateinit var playerViewModel: PlayerViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +38,12 @@ class PlayerActivity : ComponentActivity() {
             finish()
             return
         }
+
+        // Crear MediaManager y PlayerViewModel manualmente
+        val mediaManager = MediaManager()
+        val preferenceManager = PreferenceManager(this)
+        val factory = PlayerViewModelFactory(application, preferenceManager, mediaManager)
+        playerViewModel = ViewModelProvider(this, factory)[PlayerViewModel::class.java]
 
         // Configuramos la ventana para una experiencia inmersiva
         hideSystemUI()

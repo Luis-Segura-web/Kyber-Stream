@@ -63,12 +63,13 @@ internal fun TopControls(
     onToggleFavorite: () -> Unit,
     onRequestPipMode: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
+    val iconSize = if (isFullScreen) 40.dp else 28.dp
+    val titleStyle = if (isFullScreen) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium
     
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onClose) {
@@ -78,13 +79,13 @@ internal fun TopControls(
         // Title takes all available space until the first button
         Text(
             text = streamTitle,
-            style = MaterialTheme.typography.titleMedium,
+            style = titleStyle,
             color = Color.White,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 8.dp)
+                .padding(horizontal = 12.dp)
         )
         
         Row(verticalAlignment = Alignment.CenterVertically) {

@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.kybers.play.player.PlayerManager
+import com.kybers.play.player.MediaManager
+import com.kybers.play.core.player.PlayerEngine
 import org.videolan.libvlc.MediaPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val context: android.content.Context,
-    private val preferenceManager: com.kybers.play.data.preferences.PreferenceManager
+    private val preferenceManager: com.kybers.play.data.preferences.PreferenceManager,
+    val mediaManager: MediaManager
 ) : AndroidViewModel(context as Application) {
 
     private val playerManager = PlayerManager(context as Application, viewModelScope, preferenceManager)
@@ -39,6 +42,11 @@ class PlayerViewModel @Inject constructor(
     init {
         setupPlayerManager()
     }
+    
+    /**
+     * Get the current PlayerEngine from MediaManager
+     */
+    fun getCurrentEngine(): PlayerEngine? = mediaManager.getCurrentEngine()
     
     /**
      * Get the MediaPlayer instance from PlayerManager

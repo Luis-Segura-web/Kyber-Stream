@@ -127,9 +127,9 @@ private fun CenterChannelControls(
     onPrevious: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 72.dp else 40.dp
-    val centerIconSize = if (isFullScreen) 96.dp else 56.dp
-    val spacerWidth = if (isFullScreen) 64.dp else 32.dp
+    val iconSize = if (isFullScreen) 64.dp else 48.dp
+    val centerIconSize = if (isFullScreen) 80.dp else 64.dp
+    val spacerWidth = if (isFullScreen) 48.dp else 24.dp
 
     Box(
         modifier = modifier.fillMaxWidth(),

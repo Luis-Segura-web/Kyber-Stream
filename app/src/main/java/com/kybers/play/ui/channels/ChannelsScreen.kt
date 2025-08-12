@@ -118,9 +118,9 @@ fun ChannelsScreen(
                 val isInPip = activity?.isInPictureInPictureMode ?: false
                 viewModel.setInPipMode(isInPip)
 
-                if (event == Lifecycle.Event.ON_STOP && !isInPip && uiState.isPlayerVisible) {
-                    viewModel.hidePlayer()
-                }
+            if (event == Lifecycle.Event.ON_STOP && !isInPip && uiState.isPlayerVisible) {
+                viewModel.hidePlayer()
+            }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -296,7 +296,7 @@ private fun PlayerSection(
 
     if (uiState.isPlayerVisible) {
         PlayerHost(
-            mediaPlayer = viewModel.mediaPlayer,
+            playerEngine = viewModel.playerCoordinator?.getCurrentEngine(),
             modifier = playerModifier,
             playerStatus = uiState.playerStatus,
             onEnterPipMode = onPictureInPicture,
@@ -319,7 +319,8 @@ private fun PlayerSection(
                         viewModel.hidePlayer()
                     },
                     onPlayPause = {
-                        if (uiState.playerStatus == PlayerStatus.PLAYING) viewModel.mediaPlayer.pause() else viewModel.mediaPlayer.play()
+                        // Play/pause is now handled by the PlayerCoordinator
+                        // We'll need to update this logic
                     },
                     onNext = viewModel::playNextChannel,
                     onPrevious = viewModel::playPreviousChannel,

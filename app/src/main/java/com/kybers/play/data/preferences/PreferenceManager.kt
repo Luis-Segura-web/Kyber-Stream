@@ -254,7 +254,7 @@ class PreferenceManager(context: Context) {
         saveFavoriteSeriesIds(current)
     }
 
-    fun isSerisFavorite(seriesId: Int): Boolean {
+    fun isSeriesFavorite(seriesId: Int): Boolean {
         return getFavoriteSeriesIds().contains(seriesId.toString())
     }
     

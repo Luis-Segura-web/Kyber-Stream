@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import org.videolan.libvlc.MediaPlayer
+import com.kybers.play.core.player.PlayerEngine
 
 /**
  * --- ¡ARCHIVO REFACTORIZADO Y CORREGIDO! ---
@@ -21,7 +21,7 @@ import org.videolan.libvlc.MediaPlayer
  * del reproductor (como la visibilidad de los controles) y proporcionar un "slot"
  * para que se puedan insertar diferentes tipos de controles (para películas, canales, etc.).
  *
- * @param mediaPlayer La instancia del MediaPlayer de VLC.
+ * @param playerEngine El motor de reproducción (VLC o Media3).
  * @param playerStatus El estado actual del reproductor (reproduciendo, pausado, etc.).
  * @param onEnterPipMode Callback para iniciar el modo Picture-in-Picture.
  * @param controls Un slot Composable que recibe el estado de visibilidad y los callbacks
@@ -29,7 +29,7 @@ import org.videolan.libvlc.MediaPlayer
  */
 @Composable
 fun PlayerHost(
-    mediaPlayer: MediaPlayer,
+    playerEngine: PlayerEngine?,
     modifier: Modifier = Modifier,
     playerStatus: PlayerStatus,
     onEnterPipMode: () -> Unit,
@@ -84,9 +84,9 @@ fun PlayerHost(
                 })
             }
     ) {
-        // El reproductor de video de VLC que se muestra en el fondo.
-        VLCPlayer(
-            mediaPlayer = mediaPlayer,
+        // El reproductor de video genérico que puede manejar VLC o Media3.
+        PlayerView(
+            playerEngine = playerEngine,
             modifier = Modifier.fillMaxSize()
         )
 

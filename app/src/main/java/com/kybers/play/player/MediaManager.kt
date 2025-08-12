@@ -1,6 +1,7 @@
 package com.kybers.play.player
 
 import android.util.Log
+import com.kybers.play.core.player.PlayerCoordinator
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 
@@ -13,6 +14,13 @@ class MediaManager {
     companion object {
         private const val TAG = "MediaManager"
     }
+    
+    var playerCoordinator: PlayerCoordinator? = null
+    
+    /**
+     * Get the current PlayerEngine from the PlayerCoordinator
+     */
+    fun getCurrentEngine() = playerCoordinator?.getCurrentEngine()
     
     /**
      * Safely sets new media on MediaPlayer, properly releasing previous media

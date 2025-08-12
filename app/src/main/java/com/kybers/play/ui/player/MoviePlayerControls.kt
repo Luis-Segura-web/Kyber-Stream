@@ -138,9 +138,9 @@ private fun CenterVODControls(
     onSeekBackward: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val centerIconSize = if (isFullScreen) 80.dp else 56.dp
-    val sideIconSize = if (isFullScreen) 64.dp else 40.dp
-    val spacerWidth = if (isFullScreen) 48.dp else 24.dp
+    val centerIconSize = if (isFullScreen) 88.dp else 64.dp
+    val sideIconSize = if (isFullScreen) 72.dp else 48.dp
+    val spacerWidth = if (isFullScreen) 56.dp else 32.dp
 
     Box(
         modifier = modifier.fillMaxWidth(),

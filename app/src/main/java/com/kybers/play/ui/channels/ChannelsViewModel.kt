@@ -30,6 +30,8 @@ import com.kybers.play.ui.player.toAspectRatioMode
 import com.kybers.play.ui.player.toSortOrder
 import com.kybers.play.player.MediaManager
 import com.kybers.play.player.RetryManager
+import com.kybers.play.core.player.PlayerCoordinator
+import com.kybers.play.core.player.MediaSpec
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -45,9 +47,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.videolan.libvlc.LibVLC
-import org.videolan.libvlc.Media
-import org.videolan.libvlc.MediaPlayer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -119,11 +118,9 @@ open class ChannelsViewModel @AssistedInject constructor(
         fun create(application: Application): ChannelsViewModel
     }
 
-    private lateinit var libVLC: LibVLC
-    lateinit var mediaPlayer: MediaPlayer
-        private set
+    var playerCoordinator: PlayerCoordinator? = null
 
-    private lateinit var retryManager: RetryManager
+    private var retryManager: RetryManager? = null
 
     private val _uiState = MutableStateFlow(ChannelsUiState())
     open val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
@@ -136,12 +133,10 @@ open class ChannelsViewModel @AssistedInject constructor(
     private val _scrollToItemEvent = MutableSharedFlow<String>()
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
-    private lateinit var vlcPlayerListener: MediaPlayer.EventListener
     private var softwareFallbackTried = false
 
     init {
         setupRetryManager()
-        setupVLC()
         val savedCategorySortOrder = preferenceManager.getSortOrder("category").toSortOrder()
         val savedChannelSortOrder = preferenceManager.getSortOrder("channel").toSortOrder()
         val savedAspectRatioMode = preferenceManager.getAspectRatioMode().toAspectRatioMode()
@@ -206,69 +201,11 @@ open class ChannelsViewModel @AssistedInject constructor(
         }
     }
 
-    private fun setupVLC() {
-        // Set up the VLC event listener now that retryManager is initialized
-        vlcPlayerListener = MediaPlayer.EventListener { event ->
-            val currentState = _uiState.value.playerStatus
-            val newStatus = when (event.type) {
-                MediaPlayer.Event.Playing -> {
-                    updateTrackInfo()
-                    PlayerStatus.PLAYING
-                }
-                MediaPlayer.Event.Paused -> PlayerStatus.PAUSED
-                MediaPlayer.Event.Buffering -> if (currentState != PlayerStatus.PLAYING) PlayerStatus.BUFFERING else null
-                MediaPlayer.Event.EncounteredError -> {
-                    Log.e("ChannelsViewModel", "VLC encountered error")
-                    val currentChannel = _uiState.value.currentlyPlaying
-                    if (!softwareFallbackTried && currentChannel != null) {
-                        softwareFallbackTried = true
-                        retryManager.startRetry(viewModelScope) {
-                            try {
-                                playChannelInternal(currentChannel, forceSoftwareDecoding = true)
-                            } catch (e: Exception) {
-                                Log.e("ChannelsViewModel", "Retry with software decoding failed: ${e.message}", e)
-                                false
-                            }
-                        }
-                        null
-                    } else {
-                        // Only trigger retry if we're not already in a retry state
-                        if (currentState != PlayerStatus.RETRYING && currentState != PlayerStatus.RETRY_FAILED) {
-                            Log.d("ChannelsViewModel", "VLC error occurred outside retry system, triggering retry")
-                            if (currentChannel != null && !retryManager.isRetrying()) {
-                                retryManager.startRetry(viewModelScope) {
-                                    try {
-                                        playChannelInternal(currentChannel)
-                                    } catch (e: Exception) {
-                                        Log.e("ChannelsViewModel", "Retry failed: ${e.message}", e)
-                                        false
-                                    }
-                                }
-                            }
-                        } else {
-                            Log.d("ChannelsViewModel", "VLC error during retry - letting retry system handle it")
-                        }
-                        PlayerStatus.ERROR
-                    }
-                }
-                MediaPlayer.Event.EndReached, MediaPlayer.Event.Stopped -> PlayerStatus.IDLE
-                else -> null
-            }
-            if (newStatus != null && newStatus != currentState) {
-                _uiState.update { it.copy(playerStatus = newStatus) }
-            }
-        }
-
-        val vlcOptions = preferenceManager.getVLCOptions()
-        libVLC = LibVLC(getApplication(), vlcOptions)
-        mediaPlayer = MediaPlayer(libVLC).apply {
-            setEventListener(vlcPlayerListener)
-        }
-    }
-
     private fun setupRetryManager() {
+        // Retry logic is now handled by PlayerCoordinator
+        // This is kept for backward compatibility but will be simplified
         retryManager = RetryManager(
-            onRetryAttempt = { attempt, maxRetries ->
+            onRetryAttempt = { attempt, maxRetries -> 
                 _uiState.update { 
                     it.copy(
                         playerStatus = PlayerStatus.RETRYING,
@@ -288,7 +225,6 @@ open class ChannelsViewModel @AssistedInject constructor(
                 }
             },
             onRetryFailed = {
-                mediaManager.stopAndReleaseMedia(mediaPlayer)
                 _uiState.update {
                     it.copy(
                         playerStatus = PlayerStatus.RETRY_FAILED,
@@ -321,67 +257,21 @@ open class ChannelsViewModel @AssistedInject constructor(
                 )
             }
 
-            // Try to play the channel with retry mechanism
-            retryManager.startRetry(viewModelScope) {
-                try {
-                    playChannelInternal(channel)
-                } catch (e: Exception) {
-                    Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
-                    false
-                }
-            }
-        }
-    }
-
-    private suspend fun playChannelInternal(channel: LiveStream, forceSoftwareDecoding: Boolean = false): Boolean {
-        return try {
-            val streamUrl = buildStreamUrl(channel)
-            val vlcOptions = preferenceManager.getVLCOptions().apply {
-                if (forceSoftwareDecoding) {
-                    removeAll { it.startsWith("--avcodec-hw") }
-                    add("--avcodec-hw=none")
-                }
-            }
-            val media = Media(libVLC, streamUrl.toUri()).apply {
-                vlcOptions.forEach { addOption(it) }
-            }
-
-            // Use MediaManager for safe media handling
-            mediaManager.setMediaSafely(mediaPlayer, media)
-            mediaPlayer.play()
-            mediaPlayer.volume = if (_uiState.value.isMuted || _uiState.value.playerStatus == PlayerStatus.PAUSED) 0 else 100
-            applyAspectRatio(_uiState.value.currentAspectRatioMode)
-            _uiState.update { it.copy(playerStatus = PlayerStatus.BUFFERING) }
-            
-            // Wait for VLC to actually start playing or fail (max 10 seconds)
-            var attempts = 0
-            val maxAttempts = 100 // 10 seconds (100ms intervals)
-            
-            while (attempts < maxAttempts) {
-                delay(100) // Check every 100ms
-                attempts++
+            // Try to play the channel using PlayerCoordinator
+            try {
+                val streamUrl = buildStreamUrl(channel)
+                val mediaSpec = MediaSpec(
+                    url = streamUrl,
+                    title = channel.name,
+                    forceSoftwareDecoding = false // This will be handled by the player engine
+                )
                 
-                when {
-                    mediaPlayer.isPlaying -> {
-                        Log.d("ChannelsViewModel", "Stream successfully started playing")
-                        return true
-                    }
-                    _uiState.value.playerStatus == PlayerStatus.ERROR -> {
-                        Log.e("ChannelsViewModel", "VLC reported error during playback attempt")
-                        return false
-                    }
-                }
+                // Use PlayerCoordinator to play the media
+                playerCoordinator?.play(mediaSpec)
+            } catch (e: Exception) {
+                Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
+                _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             }
-            
-            // Timeout - VLC didn't start playing within reasonable time
-            Log.e("ChannelsViewModel", "Timeout waiting for stream to start playing")
-            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
-            false
-            
-        } catch (e: Exception) {
-            Log.e("ChannelsViewModel", "Error in playChannelInternal", e)
-            _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
-            throw e
         }
     }
 
@@ -416,29 +306,27 @@ open class ChannelsViewModel @AssistedInject constructor(
         _uiState.update { it.copy(isMuted = isMuted) }
     }
 
+    // Track info methods will need to be updated to work with the new player system
+    // For now, we'll keep them but they won't work with Media3
     private fun updateTrackInfo() {
-        val audioTracks = mediaPlayer.audioTracks?.map {
-            TrackInfo(it.id, it.name, it.id == mediaPlayer.audioTrack)
-        } ?: emptyList()
-        val subtitleTracks = mediaPlayer.spuTracks?.map {
-            TrackInfo(it.id, it.name, it.id == mediaPlayer.spuTrack)
-        } ?: emptyList()
+        // This will need to be implemented differently for the new player system
+        // For now, we'll just clear the track info
         _uiState.update {
             it.copy(
-                availableAudioTracks = audioTracks,
-                availableSubtitleTracks = subtitleTracks
+                availableAudioTracks = emptyList(),
+                availableSubtitleTracks = emptyList()
             )
         }
     }
 
     fun selectAudioTrack(trackId: Int) {
-        mediaPlayer.setAudioTrack(trackId)
+        // This will need to be implemented differently for the new player system
         toggleAudioMenu(false)
         updateTrackInfo()
     }
 
     fun selectSubtitleTrack(trackId: Int) {
-        mediaPlayer.setSpuTrack(trackId)
+        // This will need to be implemented differently for the new player system
         toggleSubtitleMenu(false)
         updateTrackInfo()
     }
@@ -456,14 +344,8 @@ open class ChannelsViewModel @AssistedInject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        if (::retryManager.isInitialized) {
-            retryManager.cancelRetry()
-        }
-        mediaPlayer.stop()
-        mediaPlayer.setEventListener(null)
-        mediaManager.releaseCurrentMedia(mediaPlayer)
-        mediaPlayer.release()
-        libVLC.release()
+        retryManager?.cancelRetry()
+        // Player cleanup is now handled by PlayerCoordinator
     }
 
     open fun toggleFavorite(channelId: String) {
@@ -499,20 +381,21 @@ open class ChannelsViewModel @AssistedInject constructor(
     }
 
     open fun hidePlayer() {
-        if (::retryManager.isInitialized) {
-            retryManager.cancelRetry()
-        }
-        mediaManager.stopAndReleaseMedia(mediaPlayer)
+        viewModelScope.launch {
+            retryManager?.cancelRetry()
+            // Stop playback using PlayerCoordinator
+            playerCoordinator?.stopAll()
 
-        _uiState.update {
-            it.copy(
-                isPlayerVisible = false,
-                isFullScreen = false,
-                playerStatus = PlayerStatus.IDLE,
-                isInPipMode = false,
-                retryAttempt = 0,
-                retryMessage = null
-            )
+            _uiState.update {
+                it.copy(
+                    isPlayerVisible = false,
+                    isFullScreen = false,
+                    playerStatus = PlayerStatus.IDLE,
+                    isInPipMode = false,
+                    retryAttempt = 0,
+                    retryMessage = null
+                )
+            }
         }
     }
 
@@ -552,30 +435,9 @@ open class ChannelsViewModel @AssistedInject constructor(
             AspectRatioMode.ASPECT_16_9 -> AspectRatioMode.ASPECT_4_3
             AspectRatioMode.ASPECT_4_3 -> AspectRatioMode.FIT_SCREEN
         }
-        applyAspectRatio(nextMode)
+        // Aspect ratio is now handled by the player engine
         preferenceManager.saveAspectRatioMode(nextMode.name)
         _uiState.update { it.copy(currentAspectRatioMode = nextMode) }
-    }
-
-    private fun applyAspectRatio(mode: AspectRatioMode) {
-        when (mode) {
-            AspectRatioMode.FIT_SCREEN -> {
-                mediaPlayer.setAspectRatio(null)
-                mediaPlayer.setScale(0.0f)
-            }
-            AspectRatioMode.FILL_SCREEN -> {
-                mediaPlayer.setAspectRatio(null)
-                mediaPlayer.setScale(1.0f)
-            }
-            AspectRatioMode.ASPECT_16_9 -> {
-                mediaPlayer.setAspectRatio("16:9")
-                mediaPlayer.setScale(0.0f)
-            }
-            AspectRatioMode.ASPECT_4_3 -> {
-                mediaPlayer.setAspectRatio("4:3")
-                mediaPlayer.setScale(0.0f)
-            }
-        }
     }
 
     open fun onSearchQueryChanged(query: String) {
@@ -798,22 +660,8 @@ open class ChannelsViewModel @AssistedInject constructor(
      * This allows immediate application of new settings without restart.
      */
     fun updatePlayerSettings() {
-        // Only update if media is currently playing
-        if (mediaPlayer.isPlaying) {
-            val currentPosition = mediaPlayer.time
-            val currentMedia = mediaPlayer.media
-            
-            // Recreate media with new VLC options
-            currentMedia?.let { media ->
-                val newOptions = preferenceManager.getVLCOptions()
-                val newMedia = Media(libVLC, media.uri).apply {
-                    newOptions.forEach { addOption(it) }
-                }
-                mediaManager.setMediaSafely(mediaPlayer, newMedia)
-                mediaPlayer.play()
-                mediaPlayer.time = currentPosition
-            }
-        }
+        // Player settings are now handled by the PlayerCoordinator and PlayerEngines
+        // This method is kept for backward compatibility but does nothing
     }
 
     /**
