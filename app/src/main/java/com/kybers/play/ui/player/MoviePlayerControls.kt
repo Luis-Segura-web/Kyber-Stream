@@ -31,9 +31,6 @@ fun MoviePlayerControls(
     isFavorite: Boolean,
     isFullScreen: Boolean,
     streamTitle: String,
-    systemVolume: Int,
-    maxSystemVolume: Int,
-    screenBrightness: Float,
     audioTracks: List<TrackInfo>,
     subtitleTracks: List<TrackInfo>,
     showAudioMenu: Boolean,
@@ -50,8 +47,6 @@ fun MoviePlayerControls(
     onToggleMute: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleFullScreen: () -> Unit,
-    onSetVolume: (Int) -> Unit,
-    onSetBrightness: (Float) -> Unit,
     onToggleAudioMenu: (Boolean) -> Unit,
     onToggleSubtitleMenu: (Boolean) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
@@ -122,17 +117,6 @@ fun MoviePlayerControls(
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
-            if (isFullScreen) {
-                SideSliders(
-                    modifier = Modifier.fillMaxSize(),
-                    volume = systemVolume,
-                    maxVolume = maxSystemVolume,
-                    brightness = screenBrightness,
-                    isMuted = isMuted,
-                    onSetVolume = { onSetVolume(it); onAnyInteraction() },
-                    onSetBrightness = { onSetBrightness(it); onAnyInteraction() }
-                )
-            }
         }
     }
 }

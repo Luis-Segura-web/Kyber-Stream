@@ -310,9 +310,6 @@ private fun PlayerSection(
                     isFavorite = uiState.currentlyPlaying?.let { it.streamId.toString() in uiState.favoriteChannelIds } ?: false,
                     isFullScreen = uiState.isFullScreen,
                     streamTitle = uiState.currentlyPlaying?.name ?: "Stream",
-                    systemVolume = uiState.systemVolume,
-                    maxSystemVolume = uiState.maxSystemVolume,
-                    screenBrightness = uiState.screenBrightness,
                     audioTracks = uiState.availableAudioTracks,
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
@@ -331,8 +328,6 @@ private fun PlayerSection(
                     onToggleFullScreen = {
                         activity?.requestedOrientation = if (uiState.isFullScreen) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     },
-                    onSetVolume = { vol -> audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0) },
-                    onSetBrightness = viewModel::setScreenBrightness,
                     onToggleAudioMenu = viewModel::toggleAudioMenu,
                     onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
                     onSelectAudioTrack = viewModel::selectAudioTrack,

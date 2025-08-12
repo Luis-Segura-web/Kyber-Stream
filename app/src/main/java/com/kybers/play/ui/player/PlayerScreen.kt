@@ -64,9 +64,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
     var controlsVisible by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(audioManager.isStreamMute(AudioManager.STREAM_MUSIC)) }
-    var systemVolume by remember { mutableIntStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)) }
-    val maxSystemVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
-    var screenBrightness by remember { mutableFloatStateOf(activity?.window?.attributes?.screenBrightness ?: 0.5f) }
     val originalBrightness = remember { activity?.window?.attributes?.screenBrightness ?: -1f }
     val configuration = LocalConfiguration.current
     val isFullScreen by remember(configuration) {
@@ -129,16 +126,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
         }
     }
 
-    DisposableEffect(screenBrightness, isFullScreen) {
-        if (isFullScreen) {
-            activity?.window?.let { window ->
-                val layoutParams = window.attributes
-                layoutParams.screenBrightness = screenBrightness
-                window.attributes = layoutParams
-            }
-        }
-        onDispose { }
-    }
 
     BackHandler(enabled = isFullScreen) {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -233,9 +220,6 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                 isFavorite = false,
                 isFullScreen = isFullScreen,
                 streamTitle = streamTitle,
-                systemVolume = systemVolume,
-                maxSystemVolume = maxSystemVolume,
-                screenBrightness = screenBrightness,
                 audioTracks = emptyList(),
                 subtitleTracks = emptyList(),
                 videoTracks = emptyList(),
@@ -259,19 +243,13 @@ fun PlayerScreen(playerViewModel: PlayerViewModel, streamUrl: String, streamTitl
                     if (isMuted) {
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
                     } else {
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, systemVolume, 0)
+                        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, if (currentVolume > 0) currentVolume else maxVolume / 2, 0)
                     }
                 },
                 onToggleFavorite = { /* No action */ },
                 onToggleFullScreen = ::toggleFullScreen,
-                onSetVolume = { vol ->
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0)
-                    systemVolume = vol
-                    isMuted = vol == 0
-                },
-                onSetBrightness = { br ->
-                    screenBrightness = br
-                },
                 onToggleAudioMenu = {},
                 onToggleSubtitleMenu = {},
                 onToggleVideoMenu = {},

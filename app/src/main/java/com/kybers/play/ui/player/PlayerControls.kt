@@ -49,9 +49,6 @@ fun PlayerControls(
     isFavorite: Boolean,
     isFullScreen: Boolean,
     streamTitle: String,
-    systemVolume: Int,
-    maxSystemVolume: Int,
-    screenBrightness: Float,
     audioTracks: List<TrackInfo>,
     subtitleTracks: List<TrackInfo>,
     videoTracks: List<TrackInfo>,
@@ -65,8 +62,6 @@ fun PlayerControls(
     onToggleMute: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleFullScreen: () -> Unit,
-    onSetVolume: (Int) -> Unit,
-    onSetBrightness: (Float) -> Unit,
     onToggleAudioMenu: (Boolean) -> Unit,
     onToggleSubtitleMenu: (Boolean) -> Unit,
     onToggleVideoMenu: (Boolean) -> Unit,
@@ -145,18 +140,6 @@ fun PlayerControls(
                 onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
             )
 
-            // Componente común
-            if (isFullScreen) {
-                SideSliders(
-                    modifier = Modifier.fillMaxSize(),
-                    volume = systemVolume,
-                    maxVolume = maxSystemVolume,
-                    brightness = screenBrightness,
-                    isMuted = isMuted,
-                    onSetVolume = { onSetVolume(it); onAnyInteraction() },
-                    onSetBrightness = { onSetBrightness(it); onAnyInteraction() }
-                )
-            }
         }
     }
 }
@@ -175,9 +158,9 @@ private fun CenterControls(
     onPrevious: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 96.dp else 40.dp
-    val centerIconSize = if (isFullScreen) 128.dp else 56.dp
-    val spacerWidth = if (isFullScreen) 64.dp else 32.dp
+    val iconSize = if (isFullScreen) 48.dp else 32.dp
+    val centerIconSize = if (isFullScreen) 64.dp else 48.dp
+    val spacerWidth = if (isFullScreen) 32.dp else 16.dp
 
     Box(
         modifier = modifier.fillMaxWidth(),
@@ -199,24 +182,19 @@ private fun CenterControls(
 
             when (playerStatus) {
                 PlayerStatus.RETRYING -> {
-                    Box(
-                        modifier = Modifier.size(centerIconSize),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(centerIconSize * 0.8f)
-                        )
-                        Text(
-                            text = "$retryAttempt/$maxRetryAttempts",
-                            color = Color.White,
-                            fontSize = 12.sp
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Color.White)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "Reintentando conexión... ($retryAttempt/$maxRetryAttempts)", color = Color.White)
                     }
                 }
                 PlayerStatus.RETRY_FAILED, PlayerStatus.ERROR -> {
-                    IconButton(onClick = onRetry) {
-                        Icon(Icons.Default.Refresh, "Reintentar", tint = Color.White, modifier = Modifier.size(centerIconSize))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(onClick = onRetry) {
+                            Icon(Icons.Default.Refresh, "Reintentar", tint = Color.White, modifier = Modifier.size(centerIconSize))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "Fallo de conexión. Comprueba tu conexión a internet.", color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                 }
                 PlayerStatus.LOADING -> {
@@ -289,7 +267,7 @@ private fun BottomControls(
     onToggleFullScreen: () -> Unit,
     onToggleAspectRatio: () -> Unit
 ) {
-    val iconSize = if (isFullScreen) 36.dp else 24.dp
+    val iconSize = if (isFullScreen) 28.dp else 24.dp
     val formattedCurrentTime = formatTime(currentPosition)
     val formattedTotalTime = formatTime(duration)
 

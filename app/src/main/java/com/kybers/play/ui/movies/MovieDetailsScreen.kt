@@ -296,9 +296,6 @@ fun PlayerAndHeaderSection(
                     isFavorite = uiState.isFavorite,
                     isFullScreen = uiState.isFullScreen,
                     streamTitle = uiState.title,
-                    systemVolume = uiState.systemVolume,
-                    maxSystemVolume = uiState.maxSystemVolume,
-                    screenBrightness = uiState.screenBrightness,
                     audioTracks = uiState.availableAudioTracks,
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
@@ -327,8 +324,6 @@ fun PlayerAndHeaderSection(
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
                     },
-                    onSetVolume = { vol -> viewModel.setSystemVolume(vol, audioManager) },
-                    onSetBrightness = viewModel::setScreenBrightness,
                     onToggleAudioMenu = viewModel::toggleAudioMenu,
                     onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
                     onSelectAudioTrack = viewModel::selectAudioTrack,
