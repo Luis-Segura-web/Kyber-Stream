@@ -151,15 +151,15 @@ fun SettingsScreen(
                 item {
                     SettingsCard(title = "Ajustes del Reproductor") {
                         DropdownSettingItem(
-                            icon = Icons.Default.PlayArrow, 
-                            title = "Reproductor Preferido", 
+                            icon = Icons.Default.PlayArrow,
+                            title = "Reproductor Preferido",
                             options = mapOf(
-                                "AUTO" to "Automático (recomendado)",
-                                "MEDIA3" to "Media3 (ExoPlayer)", 
-                                "VLC" to "VLC (LibVLC)"
-                            ), 
-                            selectedKey = uiState.playerPreference, 
-                            onOptionSelected = { viewModel.onPlayerPreferenceChanged(it) }
+                                com.kybers.play.settings.Settings.PlayerSelection.AUTO to "Automático (recomendado)",
+                                com.kybers.play.settings.Settings.PlayerSelection.MEDIA3 to "Media3 (ExoPlayer)",
+                                com.kybers.play.settings.Settings.PlayerSelection.VLC to "VLC (LibVLC)"
+                            ),
+                            selectedKey = uiState.playerSelection,
+                            onOptionSelected = { viewModel.onPlayerSelectionChanged(it) }
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         DropdownSettingItem(icon = Icons.Default.Tune, title = "Formato de Stream", options = mapOf("AUTOMATIC" to "Automático", "TS" to "MPEG-TS (.ts)", "HLS" to "HLS (.m3u8)"), selectedKey = uiState.streamFormat, onOptionSelected = { viewModel.onStreamFormatChanged(it) })

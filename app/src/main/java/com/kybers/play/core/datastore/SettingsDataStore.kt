@@ -69,14 +69,14 @@ class SettingsDataStore @Inject constructor(
      * Actualiza las preferencias del reproductor
      */
     suspend fun updatePlayerPreferences(
-        playerPref: Settings.PlayerPref = Settings.PlayerPref.AUTO,
+        playerSelection: Settings.PlayerSelection = Settings.PlayerSelection.AUTO,
         stopOnBackground: Boolean = true,
         cooldownMs: Int = 2000,
         enableAutoFallback: Boolean = true
     ) {
         dataStore.updateData { currentSettings ->
             currentSettings.toBuilder()
-                .setPlayerPref(playerPref)
+                .setPlayerSelection(playerSelection)
                 .setStopOnBackground(stopOnBackground)
                 .setCooldownMs(cooldownMs)
                 .setEnableAutoFallback(enableAutoFallback)
@@ -228,7 +228,7 @@ class SettingsDataStore @Inject constructor(
      */
     val playerPreferences: Flow<PlayerPreferences> = settings.map { settings ->
         PlayerPreferences(
-            playerPref = settings.playerPref,
+            playerSelection = settings.playerSelection,
             stopOnBackground = settings.stopOnBackground,
             cooldownMs = settings.cooldownMs,
             enableAutoFallback = settings.enableAutoFallback
@@ -247,7 +247,7 @@ class SettingsDataStore @Inject constructor(
  * Data classes para flows específicos
  */
 data class PlayerPreferences(
-    val playerPref: Settings.PlayerPref,
+    val playerSelection: Settings.PlayerSelection,
     val stopOnBackground: Boolean,
     val cooldownMs: Int,
     val enableAutoFallback: Boolean

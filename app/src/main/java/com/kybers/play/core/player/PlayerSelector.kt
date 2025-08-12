@@ -17,7 +17,6 @@ import javax.inject.Singleton
 @Singleton
 class PlayerSelector @Inject constructor(
     private val application: Application,
-    private val preferenceManager: PreferenceManager,
     private val settingsDataStore: SettingsDataStore
 ) {
     
@@ -129,44 +128,22 @@ class PlayerSelector @Inject constructor(
     }
 
     /**
-     * Obtiene el tipo de motor preferido por el usuario
-     * Lee de PreferenceManager primero (más confiable) y usa SettingsDataStore como verificación
+     * Obtiene el tipo de motor preferido por el usuario desde SettingsDataStore.
      */
     private suspend fun getPreferredEngineType(): EngineType {
-        // Primero leer del sistema confiable (PreferenceManager)
-        val legacyPref = preferenceManager.getPlayerPreference()
-        val legacyEngineType = when (legacyPref) {
-            "MEDIA3" -> EngineType.MEDIA3
-            "VLC" -> EngineType.VLC
-            "AUTO" -> EngineType.AUTO
-            else -> EngineType.AUTO // Valor por defecto
-        }
-        
-        Log.d(TAG, "PreferenceManager preference: $legacyPref -> $legacyEngineType")
-        
-        // Verificar si DataStore tiene el mismo valor o usar el de PreferenceManager
         return try {
             val settings = settingsDataStore.settings.first()
-            val dataStoreEngineType = when (settings.playerPref) {
-                Settings.PlayerPref.MEDIA3 -> EngineType.MEDIA3
-                Settings.PlayerPref.VLC -> EngineType.VLC
-                Settings.PlayerPref.AUTO -> EngineType.AUTO
-                else -> EngineType.AUTO
+            val engineType = when (settings.playerSelection) {
+                Settings.PlayerSelection.MEDIA3 -> EngineType.MEDIA3
+                Settings.PlayerSelection.VLC -> EngineType.VLC
+                Settings.PlayerSelection.AUTO -> EngineType.AUTO
+                else -> EngineType.AUTO // Default to AUTO
             }
-            
-            Log.d(TAG, "SettingsDataStore preference: ${settings.playerPref} -> $dataStoreEngineType")
-            
-            // Si ambos coinciden, usar cualquiera. Si no, dar preferencia a PreferenceManager
-            if (legacyEngineType == dataStoreEngineType) {
-                Log.d(TAG, "Both sources agree on: $legacyEngineType")
-                legacyEngineType
-            } else {
-                Log.w(TAG, "Preference mismatch! Using PreferenceManager: $legacyEngineType over DataStore: $dataStoreEngineType")
-                legacyEngineType
-            }
+            Log.d(TAG, "SettingsDataStore preference: ${settings.playerSelection} -> $engineType")
+            engineType
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to read from SettingsDataStore, using PreferenceManager value", e)
-            legacyEngineType
+            Log.w(TAG, "Failed to read from SettingsDataStore, defaulting to AUTO", e)
+            EngineType.AUTO
         }
     }
 
@@ -174,14 +151,14 @@ class PlayerSelector @Inject constructor(
      * Crea una instancia del motor Media3
      */
     private suspend fun createMedia3Engine(): PlayerEngine {
-        return Media3Engine(application, preferenceManager)
+        return Media3Engine(application, settingsDataStore)
     }
 
     /**
      * Crea una instancia del motor VLC
      */
     private suspend fun createVlcEngine(): PlayerEngine {
-        return VlcEngine(application, preferenceManager)
+        return VlcEngine(application, settingsDataStore)
     }
 
     /**

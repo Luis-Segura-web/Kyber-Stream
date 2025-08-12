@@ -2,7 +2,7 @@ package com.kybers.play.core.player
 
 import android.app.Application
 import android.util.Log
-import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.core.datastore.SettingsDataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +16,7 @@ import javax.inject.Inject
  */
 class VlcEngine(
     private val application: Application,
-    private val preferenceManager: PreferenceManager
+    private val settingsDataStore: SettingsDataStore
 ) : PlayerEngine {
     
     companion object {
@@ -48,7 +48,8 @@ class VlcEngine(
      */
     private fun initializeVlc() {
         if (libVLC == null) {
-            val options = preferenceManager.getVLCOptions()
+            // TODO: Get VLC options from SettingsDataStore
+            val options = ArrayList<String>()
             libVLC = LibVLC(application, options)
             Log.d(TAG, "LibVLC initialized with options: ${options.joinToString(", ")}")
         }

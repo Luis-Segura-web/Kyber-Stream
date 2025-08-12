@@ -8,7 +8,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import com.kybers.play.data.preferences.PreferenceManager
+import com.kybers.play.core.datastore.SettingsDataStore
 import com.kybers.play.util.SecureLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class Media3Engine(
     private val application: Application,
-    private val preferenceManager: PreferenceManager
+    private val settingsDataStore: SettingsDataStore
 ) : PlayerEngine {
     
     companion object {

@@ -3,7 +3,7 @@ option java_package = "com.kybers.play.settings";
 option java_multiple_files = true;
 
 message Settings {
-  enum PlayerPref {
+  enum PlayerSelection {
     AUTO = 0;
     MEDIA3 = 1;
     VLC = 2;
@@ -22,7 +22,7 @@ message Settings {
   }
 
   // Player preferido (principal/alternativo/auto)
-  PlayerPref player_pref = 1;
+  PlayerSelection player_selection = 1;
 
   // Si es true, corta la reproducción al ir a background
   bool stop_on_background = 2;
