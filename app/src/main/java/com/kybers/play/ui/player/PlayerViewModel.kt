@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import com.kybers.play.player.PlayerManager
 import com.kybers.play.player.MediaManager
 import com.kybers.play.core.player.PlayerEngine
+import com.kybers.play.core.player.VlcPlayerEngineAdapter
 import org.videolan.libvlc.MediaPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +24,9 @@ class PlayerViewModel @Inject constructor(
 ) : AndroidViewModel(context as Application) {
 
     private val playerManager = PlayerManager(context as Application, viewModelScope, preferenceManager)
+    
+    // Adaptador para usar VLC MediaPlayer como PlayerEngine
+    private var vlcEngineAdapter: VlcPlayerEngineAdapter? = null
     
     // UI state for retry and error handling
     private val _playerStatus = MutableStateFlow(PlayerStatus.IDLE)
@@ -44,9 +49,17 @@ class PlayerViewModel @Inject constructor(
     }
     
     /**
-     * Get the current PlayerEngine from MediaManager
+     * Get the current PlayerEngine from MediaManager or create adapter for VLC
      */
-    fun getCurrentEngine(): PlayerEngine? = mediaManager.getCurrentEngine()
+    fun getCurrentEngine(): PlayerEngine? {
+        return mediaManager.getCurrentEngine() ?: run {
+            // Si no hay PlayerCoordinator, crear adaptador para VLC legacy
+            if (vlcEngineAdapter == null) {
+                vlcEngineAdapter = VlcPlayerEngineAdapter(playerManager.getMediaPlayer())
+            }
+            vlcEngineAdapter
+        }
+    }
     
     /**
      * Get the MediaPlayer instance from PlayerManager
@@ -151,6 +164,12 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        vlcEngineAdapter?.let { adapter ->
+            viewModelScope.launch {
+                adapter.release()
+            }
+        }
+        vlcEngineAdapter = null
         playerManager.release()
     }
 }
