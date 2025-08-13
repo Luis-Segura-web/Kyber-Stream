@@ -3,6 +3,7 @@ package com.kybers.play.di
 import android.app.Application
 import android.content.Context
 import com.kybers.play.core.datastore.SettingsDataStore
+import com.kybers.play.core.player.PlayerCoordinator
 import com.kybers.play.data.local.model.User
 import com.kybers.play.data.preferences.PreferenceManager
 import com.kybers.play.data.preferences.SyncManager
@@ -39,4 +40,5 @@ interface AppDependencies {
     fun themeManager(): ThemeManager
     fun dynamicSettingsManager(): DynamicSettingsManager
     @CurrentUser fun currentUser(): User
+    fun playerCoordinator(): PlayerCoordinator
 }

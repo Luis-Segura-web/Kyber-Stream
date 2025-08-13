@@ -55,8 +55,9 @@ fun PlayerView(
     }
     
     Box(modifier = modifier) {
-        // Handle VLC engine (using SurfaceView)
-        if (playerEngine != null && playerEngine::class.simpleName?.contains("Vlc", ignoreCase = true) == true) {
+    // Handle VLC engine (using SurfaceView)
+    if (playerEngine != null && (playerEngine::class.simpleName?.contains("Vlc", ignoreCase = true) == true ||
+                     playerEngine is com.kybers.play.core.player.VlcPlayerEngineAdapter)) {
             Log.d(TAG, "Setting up VLC player view")
             AndroidView(
                 factory = { context ->
@@ -68,13 +69,22 @@ fun PlayerView(
                 update = { surfaceView ->
                     Log.d(TAG, "Updating SurfaceView for VLC")
                     // Check if we need to reattach
-                    if (!isVlcSurfaceAttached && playerEngine is com.kybers.play.core.player.VlcEngine) {
+                    if (!isVlcSurfaceAttached) {
                         try {
                             // Get the VLC MediaPlayer and attach the surface
-                            // This is a simplified approach - in practice, we might need to access
-                            // the VLC MediaPlayer through a method in VlcEngine
-                            Log.d(TAG, "Attaching SurfaceView to VLC MediaPlayer")
-                            isVlcSurfaceAttached = true
+                            val vlcMediaPlayer = when (playerEngine) {
+                                is com.kybers.play.core.player.VlcPlayerEngineAdapter -> playerEngine.getMediaPlayer()
+                                is com.kybers.play.core.player.VlcEngine -> playerEngine.getMediaPlayer()
+                                else -> null
+                            }
+                            
+                            vlcMediaPlayer?.let { mediaPlayer ->
+                                Log.d(TAG, "Attaching SurfaceView to VLC MediaPlayer")
+                                mediaPlayer.vlcVout.setVideoSurface(surfaceView.holder.surface, surfaceView.holder)
+                                mediaPlayer.vlcVout.attachViews()
+                                isVlcSurfaceAttached = true
+                                Log.d(TAG, "VLC surface attached successfully")
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error attaching SurfaceView to VLC MediaPlayer", e)
                         }
@@ -84,7 +94,7 @@ fun PlayerView(
             )
         }
         // Handle Media3 engine (using PlayerView)
-        else if (playerEngine != null && playerEngine::class.simpleName?.contains("Media3", ignoreCase = true) == true) {
+    else if (playerEngine != null && playerEngine::class.simpleName?.contains("Media3", ignoreCase = true) == true) {
             Log.d(TAG, "Setting up Media3 player view")
             AndroidView(
                 factory = { context ->
@@ -124,6 +134,16 @@ fun PlayerView(
                 // Clean up VLC surface if needed
                 if (isVlcSurfaceAttached) {
                     Log.d(TAG, "Detaching SurfaceView from VLC MediaPlayer")
+                    try {
+                        val vlcMediaPlayer = when (playerEngine) {
+                            is com.kybers.play.core.player.VlcPlayerEngineAdapter -> playerEngine.getMediaPlayer()
+                            is com.kybers.play.core.player.VlcEngine -> playerEngine.getMediaPlayer()
+                            else -> null
+                        }
+                        vlcMediaPlayer?.vlcVout?.detachViews()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error detaching VLC surface", e)
+                    }
                     isVlcSurfaceAttached = false
                 }
                 

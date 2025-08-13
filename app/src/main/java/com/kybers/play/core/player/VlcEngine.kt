@@ -298,4 +298,10 @@ class VlcEngine(
             Log.e(TAG, "Error releasing current media", e)
         }
     }
+
+    /**
+     * Expone el MediaPlayer de VLC para permitir que la UI adjunte la superficie de video.
+     * Nota: No se libera aquí; la liberación es responsabilidad de release().
+     */
+    fun getMediaPlayer(): MediaPlayer? = mediaPlayer
 }

@@ -48,6 +48,9 @@ fun ChannelPlayerControls(
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
     onToggleAspectRatio: () -> Unit,
+    onSeek: ((Long) -> Unit)? = null,
+    currentPosition: Long = 0L,
+    duration: Long = 0L,
     // Add missing retry parameters
     playerStatus: PlayerStatus = PlayerStatus.IDLE,
     retryAttempt: Int = 0,
@@ -106,12 +109,16 @@ fun ChannelPlayerControls(
                 onSelectAudioTrack = { onSelectAudioTrack(it); onAnyInteraction() },
                 onSelectSubtitleTrack = { onSelectSubtitleTrack(it); onAnyInteraction() },
                 onToggleFullScreen = { onToggleFullScreen(); onAnyInteraction() },
-                onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() }
+                onToggleAspectRatio = { onToggleAspectRatio(); onAnyInteraction() },
+                onSeek = onSeek,
+                currentPosition = currentPosition,
+                duration = duration
             )
 
         }
     }
 }
+
 
 @Composable
 private fun CenterChannelControls(
@@ -223,43 +230,76 @@ private fun BottomChannelControls(
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSubtitleTrack: (Int) -> Unit,
     onToggleFullScreen: () -> Unit,
-    onToggleAspectRatio: () -> Unit
+    onToggleAspectRatio: () -> Unit,
+    onSeek: ((Long) -> Unit)? = null,
+    currentPosition: Long = 0L,
+    duration: Long = 0L
 ) {
     val iconSize = if (isFullScreen) 32.dp else 24.dp
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        IconButton(onClick = onToggleMute) {
-            Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+        if (onSeek != null && duration > 0L) {
+            // Barra de avance opcional para streams que permitan timeshift
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
+                Slider(
+                    value = currentPosition.toFloat(),
+                    onValueChange = { newPos -> onSeek(newPos.toLong()) },
+                    valueRange = 0f..duration.toFloat(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .height(4.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+                Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
+            }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            if (subtitleTracks.size > 1) {
-                TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
-                    ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
+            IconButton(onClick = onToggleMute) {
+                Icon(if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp, "Silenciar", tint = Color.White, modifier = Modifier.size(iconSize))
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (subtitleTracks.size > 1) {
+                    TrackMenu(showMenu = showSubtitleMenu, onToggleMenu = onToggleSubtitleMenu, tracks = subtitleTracks, onSelectTrack = onSelectSubtitleTrack) {
+                        ControlIconButton(icon = Icons.Default.ClosedCaption, text = "Subtítulos", onClick = { onToggleSubtitleMenu(true) }, iconSize = iconSize)
+                    }
                 }
-            }
-            if (audioTracks.size > 1) {
-                TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
-                    ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
+                if (audioTracks.size > 1) {
+                    TrackMenu(showMenu = showAudioMenu, onToggleMenu = onToggleAudioMenu, tracks = audioTracks, onSelectTrack = onSelectAudioTrack) {
+                        ControlIconButton(icon = Icons.Default.Audiotrack, text = "Audio", onClick = { onToggleAudioMenu(true) }, iconSize = iconSize)
+                    }
                 }
-            }
-            IconButton(onClick = onToggleAspectRatio) {
-                Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
-            }
-            IconButton(onClick = onToggleFullScreen) {
-                Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
+                IconButton(onClick = onToggleAspectRatio) {
+                    Icon(Icons.Default.AspectRatio, "Relación de Aspecto", tint = Color.White, modifier = Modifier.size(iconSize))
+                }
+                IconButton(onClick = onToggleFullScreen) {
+                    Icon(if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Pantalla Completa", tint = Color.White, modifier = Modifier.size(iconSize))
+                }
             }
         }
-    }
+}
 }
