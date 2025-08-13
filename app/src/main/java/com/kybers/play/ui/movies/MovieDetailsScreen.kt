@@ -274,7 +274,7 @@ fun PlayerAndHeaderSection(
             exit = fadeOut()
         ) {
             PlayerHost(
-                playerEngine = viewModel.mediaManager.getCurrentEngine(),
+                playerEngine = viewModel.playerCoordinator.getCurrentEngine(),
                 modifier = Modifier.fillMaxSize(),
                 playerStatus = uiState.playerStatus,
                 onEnterPipMode = {
@@ -308,20 +308,11 @@ fun PlayerAndHeaderSection(
                             viewModel.hidePlayer()
                         }
                     },
-                    onPlayPause = {
-                        // Play/pause is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onPlayPause = viewModel::togglePlayPause,
                     onNext = {},
                     onPrevious = {},
-                    onSeekForward = {
-                        // Seeking is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
-                    onSeekBackward = {
-                        // Seeking is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onSeekForward = viewModel::seekForward,
+                    onSeekBackward = viewModel::seekBackward,
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onToggleFullScreen = {
@@ -342,10 +333,7 @@ fun PlayerAndHeaderSection(
                         // We'll need to update this logic
                     },
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
-                    onSeek = { position ->
-                        // Seeking is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onSeek = viewModel::seekTo,
                     // Add retry parameters
                     playerStatus = uiState.playerStatus,
                     retryAttempt = uiState.retryAttempt,

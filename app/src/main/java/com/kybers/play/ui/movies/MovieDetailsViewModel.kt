@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 data class MovieDetailsUiState(
     val isLoadingDetails: Boolean = true,
@@ -115,7 +116,8 @@ class MovieDetailsViewModel @AssistedInject constructor(
     private val preferenceManager: PreferenceManager,
     @CurrentUser private val currentUser: User,
     @Assisted private val movieId: Int,
-    val mediaManager: MediaManager
+    val mediaManager: MediaManager,
+    val playerCoordinator: PlayerCoordinator
 ) : AndroidViewModel(application) {
 
     private val vodRepository: VodRepository by lazy {
@@ -131,9 +133,9 @@ class MovieDetailsViewModel @AssistedInject constructor(
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
     private val _navigationEvent = MutableSharedFlow<Int>()
     val navigationEvent: SharedFlow<Int> = _navigationEvent.asSharedFlow()
-    private var playerCoordinator: PlayerCoordinator? = null
 
     private var retryManager: RetryManager? = null
+    private var engineObservationJob: Job? = null
 
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
@@ -405,32 +407,20 @@ class MovieDetailsViewModel @AssistedInject constructor(
                     retryMessage = null
                 )
             }
-            
-            // Try to start playback using PlayerCoordinator
             try {
                 val movie = _uiState.value.movie ?: throw IllegalStateException("No movie selected")
                 val streamUrl = buildStreamUrl(movie)
                 val startPosition = if (continueFromLastPosition && _uiState.value.playbackPosition > 0) {
                     _uiState.value.playbackPosition
-                } else {
-                    0L
-                }
-                
+                } else 0L
                 val mediaSpec = MediaSpec(
                     url = streamUrl,
                     title = movie.name,
-                    forceSoftwareDecoding = false // This will be handled by the player engine
+                    forceSoftwareDecoding = false
                 )
-                
-                // Use PlayerCoordinator to play the media
-                playerCoordinator?.play(mediaSpec)
-                
-                _uiState.update { 
-                    it.copy(
-                        isPlayerVisible = true, 
-                        playerStatus = PlayerStatus.BUFFERING
-                    ) 
-                }
+                playerCoordinator.play(mediaSpec)
+                _uiState.update { it.copy(isPlayerVisible = true, playerStatus = PlayerStatus.BUFFERING) }
+                observeCurrentEngine()
             } catch (e: Exception) {
                 Log.e("MovieDetailsViewModel", "Failed to start playback: ${e.message}", e)
                 _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
@@ -442,8 +432,9 @@ class MovieDetailsViewModel @AssistedInject constructor(
     fun hidePlayer() {
         viewModelScope.launch {
             retryManager?.cancelRetry()
-            // Stop playback using PlayerCoordinator
-            playerCoordinator?.stopAll()
+            playerCoordinator.stopAll()
+            engineObservationJob?.cancel()
+            engineObservationJob = null
             _uiState.update {
                 it.copy(
                     isPlayerVisible = false, isFullScreen = false, playerStatus = PlayerStatus.IDLE,
@@ -456,18 +447,83 @@ class MovieDetailsViewModel @AssistedInject constructor(
     }
 
     fun togglePlayPause() {
-        // Play/pause is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine()
+                if (engine != null) {
+                    when (engine.state.value) {
+                        com.kybers.play.core.player.PlayerState.PLAYING -> {
+                            engine.pause()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PAUSED) }
+                        }
+                        com.kybers.play.core.player.PlayerState.READY,
+                        com.kybers.play.core.player.PlayerState.PAUSED -> {
+                            engine.play()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PLAYING) }
+                        }
+                        else -> Unit
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MovieDetailsViewModel", "togglePlayPause error: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun observeCurrentEngine() {
+        engineObservationJob?.cancel()
+        val engine = playerCoordinator.getCurrentEngine() ?: return
+        engineObservationJob = viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                engine.state,
+                engine.position,
+                engine.duration
+            ) { state, position, duration ->
+                Triple(state, position, duration)
+            }.collect { (state, position, duration) ->
+                val mappedStatus = when (state) {
+                    com.kybers.play.core.player.PlayerState.PREPARING,
+                    com.kybers.play.core.player.PlayerState.BUFFERING -> PlayerStatus.BUFFERING
+                    com.kybers.play.core.player.PlayerState.PLAYING -> PlayerStatus.PLAYING
+                    com.kybers.play.core.player.PlayerState.PAUSED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.READY -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ENDED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ERROR -> PlayerStatus.ERROR
+                    com.kybers.play.core.player.PlayerState.IDLE -> PlayerStatus.IDLE
+                }
+                _uiState.update {
+                    it.copy(
+                        playerStatus = mappedStatus,
+                        currentPosition = position,
+                        duration = duration
+                    )
+                }
+            }
+        }
     }
 
     fun seekForward() {
-        // Seeking is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine() ?: return@launch
+                val newPos = (engine.position.value + 10_000).coerceAtMost(engine.duration.value)
+                engine.seekTo(newPos)
+            } catch (e: Exception) {
+                Log.e("MovieDetailsViewModel", "seekForward error: ${e.message}", e)
+            }
+        }
     }
 
     fun seekBackward() {
-        // Seeking is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine() ?: return@launch
+                val newPos = (engine.position.value - 10_000).coerceAtLeast(0)
+                engine.seekTo(newPos)
+            } catch (e: Exception) {
+                Log.e("MovieDetailsViewModel", "seekBackward error: ${e.message}", e)
+            }
+        }
     }
 
     fun setInitialSystemValues(volume: Int, maxVolume: Int, brightness: Float) {
@@ -506,8 +562,13 @@ class MovieDetailsViewModel @AssistedInject constructor(
         _uiState.update { it.copy(isFullScreen = !it.isFullScreen) }
     }
     fun seekTo(position: Long) {
-        // Seeking is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                playerCoordinator.getCurrentEngine()?.seekTo(position)
+            } catch (e: Exception) {
+                Log.e("MovieDetailsViewModel", "seekTo error: ${e.message}", e)
+            }
+        }
     }
     fun toggleAspectRatio() {
         val nextMode = when (_uiState.value.currentAspectRatioMode) {

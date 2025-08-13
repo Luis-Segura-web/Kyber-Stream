@@ -296,7 +296,7 @@ private fun PlayerSection(
 
     if (uiState.isPlayerVisible) {
         PlayerHost(
-            playerEngine = viewModel.playerCoordinator?.getCurrentEngine(),
+            playerEngine = viewModel.playerCoordinator.getCurrentEngine(),
             modifier = playerModifier,
             playerStatus = uiState.playerStatus,
             onEnterPipMode = onPictureInPicture,
@@ -314,14 +314,14 @@ private fun PlayerSection(
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
+                    onSeek = viewModel::seekTo,
+                    currentPosition = uiState.currentPosition,
+                    duration = uiState.duration,
                     onClose = {
                         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         viewModel.hidePlayer()
                     },
-                    onPlayPause = {
-                        // Play/pause is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onPlayPause = { viewModel.togglePlayPause() },
                     onNext = viewModel::playNextChannel,
                     onPrevious = viewModel::playPreviousChannel,
                     onToggleMute = { viewModel.onToggleMute(audioManager) },

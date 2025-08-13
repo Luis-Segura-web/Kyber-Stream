@@ -44,6 +44,7 @@ import com.kybers.play.ui.ContentViewModelFactory
 import com.kybers.play.ui.MovieDetailsViewModelFactory
 import com.kybers.play.ui.SeriesDetailsViewModelFactory
 import com.kybers.play.ui.SettingsViewModelFactory
+import com.kybers.play.core.player.PlayerCoordinator
 
 // Bottom navigation items for the main app
 private val bottomBarItems = listOf(
@@ -87,7 +88,8 @@ private fun MainScreenWithBottomNav(
             syncManager = hiltEntryPoint.syncManager(),
             parentalControlManager = hiltEntryPoint.parentalControlManager(),
             userSession = hiltEntryPoint.userSession(),
-            mediaManager = hiltEntryPoint.mediaManager()
+            mediaManager = hiltEntryPoint.mediaManager(),
+            playerCoordinator = hiltEntryPoint.playerCoordinator()
         )
     }
 
@@ -101,7 +103,8 @@ private fun MainScreenWithBottomNav(
                 preferenceManager = hiltEntryPoint.preferenceManager(),
                 currentUser = user,
                 movieId = movieId,
-                mediaManager = hiltEntryPoint.mediaManager()
+                mediaManager = hiltEntryPoint.mediaManager(),
+                playerCoordinator = hiltEntryPoint.playerCoordinator()
             )
         }
     }
@@ -116,7 +119,8 @@ private fun MainScreenWithBottomNav(
                 externalApiService = hiltEntryPoint.tmdbApiService(),
                 currentUser = user,
                 seriesId = seriesId,
-                mediaManager = hiltEntryPoint.mediaManager()
+                mediaManager = hiltEntryPoint.mediaManager(),
+                playerCoordinator = hiltEntryPoint.playerCoordinator()
             )
         }
     }

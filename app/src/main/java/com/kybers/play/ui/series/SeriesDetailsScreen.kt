@@ -263,7 +263,7 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
             exit = fadeOut()
         ) {
             PlayerHost(
-                playerEngine = viewModel.mediaManager.getCurrentEngine(),
+                playerEngine = viewModel.playerCoordinator.getCurrentEngine(),
                 modifier = Modifier.fillMaxSize(),
                 playerStatus = uiState.playerStatus,
                 onEnterPipMode = {
@@ -297,14 +297,11 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                             viewModel.hidePlayer()
                         }
                     },
-                    onPlayPause = {
-                        // Play/pause is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::playNextEpisode,
                     onPrevious = viewModel::playPreviousEpisode,
-                    onSeekForward = { /* viewModel.seekForward() */ },
-                    onSeekBackward = { /* viewModel.seekBackward() */ },
+                    onSeekForward = { /* opcional: implementar salto +10s */ },
+                    onSeekBackward = { /* opcional: implementar salto -10s */ },
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onToggleFullScreen = {
@@ -316,19 +313,10 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     },
                     onToggleAudioMenu = viewModel::toggleAudioMenu,
                     onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                    onSelectAudioTrack = { trackId ->
-                        // Audio track selection is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
-                    onSelectSubtitleTrack = { trackId ->
-                        // Subtitle track selection is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
-                    onSeek = { position ->
-                        // Seeking is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
+                    onSeek = viewModel::seekTo,
                     // Add retry parameters
                     playerStatus = uiState.playerStatus,
                     retryAttempt = uiState.retryAttempt,

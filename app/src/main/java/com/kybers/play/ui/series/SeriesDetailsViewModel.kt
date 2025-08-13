@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import java.util.concurrent.TimeUnit
 
 data class SeriesDetailsUiState(
@@ -97,7 +98,8 @@ class SeriesDetailsViewModel @AssistedInject constructor(
     private val preferenceManager: PreferenceManager,
     @CurrentUser private val currentUser: User,
     @Assisted private val seriesId: Int,
-    val mediaManager: MediaManager
+    val mediaManager: MediaManager,
+    val playerCoordinator: PlayerCoordinator
 ) : AndroidViewModel(application) {
 
     private val vodRepository: VodRepository by lazy {
@@ -112,9 +114,8 @@ class SeriesDetailsViewModel @AssistedInject constructor(
     private val _uiState = MutableStateFlow(SeriesDetailsUiState())
     val uiState: StateFlow<SeriesDetailsUiState> = _uiState.asStateFlow()
 
-    private var playerCoordinator: PlayerCoordinator? = null
-
     private var retryManager: RetryManager? = null
+    private var engineObservationJob: Job? = null
 
     private var lastSaveTimeMillis: Long = 0L
     private val saveIntervalMillis: Long = 15000
@@ -353,28 +354,23 @@ class SeriesDetailsViewModel @AssistedInject constructor(
                 retryMessage = null
             )
         }
-        
-        // Try to play the episode using PlayerCoordinator
         viewModelScope.launch {
             try {
                 val streamUrl = buildStreamUrl(episode)
                 val startPosition = preferenceManager.getEpisodePlaybackState(episode.id).first
-                
                 val mediaSpec = MediaSpec(
                     url = streamUrl,
                     title = "${_uiState.value.title} - S${episode.season}E${episode.episodeNum}",
-                    forceSoftwareDecoding = false // This will be handled by the player engine
+                    forceSoftwareDecoding = false
                 )
-                
-                // Use PlayerCoordinator to play the media
-                playerCoordinator?.play(mediaSpec)
+                playerCoordinator.play(mediaSpec)
+                observeCurrentEngine()
             } catch (e: Exception) {
                 Log.e("SeriesDetailsViewModel", "Failed to play episode: ${e.message}", e)
                 _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
             }
         }
     }
-
 
     // --- ¡FUNCIÓN DE GUARDADO CORREGIDA! ---
     private fun saveCurrentEpisodeProgress(markAsFinished: Boolean = false) {
@@ -412,8 +408,9 @@ class SeriesDetailsViewModel @AssistedInject constructor(
     fun hidePlayer() {
         viewModelScope.launch {
             retryManager?.cancelRetry()
-            // Stop playback using PlayerCoordinator
-            playerCoordinator?.stopAll()
+            playerCoordinator.stopAll()
+            engineObservationJob?.cancel()
+            engineObservationJob = null
             _uiState.update {
                 it.copy(
                     isPlayerVisible = false,
@@ -431,13 +428,69 @@ class SeriesDetailsViewModel @AssistedInject constructor(
     }
 
     fun togglePlayPause() {
-        // Play/pause is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine()
+                if (engine != null) {
+                    when (engine.state.value) {
+                        com.kybers.play.core.player.PlayerState.PLAYING -> {
+                            engine.pause()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PAUSED) }
+                        }
+                        com.kybers.play.core.player.PlayerState.READY,
+                        com.kybers.play.core.player.PlayerState.PAUSED -> {
+                            engine.play()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PLAYING) }
+                        }
+                        else -> Unit
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SeriesDetailsViewModel", "togglePlayPause error: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun observeCurrentEngine() {
+        engineObservationJob?.cancel()
+        val engine = playerCoordinator.getCurrentEngine() ?: return
+        engineObservationJob = viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                engine.state,
+                engine.position,
+                engine.duration
+            ) { state, position, duration ->
+                Triple(state, position, duration)
+            }.collect { (state, position, duration) ->
+                val mappedStatus = when (state) {
+                    com.kybers.play.core.player.PlayerState.PREPARING,
+                    com.kybers.play.core.player.PlayerState.BUFFERING -> PlayerStatus.BUFFERING
+                    com.kybers.play.core.player.PlayerState.PLAYING -> PlayerStatus.PLAYING
+                    com.kybers.play.core.player.PlayerState.PAUSED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.READY -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ENDED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ERROR -> PlayerStatus.ERROR
+                    com.kybers.play.core.player.PlayerState.IDLE -> PlayerStatus.IDLE
+                }
+                _uiState.update {
+                    it.copy(
+                        playerStatus = mappedStatus,
+                        currentPosition = position,
+                        duration = duration
+                    )
+                }
+            }
+        }
     }
 
     fun seekTo(position: Long) {
-        // Seeking is now handled by the PlayerCoordinator
-        // We'll need to update this logic
+        viewModelScope.launch {
+            try {
+                playerCoordinator.getCurrentEngine()?.seekTo(position)
+            } catch (e: Exception) {
+                Log.e("SeriesDetailsViewModel", "seekTo error: ${e.message}", e)
+            }
+        }
     }
 
     /**

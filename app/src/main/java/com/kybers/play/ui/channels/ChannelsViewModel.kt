@@ -37,14 +37,7 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -71,6 +64,8 @@ data class ChannelsUiState(
     val favoriteChannelIds: Set<String> = emptySet(),
     val isFavoritesCategoryExpanded: Boolean = false,
     val playerStatus: PlayerStatus = PlayerStatus.IDLE,
+    val currentPosition: Long = 0L,
+    val duration: Long = 0L,
     val isFullScreen: Boolean = false,
     val isMuted: Boolean = false,
     val systemVolume: Int = 0,
@@ -106,7 +101,8 @@ open class ChannelsViewModel @AssistedInject constructor(
     private val preferenceManager: PreferenceManager,
     private val syncManager: SyncManager,
     private val parentalControlManager: ParentalControlManager,
-    val mediaManager: MediaManager
+    val mediaManager: MediaManager,
+    val playerCoordinator: PlayerCoordinator
 ) : AndroidViewModel(application) {
 
     private val liveRepository: LiveRepository by lazy {
@@ -117,10 +113,6 @@ open class ChannelsViewModel @AssistedInject constructor(
     interface Factory {
         fun create(application: Application): ChannelsViewModel
     }
-
-    var playerCoordinator: PlayerCoordinator? = null
-
-    private var retryManager: RetryManager? = null
 
     private val _uiState = MutableStateFlow(ChannelsUiState())
     open val uiState: StateFlow<ChannelsUiState> = _uiState.asStateFlow()
@@ -134,6 +126,8 @@ open class ChannelsViewModel @AssistedInject constructor(
     val scrollToItemEvent: SharedFlow<String> = _scrollToItemEvent.asSharedFlow()
 
     private var softwareFallbackTried = false
+    private var retryManager: RetryManager? = null
+    private var engineObservationJob: Job? = null
 
     init {
         setupRetryManager()
@@ -257,17 +251,19 @@ open class ChannelsViewModel @AssistedInject constructor(
                 )
             }
 
-            // Try to play the channel using PlayerCoordinator
             try {
                 val streamUrl = buildStreamUrl(channel)
                 val mediaSpec = MediaSpec(
                     url = streamUrl,
                     title = channel.name,
-                    forceSoftwareDecoding = false // This will be handled by the player engine
+                    forceSoftwareDecoding = false
                 )
-                
-                // Use PlayerCoordinator to play the media
-                playerCoordinator?.play(mediaSpec)
+                // Si ya hay algo reproduciéndose, usar switchChannel para evitar overlap
+                when (playerCoordinator.coordinatorState.value) {
+                    is PlayerCoordinator.CoordinatorState.Playing -> playerCoordinator.switchChannel(mediaSpec)
+                    else -> playerCoordinator.play(mediaSpec)
+                }
+                observeCurrentEngine()
             } catch (e: Exception) {
                 Log.e("ChannelsViewModel", "Failed to play channel: ${e.message}", e)
                 _uiState.update { it.copy(playerStatus = PlayerStatus.ERROR) }
@@ -383,18 +379,89 @@ open class ChannelsViewModel @AssistedInject constructor(
     open fun hidePlayer() {
         viewModelScope.launch {
             retryManager?.cancelRetry()
-            // Stop playback using PlayerCoordinator
-            playerCoordinator?.stopAll()
-
+            playerCoordinator.stopAll()
+        engineObservationJob?.cancel()
+        engineObservationJob = null
             _uiState.update {
                 it.copy(
                     isPlayerVisible = false,
                     isFullScreen = false,
                     playerStatus = PlayerStatus.IDLE,
+            currentPosition = 0L,
+            duration = 0L,
                     isInPipMode = false,
                     retryAttempt = 0,
                     retryMessage = null
                 )
+            }
+        }
+    }
+
+    /**
+     * Toggle play/pause using the current engine
+     */
+    fun togglePlayPause() {
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine()
+                if (engine != null) {
+                    when (engine.state.value) {
+                        com.kybers.play.core.player.PlayerState.PLAYING -> {
+                            engine.pause()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PAUSED) }
+                        }
+                        com.kybers.play.core.player.PlayerState.READY,
+                        com.kybers.play.core.player.PlayerState.PAUSED -> {
+                            engine.play()
+                            _uiState.update { it.copy(playerStatus = PlayerStatus.PLAYING) }
+                        }
+                        else -> Unit
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChannelsViewModel", "togglePlayPause error: ${e.message}", e)
+            }
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        viewModelScope.launch {
+            try {
+                playerCoordinator.getCurrentEngine()?.seekTo(positionMs)
+            } catch (e: Exception) {
+                Log.e("ChannelsViewModel", "seekTo error: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun observeCurrentEngine() {
+        engineObservationJob?.cancel()
+        val engine = playerCoordinator.getCurrentEngine() ?: return
+        engineObservationJob = viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                engine.state,
+                engine.position,
+                engine.duration
+            ) { state, position, duration ->
+                Triple(state, position, duration)
+            }.collect { (state, position, duration) ->
+                val mappedStatus = when (state) {
+                    com.kybers.play.core.player.PlayerState.PREPARING,
+                    com.kybers.play.core.player.PlayerState.BUFFERING -> PlayerStatus.BUFFERING
+                    com.kybers.play.core.player.PlayerState.PLAYING -> PlayerStatus.PLAYING
+                    com.kybers.play.core.player.PlayerState.PAUSED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.READY -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ENDED -> PlayerStatus.PAUSED
+                    com.kybers.play.core.player.PlayerState.ERROR -> PlayerStatus.ERROR
+                    com.kybers.play.core.player.PlayerState.IDLE -> PlayerStatus.IDLE
+                }
+                _uiState.update {
+                    it.copy(
+                        playerStatus = mappedStatus,
+                        currentPosition = position,
+                        duration = duration
+                    )
+                }
             }
         }
     }

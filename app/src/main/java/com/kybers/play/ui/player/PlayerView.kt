@@ -55,9 +55,9 @@ fun PlayerView(
     }
     
     Box(modifier = modifier) {
-        // Handle VLC engine (using SurfaceView)
-        if (playerEngine != null && (playerEngine::class.simpleName?.contains("Vlc", ignoreCase = true) == true || 
-                                     playerEngine is com.kybers.play.core.player.VlcPlayerEngineAdapter)) {
+    // Handle VLC engine (using SurfaceView)
+    if (playerEngine != null && (playerEngine::class.simpleName?.contains("Vlc", ignoreCase = true) == true ||
+                     playerEngine is com.kybers.play.core.player.VlcPlayerEngineAdapter)) {
             Log.d(TAG, "Setting up VLC player view")
             AndroidView(
                 factory = { context ->
@@ -73,14 +73,8 @@ fun PlayerView(
                         try {
                             // Get the VLC MediaPlayer and attach the surface
                             val vlcMediaPlayer = when (playerEngine) {
-                                is com.kybers.play.core.player.VlcPlayerEngineAdapter -> {
-                                    playerEngine.getMediaPlayer()
-                                }
-                                is com.kybers.play.core.player.VlcEngine -> {
-                                    // This would need to be implemented in VlcEngine
-                                    Log.w(TAG, "VlcEngine surface attachment not implemented")
-                                    null
-                                }
+                                is com.kybers.play.core.player.VlcPlayerEngineAdapter -> playerEngine.getMediaPlayer()
+                                is com.kybers.play.core.player.VlcEngine -> playerEngine.getMediaPlayer()
                                 else -> null
                             }
                             
@@ -100,7 +94,7 @@ fun PlayerView(
             )
         }
         // Handle Media3 engine (using PlayerView)
-        else if (playerEngine != null && playerEngine::class.simpleName?.contains("Media3", ignoreCase = true) == true) {
+    else if (playerEngine != null && playerEngine::class.simpleName?.contains("Media3", ignoreCase = true) == true) {
             Log.d(TAG, "Setting up Media3 player view")
             AndroidView(
                 factory = { context ->
@@ -142,9 +136,8 @@ fun PlayerView(
                     Log.d(TAG, "Detaching SurfaceView from VLC MediaPlayer")
                     try {
                         val vlcMediaPlayer = when (playerEngine) {
-                            is com.kybers.play.core.player.VlcPlayerEngineAdapter -> {
-                                playerEngine.getMediaPlayer()
-                            }
+                            is com.kybers.play.core.player.VlcPlayerEngineAdapter -> playerEngine.getMediaPlayer()
+                            is com.kybers.play.core.player.VlcEngine -> playerEngine.getMediaPlayer()
                             else -> null
                         }
                         vlcMediaPlayer?.vlcVout?.detachViews()
