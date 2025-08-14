@@ -581,28 +581,48 @@ class MovieDetailsViewModel @AssistedInject constructor(
         _uiState.update { it.copy(currentAspectRatioMode = nextMode) }
     }
     private fun applyAspectRatio(mode: AspectRatioMode) {
-        // Aspect ratio is now handled by the PlayerEngine
-        // The specific implementation will depend on whether it's VLC or Media3
+        viewModelScope.launch {
+            try {
+                val engine = playerCoordinator.getCurrentEngine()
+                val mapped = when (mode) {
+                    AspectRatioMode.FIT_SCREEN -> com.kybers.play.core.player.VideoAspectMode.FIT_SCREEN
+                    AspectRatioMode.FILL_SCREEN -> com.kybers.play.core.player.VideoAspectMode.FILL_SCREEN
+                    AspectRatioMode.ASPECT_16_9 -> com.kybers.play.core.player.VideoAspectMode.ASPECT_16_9
+                    AspectRatioMode.ASPECT_4_3 -> com.kybers.play.core.player.VideoAspectMode.ASPECT_4_3
+                }
+                engine?.setAspectRatio(mapped)
+            } catch (_: Exception) {}
+        }
     }
     private fun updateTrackInfo() {
-        // Track info is now handled by the PlayerCoordinator
-        // For now, we'll just clear the track info
-        _uiState.update { 
-            it.copy(
-                availableAudioTracks = emptyList(),
-                availableSubtitleTracks = emptyList()
-            ) 
+        val engine = playerCoordinator.getCurrentEngine()
+        if (engine == null) {
+            _uiState.update { it.copy(availableAudioTracks = emptyList(), availableSubtitleTracks = emptyList()) }
+            return
         }
+        val audio = engine.listAudioTracks().map { TrackInfo(id = it.id, name = it.name, isSelected = it.isSelected) }
+        val subs = engine.listSubtitleTracks().map { TrackInfo(id = it.id, name = it.name, isSelected = it.isSelected) }
+        _uiState.update { it.copy(availableAudioTracks = audio, availableSubtitleTracks = subs) }
     }
     fun toggleAudioMenu(show: Boolean) = _uiState.update { it.copy(showAudioMenu = show) }
     fun toggleSubtitleMenu(show: Boolean) = _uiState.update { it.copy(showSubtitleMenu = show) }
     fun selectAudioTrack(trackId: Int) { 
-        // Audio track selection is now handled by the PlayerCoordinator
-        updateTrackInfo() 
+        viewModelScope.launch {
+            try {
+                playerCoordinator.getCurrentEngine()?.selectAudioTrack(trackId)
+                toggleAudioMenu(false)
+                updateTrackInfo()
+            } catch (e: Exception) { Log.e("MovieDetailsViewModel", "selectAudioTrack error: ${e.message}") }
+        }
     }
     fun selectSubtitleTrack(trackId: Int) { 
-        // Subtitle track selection is now handled by the PlayerCoordinator
-        updateTrackInfo() 
+        viewModelScope.launch {
+            try {
+                playerCoordinator.getCurrentEngine()?.selectSubtitleTrack(trackId)
+                toggleSubtitleMenu(false)
+                updateTrackInfo()
+            } catch (e: Exception) { Log.e("MovieDetailsViewModel", "selectSubtitleTrack error: ${e.message}") }
+        }
     }
     private fun buildStreamUrl(movie: Movie): String {
         val baseUrl = if (currentUser.url.endsWith("/")) currentUser.url else "${currentUser.url}/"

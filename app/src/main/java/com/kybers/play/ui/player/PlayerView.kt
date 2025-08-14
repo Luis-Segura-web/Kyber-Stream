@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.ui.PlayerView
 import com.kybers.play.core.player.PlayerEngine
+import com.kybers.play.core.player.VideoAspectMode
 import kotlinx.coroutines.flow.collectLatest
 
 private const val TAG = "PlayerView"
@@ -45,12 +46,35 @@ fun PlayerView(
     // Track if views are attached
     var isVlcSurfaceAttached by remember { mutableStateOf(false) }
     var isMedia3ViewAttached by remember { mutableStateOf(false) }
+
+    var currentAspectMode by remember { mutableStateOf(VideoAspectMode.FIT_SCREEN) }
     
     LaunchedEffect(playerEngine) {
         Log.d(TAG, "PlayerEngine changed, setting up listeners")
         playerEngine?.state?.collectLatest { state ->
             Log.d(TAG, "Player state changed: $state")
             // Handle state changes if needed
+        }
+    }
+
+    LaunchedEffect(playerEngine) {
+        playerEngine?.aspectMode?.collectLatest { mode ->
+            currentAspectMode = mode
+            // Update Media3 resize mode if view is present
+            media3PlayerView?.let { pv ->
+                try {
+                    when (mode) {
+                        VideoAspectMode.FIT_SCREEN, VideoAspectMode.ASPECT_16_9, VideoAspectMode.ASPECT_4_3 -> {
+                            pv.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
+                        VideoAspectMode.FILL_SCREEN -> {
+                            pv.resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error applying aspect mode to Media3 PlayerView", e)
+                }
+            }
         }
     }
     
@@ -102,6 +126,11 @@ fun PlayerView(
                     PlayerView(context).apply {
                         media3PlayerView = this
                         useController = false // We'll use our own controls
+                        // Apply initial aspect mode
+                        resizeMode = when (currentAspectMode) {
+                            VideoAspectMode.FILL_SCREEN -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                            else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        }
                     }
                 },
                 update = { playerView ->
@@ -115,6 +144,11 @@ fun PlayerView(
                                 playerView.player = exoPlayer
                                 Log.d(TAG, "Attached ExoPlayer to PlayerView")
                                 isMedia3ViewAttached = true
+                                // Ensure aspect mode is applied on attach
+                                playerView.resizeMode = when (currentAspectMode) {
+                                    VideoAspectMode.FILL_SCREEN -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    else -> androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error attaching ExoPlayer to PlayerView", e)

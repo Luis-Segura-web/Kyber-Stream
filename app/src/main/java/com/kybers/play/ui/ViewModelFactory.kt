@@ -19,12 +19,15 @@ import com.kybers.play.ui.channels.ChannelsViewModel
 import com.kybers.play.ui.movies.MovieDetailsViewModel
 import com.kybers.play.ui.home.HomeViewModel
 import com.kybers.play.ui.movies.MoviesViewModel
-import com.kybers.play.ui.player.PlayerViewModel
+// Legacy PlayerViewModel removed
 import com.kybers.play.ui.series.SeriesDetailsViewModel
 import com.kybers.play.ui.series.SeriesViewModel
 import com.kybers.play.ui.settings.DynamicSettingsManager
 import com.kybers.play.ui.settings.SettingsViewModel
 import com.kybers.play.ui.theme.ThemeManager
+
+// Legacy PlayerViewModel removed
+// import com.kybers.play.ui.player.PlayerViewModel
 
 class ContentViewModelFactory(
     private val application: Application,
@@ -132,19 +135,7 @@ class SeriesDetailsViewModelFactory(
     }
 }
 
-class PlayerViewModelFactory(
-    private val application: Application,
-    private val preferenceManager: PreferenceManager,
-    private val mediaManager: MediaManager
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return PlayerViewModel(application, preferenceManager, mediaManager) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
-}
+// PlayerViewModelFactory removed with legacy player
 
 class SettingsViewModelFactory(
     private val context: Context,

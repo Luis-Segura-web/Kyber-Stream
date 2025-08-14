@@ -56,7 +56,7 @@ import com.kybers.play.R
 import com.kybers.play.data.remote.model.FilmographyItem
 import com.kybers.play.data.remote.model.Movie
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.ui.player.MoviePlayerControls
+import com.kybers.play.ui.player.UniversalPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
 import kotlinx.coroutines.flow.collectLatest
@@ -285,7 +285,7 @@ fun PlayerAndHeaderSection(
                     }
                 }
             ) { isVisible, onAnyInteraction, onRequestPipMode ->
-                MoviePlayerControls(
+                UniversalPlayerControls(
                     isVisible = isVisible,
                     onAnyInteraction = onAnyInteraction,
                     onRequestPipMode = onRequestPipMode,
@@ -298,9 +298,15 @@ fun PlayerAndHeaderSection(
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
+                    onToggleAudioMenu = viewModel::toggleAudioMenu,
+                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     currentPosition = uiState.currentPosition,
                     duration = uiState.duration,
-                    showNextPreviousButtons = false,
+                    showSeekBar = true,
+                    showNextPrevious = false,
+                    showSeekJumps = true,
                     onClose = {
                         if (uiState.isFullScreen) {
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -321,16 +327,6 @@ fun PlayerAndHeaderSection(
                         } else {
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
-                    },
-                    onToggleAudioMenu = viewModel::toggleAudioMenu,
-                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                    onSelectAudioTrack = { trackId ->
-                        // Audio track selection is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
-                    },
-                    onSelectSubtitleTrack = { trackId ->
-                        // Subtitle track selection is now handled by the PlayerCoordinator
-                        // We'll need to update this logic
                     },
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
                     onSeek = viewModel::seekTo,

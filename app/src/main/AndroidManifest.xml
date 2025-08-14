@@ -31,12 +31,7 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ui.player.PlayerActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            tools:ignore="LockedOrientationActivity" />
+        
 
     </application>
 </manifest>

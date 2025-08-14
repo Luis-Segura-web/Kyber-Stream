@@ -45,12 +45,17 @@ class Media3Engine(
     private val _bufferPercentage = MutableStateFlow(0)
     override val bufferPercentage: StateFlow<Int> = _bufferPercentage.asStateFlow()
 
+    private val _aspectMode = MutableStateFlow(VideoAspectMode.FIT_SCREEN)
+    override val aspectMode: StateFlow<VideoAspectMode> = _aspectMode.asStateFlow()
+
+    private var trackSelector: DefaultTrackSelector? = null
+
     /**
      * Inicializa ExoPlayer si no está ya inicializado
      */
     private fun initializeExoPlayer() {
         if (exoPlayer == null) {
-            val trackSelector = DefaultTrackSelector(application).apply {
+            val localSelector = DefaultTrackSelector(application).apply {
                 // Configurar preferencias de track basadas en configuraciones del usuario
                 setParameters(
                     buildUponParameters()
@@ -58,9 +63,10 @@ class Media3Engine(
                         .setForceHighestSupportedBitrate(false) // Adaptativo por defecto
                 )
             }
+            trackSelector = localSelector
             
             exoPlayer = ExoPlayer.Builder(application)
-                .setTrackSelector(trackSelector)
+                .setTrackSelector(localSelector)
                 .setMediaSourceFactory(createMediaSourceFactory())
                 .build()
                 .apply {
@@ -294,5 +300,126 @@ class Media3Engine(
             _duration.value = player.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET } ?: 0L
             _bufferPercentage.value = player.bufferedPercentage
         }
+    }
+
+    // --- Track APIs ---
+    override fun listAudioTracks(): List<EngineTrack> {
+        val player = exoPlayer ?: return emptyList()
+        val tracks = player.currentTracks
+        val audioGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+        val selectedIndices = mutableSetOf<Pair<Int, Int>>()
+        val result = mutableListOf<EngineTrack>()
+        var idCounter = 0
+        audioGroups.forEach { group ->
+            for (i in 0 until group.length) {
+                val format = group.getTrackFormat(i)
+                val isSelected = group.isTrackSelected(i)
+                result.add(
+                    EngineTrack(
+                        id = idCounter++,
+                        name = listOfNotNull(format.label, format.language, format.codecs).firstOrNull { it?.isNotBlank() == true } ?: "Audio ${idCounter}",
+                        isSelected = isSelected
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    override fun listSubtitleTracks(): List<EngineTrack> {
+        val player = exoPlayer ?: return emptyList()
+        val tracks = player.currentTracks
+        val textGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }
+        val result = mutableListOf<EngineTrack>()
+        var idCounter = 0
+        textGroups.forEach { group ->
+            for (i in 0 until group.length) {
+                val format = group.getTrackFormat(i)
+                val isSelected = group.isTrackSelected(i)
+                result.add(
+                    EngineTrack(
+                        id = idCounter++,
+                        name = listOfNotNull(format.label, format.language).firstOrNull { it?.isNotBlank() == true } ?: "Sub ${idCounter}",
+                        isSelected = isSelected
+                    )
+                )
+            }
+        }
+        // Add an option to disable subtitles when any exist
+        if (result.isNotEmpty()) {
+            result.add(0, EngineTrack(id = -1, name = "Sin subtítulos", isSelected = result.none { it.isSelected }))
+        }
+        return result
+    }
+
+    override suspend fun selectAudioTrack(id: Int) {
+        val player = exoPlayer ?: return
+        val selector = trackSelector ?: return
+        val tracks = player.currentTracks
+        var counter = 0
+        val audioGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO }
+        audioGroups.forEachIndexed { gIdx, group ->
+            for (i in 0 until group.length) {
+                if (counter == id) {
+                    try {
+                        val override = androidx.media3.common.TrackSelectionOverride(
+                            group.mediaTrackGroup,
+                            listOf(i)
+                        )
+                        selector.setParameters(
+                            selector.buildUponParameters()
+                                .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+                                .addOverride(override)
+                        )
+                    } catch (e: Exception) {
+                        SecureLog.e(TAG, "Failed to select audio track", e)
+                    }
+                    return
+                }
+                counter++
+            }
+        }
+    }
+
+    override suspend fun selectSubtitleTrack(id: Int) {
+        val player = exoPlayer ?: return
+        val selector = trackSelector ?: return
+        val tracks = player.currentTracks
+        if (id == -1) {
+            selector.setParameters(
+                selector.buildUponParameters()
+                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+            )
+            return
+        }
+        var counter = 0
+        val textGroups = tracks.groups.filter { it.type == androidx.media3.common.C.TRACK_TYPE_TEXT }
+        textGroups.forEachIndexed { gIdx, group ->
+            for (i in 0 until group.length) {
+                if (counter == id) {
+                    try {
+                        val override = androidx.media3.common.TrackSelectionOverride(
+                            group.mediaTrackGroup,
+                            listOf(i)
+                        )
+                        selector.setParameters(
+                            selector.buildUponParameters()
+                                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
+                                .addOverride(override)
+                        )
+                    } catch (e: Exception) {
+                        SecureLog.e(TAG, "Failed to select subtitle track", e)
+                    }
+                    return
+                }
+                counter++
+            }
+        }
+    }
+
+    override suspend fun setAspectRatio(mode: VideoAspectMode) {
+        _aspectMode.value = mode
+        // Media3 PlayerView handles scaling; actual attachment is in UI. No-op here.
     }
 }

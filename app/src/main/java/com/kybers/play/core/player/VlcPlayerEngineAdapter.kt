@@ -29,6 +29,9 @@ class VlcPlayerEngineAdapter(
     private val _bufferPercentage = MutableStateFlow(0)
     override val bufferPercentage: StateFlow<Int> = _bufferPercentage.asStateFlow()
 
+    private val _aspectMode = MutableStateFlow(VideoAspectMode.FIT_SCREEN)
+    override val aspectMode: StateFlow<VideoAspectMode> = _aspectMode.asStateFlow()
+
     init {
         setupEventListener()
     }
@@ -134,4 +137,24 @@ class VlcPlayerEngineAdapter(
      * Obtiene el MediaPlayer original para interoperabilidad
      */
     fun getMediaPlayer(): MediaPlayer = mediaPlayer
+
+    override fun listAudioTracks(): List<EngineTrack> {
+        return try {
+            val current = mediaPlayer.audioTrack
+            listOf(EngineTrack(id = current, name = "Audio predeterminado", isSelected = true)).filter { it.id >= 0 }
+        } catch (_: Exception) { emptyList() }
+    }
+    override fun listSubtitleTracks(): List<EngineTrack> {
+        return try {
+            val current = mediaPlayer.spuTrack
+            listOf(EngineTrack(id = -1, name = "Sin subtítulos", isSelected = current == -1))
+        } catch (_: Exception) { emptyList() }
+    }
+    override suspend fun selectAudioTrack(id: Int) {
+        try { mediaPlayer.audioTrack = id } catch (_: Exception) {}
+    }
+    override suspend fun selectSubtitleTrack(id: Int) {
+        try { mediaPlayer.spuTrack = id } catch (_: Exception) {}
+    }
+    override suspend fun setAspectRatio(mode: VideoAspectMode) { _aspectMode.value = mode }
 }

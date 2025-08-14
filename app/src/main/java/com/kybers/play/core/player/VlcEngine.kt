@@ -43,6 +43,9 @@ class VlcEngine(
     private val _bufferPercentage = MutableStateFlow(0)
     override val bufferPercentage: StateFlow<Int> = _bufferPercentage.asStateFlow()
 
+    private val _aspectMode = MutableStateFlow(VideoAspectMode.FIT_SCREEN)
+    override val aspectMode: StateFlow<VideoAspectMode> = _aspectMode.asStateFlow()
+
     /**
      * Inicializa VLC si no está ya inicializado
      */
@@ -304,4 +307,74 @@ class VlcEngine(
      * Nota: No se libera aquí; la liberación es responsabilidad de release().
      */
     fun getMediaPlayer(): MediaPlayer? = mediaPlayer
+
+    // --- Track APIs (basic stubs; VLC specific discovery can be added) ---
+    override fun listAudioTracks(): List<EngineTrack> {
+        val mp = mediaPlayer ?: return emptyList()
+        return try {
+            val current = mp.audioTrack
+            // Some LibVLC bindings don't expose track descriptions. Fallback to minimal info.
+            // If descriptions are available in your version, replace with mp.audioTrackDescription iteration.
+            listOf(EngineTrack(id = current, name = "Audio predeterminado", isSelected = true)).filter { it.id >= 0 }
+        } catch (e: Exception) {
+            Log.e(TAG, "listAudioTracks error", e)
+            emptyList()
+        }
+    }
+
+    override fun listSubtitleTracks(): List<EngineTrack> {
+        val mp = mediaPlayer ?: return emptyList()
+        return try {
+            val current = mp.spuTrack
+            // Fallback without descriptions
+            listOf(
+                EngineTrack(id = -1, name = "Sin subtítulos", isSelected = current == -1)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "listSubtitleTracks error", e)
+            emptyList()
+        }
+    }
+
+    override suspend fun selectAudioTrack(id: Int) {
+        try {
+            mediaPlayer?.audioTrack = id
+        } catch (e: Exception) {
+            Log.e(TAG, "selectAudioTrack failed", e)
+        }
+    }
+
+    override suspend fun selectSubtitleTrack(id: Int) {
+        try {
+            mediaPlayer?.spuTrack = id // -1 disables subtitles
+        } catch (e: Exception) {
+            Log.e(TAG, "selectSubtitleTrack failed", e)
+        }
+    }
+
+    override suspend fun setAspectRatio(mode: VideoAspectMode) {
+        _aspectMode.value = mode
+        try {
+            val mp = mediaPlayer ?: return
+            when (mode) {
+                VideoAspectMode.FIT_SCREEN -> {
+                    mp.setAspectRatio(null) // reset
+                    mp.scale = 0f // default scaling
+                }
+                VideoAspectMode.FILL_SCREEN -> {
+                    // Let UI crop; reset VLC ratio
+                    mp.setAspectRatio(null)
+                    mp.scale = 0f
+                }
+                VideoAspectMode.ASPECT_16_9 -> {
+                    mp.setAspectRatio("16:9")
+                }
+                VideoAspectMode.ASPECT_4_3 -> {
+                    mp.setAspectRatio("4:3")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to set aspect ratio in VLC", e)
+        }
+    }
 }

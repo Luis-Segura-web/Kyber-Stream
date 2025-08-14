@@ -69,7 +69,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kybers.play.data.remote.model.EpgEvent
 import com.kybers.play.data.remote.model.LiveStream
-import com.kybers.play.ui.player.ChannelPlayerControls
+import com.kybers.play.ui.player.UniversalPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
 import com.kybers.play.ui.player.SortOrder
@@ -301,7 +301,7 @@ private fun PlayerSection(
             playerStatus = uiState.playerStatus,
             onEnterPipMode = onPictureInPicture,
             controls = { isVisible, onAnyInteraction, onRequestPipMode ->
-                ChannelPlayerControls(
+                UniversalPlayerControls(
                     isVisible = isVisible,
                     onAnyInteraction = onAnyInteraction,
                     onRequestPipMode = onRequestPipMode,
@@ -314,9 +314,16 @@ private fun PlayerSection(
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
-                    onSeek = viewModel::seekTo,
+                    onToggleAudioMenu = viewModel::toggleAudioMenu,
+                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     currentPosition = uiState.currentPosition,
                     duration = uiState.duration,
+                    showSeekBar = uiState.duration > 0L,
+                    onSeek = viewModel::seekTo,
+                    showNextPrevious = true,
+                    showSeekJumps = false,
                     onClose = {
                         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         viewModel.hidePlayer()
@@ -329,10 +336,6 @@ private fun PlayerSection(
                     onToggleFullScreen = {
                         activity?.requestedOrientation = if (uiState.isFullScreen) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     },
-                    onToggleAudioMenu = viewModel::toggleAudioMenu,
-                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                    onSelectAudioTrack = viewModel::selectAudioTrack,
-                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
                     // Add retry parameters
                     playerStatus = uiState.playerStatus,

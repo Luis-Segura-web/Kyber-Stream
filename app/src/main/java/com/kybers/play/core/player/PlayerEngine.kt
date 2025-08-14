@@ -73,6 +73,9 @@ interface PlayerEngine {
     
     /** Nivel de búfer en porcentaje (0-100) */
     val bufferPercentage: StateFlow<Int>
+
+    /** Modo actual de relación de aspecto solicitado por la UI */
+    val aspectMode: StateFlow<VideoAspectMode>
     
     /**
      * Establece el media a reproducir
@@ -116,6 +119,23 @@ interface PlayerEngine {
      * Obtiene información sobre las capacidades del motor
      */
     fun getCapabilities(): PlayerCapabilities
+
+    // --- Gestión de pistas ---
+
+    /** Lista de pistas de audio disponibles y selección actual */
+    fun listAudioTracks(): List<EngineTrack>
+
+    /** Lista de pistas de subtítulos disponibles y selección actual */
+    fun listSubtitleTracks(): List<EngineTrack>
+
+    /** Selecciona una pista de audio por id (semántica dependiente del motor) */
+    suspend fun selectAudioTrack(id: Int)
+
+    /** Selecciona una pista de subtítulos por id; use -1 para desactivar */
+    suspend fun selectSubtitleTrack(id: Int)
+
+    /** Cambia la relación de aspecto del video */
+    suspend fun setAspectRatio(mode: VideoAspectMode)
 }
 
 /**
@@ -128,3 +148,21 @@ data class PlayerCapabilities(
     val supportsSubtitles: Boolean,
     val maxBufferSize: Int
 )
+
+/**
+ * Información de una pista de media expuesta por el motor.
+ * El campo id es opaco y específico del motor; úsese solo para seleccionar.
+ */
+data class EngineTrack(
+    val id: Int,
+    val name: String,
+    val isSelected: Boolean
+)
+
+/** Modos de relación de aspecto aceptados por los motores */
+enum class VideoAspectMode {
+    FIT_SCREEN,
+    FILL_SCREEN,
+    ASPECT_16_9,
+    ASPECT_4_3
+}

@@ -69,7 +69,7 @@ import com.kybers.play.R
 import com.kybers.play.data.remote.model.Episode
 import com.kybers.play.data.remote.model.Series
 import com.kybers.play.data.remote.model.TMDbCastMember
-import com.kybers.play.ui.player.MoviePlayerControls
+import com.kybers.play.ui.player.UniversalPlayerControls
 import com.kybers.play.ui.player.PlayerHost
 import com.kybers.play.ui.player.PlayerStatus
 import kotlin.math.ceil
@@ -274,7 +274,7 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     }
                 }
             ) { isVisible, onAnyInteraction, onRequestPipMode ->
-                MoviePlayerControls(
+                UniversalPlayerControls(
                     isVisible = isVisible,
                     onAnyInteraction = onAnyInteraction,
                     onRequestPipMode = onRequestPipMode,
@@ -287,9 +287,15 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     subtitleTracks = uiState.availableSubtitleTracks,
                     showAudioMenu = uiState.showAudioMenu,
                     showSubtitleMenu = uiState.showSubtitleMenu,
+                    onToggleAudioMenu = viewModel::toggleAudioMenu,
+                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
+                    onSelectAudioTrack = viewModel::selectAudioTrack,
+                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     currentPosition = uiState.currentPosition,
                     duration = uiState.duration,
-                    showNextPreviousButtons = true,
+                    showSeekBar = true,
+                    showNextPrevious = true,
+                    showSeekJumps = false,
                     onClose = {
                         if (uiState.isFullScreen) {
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -300,8 +306,8 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::playNextEpisode,
                     onPrevious = viewModel::playPreviousEpisode,
-                    onSeekForward = { /* opcional: implementar salto +10s */ },
-                    onSeekBackward = { /* opcional: implementar salto -10s */ },
+                    onSeekForward = { /* salto +10s no mostrado en series cuando hay next/prev */ },
+                    onSeekBackward = { /* salto -10s no mostrado en series cuando hay next/prev */ },
                     onToggleMute = { viewModel.onToggleMute(audioManager) },
                     onToggleFavorite = viewModel::toggleFavorite,
                     onToggleFullScreen = {
@@ -311,10 +317,6 @@ fun SeriesPlayerSection(viewModel: SeriesDetailsViewModel, audioManager: AudioMa
                             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                         }
                     },
-                    onToggleAudioMenu = viewModel::toggleAudioMenu,
-                    onToggleSubtitleMenu = viewModel::toggleSubtitleMenu,
-                    onSelectAudioTrack = viewModel::selectAudioTrack,
-                    onSelectSubtitleTrack = viewModel::selectSubtitleTrack,
                     onToggleAspectRatio = viewModel::toggleAspectRatio,
                     onSeek = viewModel::seekTo,
                     // Add retry parameters
